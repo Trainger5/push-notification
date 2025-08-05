@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Push Notification Test Site</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>🔔 Push Notification Test</h1>
+    <div class="controls">
+      <button id="subscribe-btn">Subscribe to Notifications</button>
+      <button id="unsubscribe-btn" disabled>Unsubscribe</button>
+      <button id="send-btn" disabled>Send Test Notification</button>
+    </div>
+    <div id="status" class="status"></div>
+    <div id="notification-log" class="notification-log"></div>
+    <p class="desc">
+      This demo lets you subscribe (or unsubscribe) your browser, then send a test notification.<br>
+      You must connect it to your own Node.js backend as described earlier.
+    </p>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

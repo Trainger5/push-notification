@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Push Test</title>
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 40px; line-height: 1.5; }
+      .card { max-width: 720px; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+      h1 { margin: 0 0 10px; font-size: 22px; }
+      label { display: block; margin-top: 12px; font-weight: 600; }
+      input, textarea { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+      button { margin-top: 14px; padding: 10px 14px; background: #111827; color: white; border: 0; border-radius: 6px; cursor: pointer; }
+      button:disabled { opacity: .6; cursor: not-allowed; }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .muted { color: #6b7280; }
+      .success { color: #065f46; }
+      .error { color: #991b1b; }
+      code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Web Push Test</h1>
+      <p class="muted">This page helps you test subscriptions and sending notifications locally.</p>
+
+      <div id="status" class="muted">Initializing…</div>
+
+      <div class="row">
+        <div>
+          <label>Site ID</label>
+          <input id="siteId" value="test-site" />
+        </div>
+        <div>
+          <label>Server URL</label>
+          <input id="serverUrl" />
+        </div>
+      </div>
+
+      <label>Title</label>
+      <input id="title" value="Hello from Web Push" />
+
+      <label>Body</label>
+      <textarea id="body" rows="3">This is a test notification.</textarea>
+
+      <label>Icon URL (optional)</label>
+      <input id="icon" placeholder="https://example.com/icon.png" />
+
+      <label>Click URL (optional)</label>
+      <input id="url" placeholder="https://example.com/landing" />
+
+      <div class="row">
+        <div>
+          <label>API Key (optional)</label>
+          <input id="apiKey" placeholder="If set on server" />
+        </div>
+        <div>
+          <label>TTL (seconds, optional)</label>
+          <input id="ttl" type="number" min="0" step="1" placeholder="e.g., 60" />
+        </div>
+      </div>
+
+      <button id="subscribeBtn">Enable & Subscribe</button>
+      <button id="sendBtn" disabled>Send Test Notification</button>
+
+      <div id="result" class="muted"></div>
+
+      <p class="muted" style="margin-top:18px">
+        Note: Service worker must be same-origin. On this page it's already served as <code>/sw.js</code>.
+      </p>
+    </div>
+
+    <script src="/sdk.js"></script>
+    <script>
+      const statusEl = document.getElementById('status');
+      const resultEl = document.getElementById('result');
+      const siteIdEl = document.getElementById('siteId');
+      const serverUrlEl = document.getElementById('serverUrl');
+      const titleEl = document.getElementById('title');
+      const bodyEl = document.getElementById('body');
+      const iconEl = document.getElementById('icon');
+      const urlEl = document.getElementById('url');
+      const apiKeyEl = document.getElementById('apiKey');
+      const ttlEl = document.getElementById('ttl');
+      const subscribeBtn = document.getElementById('subscribeBtn');
+      const sendBtn = document.getElementById('sendBtn');
+
+      serverUrlEl.value = window.location.origin;
+
+      subscribeBtn.addEventListener('click', async () => {
+        subscribeBtn.disabled = true;
+        resultEl.textContent = '';
+        try {
+          await PushClient.init({ serverUrl: serverUrlEl.value, siteId: siteIdEl.value });
+          statusEl.textContent = 'Subscribed';
+          statusEl.className = 'success';
+          sendBtn.disabled = false;
+        } catch (e) {
+          statusEl.textContent = 'Subscription failed: ' + (e?.message || e);
+          statusEl.className = 'error';
+          subscribeBtn.disabled = false;
+        }
+      });
+
+      sendBtn.addEventListener('click', async () => {
+        sendBtn.disabled = true;
+        resultEl.textContent = 'Sending…';
+        try {
+          const res = await fetch(`${serverUrlEl.value}/api/notify`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(apiKeyEl.value ? { 'Authorization': `Bearer ${apiKeyEl.value}` } : {})
+            },
+            body: JSON.stringify({
+              siteId: siteIdEl.value,
+              title: titleEl.value,
+              body: bodyEl.value,
+              icon: iconEl.value || undefined,
+              url: urlEl.value || undefined,
+              ttl: ttlEl.value ? Number(ttlEl.value) : undefined
+            })
+          });
+          const json = await res.json();
+          resultEl.textContent = `OK: sent ${json.sent || 0} (removed ${json.removed || 0})`;
+          resultEl.className = 'success';
+        } catch (e) {
+          resultEl.textContent = 'Error: ' + (e?.message || e);
+          resultEl.className = 'error';
+        } finally {
+          sendBtn.disabled = false;
+        }
+      });
+
+      statusEl.textContent = 'Click "Enable & Subscribe" to grant permission and save your subscription.';
+    </script>
+  </body>
+  </html>
+
+

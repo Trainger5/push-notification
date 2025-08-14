@@ -38,19 +38,19 @@ export default function Docs() {
               <li style={{ marginBottom: 12 }}>
                 <b>Host a service worker at your site root</b>
                 <pre style={{ background: 'rgba(0,0,0,0.4)', color: '#e0e6f0', padding: 12, borderRadius: 10, overflow: 'auto' }}>{`// /pn-sw.js at your site root
-importScripts('https://YOUR_BACKEND_HOST/pn-sw.js');`}</pre>
+importScripts('http://13.126.228.42/pn-sw.js');`}</pre>
               </li>
               <li style={{ marginBottom: 12 }}>
                 <b>Add the SDK to your pages</b>
-                <pre style={{ background: 'rgba(0,0,0,0.4)', color: '#e0e6f0', padding: 12, borderRadius: 10, overflow: 'auto' }}>{`<script src="https://YOUR_BACKEND_HOST/sdk.js" data-api-key="YOUR_API_KEY"></script>
+                <pre style={{ background: 'rgba(0,0,0,0.4)', color: '#e0e6f0', padding: 12, borderRadius: 10, overflow: 'auto' }}>{`<script src="http://13.126.228.42/sdk.js" data-api-key="YOUR_API_KEY"></script>
 <script>
-  PN.init({ baseUrl: 'https://YOUR_BACKEND_HOST' });
+  PN.init({ baseUrl: 'http://13.126.228.42/api/' });
 </script>`}</pre>
               </li>
               <li style={{ marginBottom: 12 }}>
                 <b>Programmatic (optional)</b>
                 <pre style={{ background: 'rgba(0,0,0,0.4)', color: '#e0e6f0', padding: 12, borderRadius: 10, overflow: 'auto' }}>{`// Re-subscribe after unsubscribe
-PN.unsubscribe().then(() => PN.init({ apiKey: 'YOUR_API_KEY', baseUrl: 'https://YOUR_BACKEND_HOST' }));`}</pre>
+PN.unsubscribe().then(() => PN.init({ apiKey: 'YOUR_API_KEY', baseUrl: 'http://13.126.228.42/api/' }));`}</pre>
               </li>
               <li style={{ marginBottom: 12 }}>
                 <b>Test</b>: Visit your site, then send a test from the dashboard. You should see a browser push.

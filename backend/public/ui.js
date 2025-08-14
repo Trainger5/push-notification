@@ -1,6 +1,6 @@
 (function () {
     const app = document.getElementById('app');
-    const state = { token: null, role: null, email: null, apiBase: '/api' };
+    const state = { token: null, role: null, email: null, apiBase: '/api', route: null };
 
     function setState(next) {
         Object.assign(state, next);
@@ -36,6 +36,13 @@
     });
     card.querySelector('#modalCloseBtn').onclick = () => document.body.removeChild(overlay);
   }
+
+    function getRoute() {
+        const hash = (location.hash || '#/home').replace(/^#\//, '');
+        return hash || 'home';
+    }
+
+    window.addEventListener('hashchange', () => setState({ route: getRoute() }));
 
     async function api(path, opts = {}) {
         const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
@@ -98,10 +105,115 @@
     function Header() {
         const el = document.createElement('div');
         el.className = 'header container';
-        el.innerHTML = `<div><strong>Push Notification Service</strong></div><div>${state.email ? `<span class="muted">${state.email}</span> <button class="btn secondary" id="logout">Logout</button>` : ''}</div>`;
+        el.innerHTML = `
+            <div style="display:flex;gap:16px;align-items:center;">
+                <a href="#/home" style="text-decoration:none"><strong>Push Notification Service</strong></a>
+                <nav class="nav">
+                    <a href="#/home" class="${state.route === 'home' ? 'active' : ''}">Home</a>
+                    <a href="#/docs" class="${state.route === 'docs' ? 'active' : ''}">Docs</a>
+                    ${state.token ? '<a href="#/app" class="' + (state.route === 'app' ? 'active' : '') + '">Dashboard</a>' : ''}
+                </nav>
+            </div>
+            <div>${state.email ? `<span class="muted">${state.email}</span> <button class="btn secondary" id="logout">Logout</button>` : ''}</div>`;
         if (state.email) {
             el.querySelector('#logout').onclick = () => setState({ token: null, role: null, email: null });
         }
+        return el;
+    }
+
+    function Home() {
+        const el = document.createElement('div');
+        el.className = 'container';
+        el.innerHTML = `
+            <section class="card hero">
+                <h1 class="hero-title">Add Push Notifications to your site in minutes</h1>
+                <p class="hero-subtitle">Simple SDK, auto-generated VAPID, customer API keys, and a clean dashboard to manage subscribers and send notifications.</p>
+                <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                    <a class="btn" href="#/docs">Get Started</a>
+                    ${state.token ? '<a class="btn secondary" href="#/app">Open Dashboard</a>' : '<a class="btn secondary" href="#/login">Sign In</a>'}
+                </div>
+            </section>
+            <section class="feature-list" style="margin-bottom: 20px;">
+                <div class="feature"><h3>1. Create Customer</h3><p>Admin generates a customer account and API key.</p></div>
+                <div class="feature"><h3>2. Add SDK</h3><p>Paste a small script and stub service worker on your site.</p></div>
+                <div class="feature"><h3>3. Send</h3><p>Use the dashboard to broadcast notifications to your subscribers.</p></div>
+            </section>
+            <section class="card">
+                <h3>Pricing</h3>
+                <div class="row">
+                    <div class="col-4">
+                        <div class="card" style="margin:0">
+                            <h3>Starter</h3>
+                            <div class="muted">Up to 1,000 subscribers</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card" style="margin:0">
+                            <h3>Pro</h3>
+                            <div class="muted">Up to 10,000 subscribers</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card" style="margin:0">
+                            <h3>Enterprise</h3>
+                            <div class="muted">Custom limits and SLAs</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="card">
+                <h3>FAQ</h3>
+                <div class="muted"><strong>Do I need HTTPS?</strong> Yes in production; localhost works for testing.</div>
+                <div class="muted"><strong>Can I rotate VAPID keys?</strong> Yes, from your dashboard.</div>
+                <div class="muted"><strong>How do users subscribe?</strong> Include the SDK and the service worker stub; we handle the rest.</div>
+            </section>
+            <section class="card">
+                <h3>Changelog</h3>
+                <div class="muted">v0.1: Initial release with Admin/Customer dashboards, SDK, auto VAPID.</div>
+            </section>
+        `;
+        return el;
+    }
+
+    function Docs() {
+        const el = document.createElement('div');
+        el.className = 'container';
+        el.innerHTML = `
+            <div class="card">
+                <h2>Integration Guide</h2>
+                <ol>
+                    <li style="margin-bottom:14px;">
+                        <strong>Get your API key</strong><br/>
+                        Ask your admin for your API key, or find it in your dashboard after logging in.
+                    </li>
+                    <li style="margin-bottom:14px;">
+                        <strong>Host a service worker at your site root</strong><br/>
+                        Create <code>/pn-sw.js</code> at your domain root with:
+                        <pre><code>// /pn-sw.js at your site root
+importScripts('https://YOUR_BACKEND_HOST/pn-sw.js');</code></pre>
+                        Browsers require the service worker to be same-origin as your pages.
+                    </li>
+                    <li style="margin-bottom:14px;">
+                        <strong>Add the SDK to your pages</strong><br/>
+                        Paste before closing <code>&lt;/body&gt;</code>:
+                        <pre><code>&lt;script src="https://YOUR_BACKEND_HOST/sdk.js" data-api-key="YOUR_API_KEY"&gt;&lt;/script&gt;
+&lt;script&gt;
+  PN.init({ baseUrl: 'https://YOUR_BACKEND_HOST' });
+&lt;/script&gt;</code></pre>
+                    </li>
+                    <li style="margin-bottom:14px;">
+                        <strong>Programmatic (optional)</strong>
+                        <pre><code>// Re-subscribe after unsubscribe
+PN.unsubscribe().then(() => PN.init({ apiKey: 'YOUR_API_KEY', baseUrl: 'https://YOUR_BACKEND_HOST' }));</code></pre>
+                    </li>
+                    <li style="margin-bottom:14px;">
+                        <strong>Test</strong><br/>
+                        After visiting your site once, open your dashboard and send a test notification. You should receive a browser push.
+                    </li>
+                </ol>
+                <div class="muted">Notes: Use HTTPS in production. Local testing works on http://localhost in most browsers. Allow notifications for your site and ensure OS Do Not Disturb is off.</div>
+            </div>
+        `;
         return el;
     }
 
@@ -292,13 +404,40 @@
         return el;
     }
 
+    function Footer() {
+        const el = document.createElement('div');
+        el.className = 'container';
+        const inner = document.createElement('div');
+        inner.className = 'card';
+        inner.style.textAlign = 'center';
+        inner.innerHTML = `<div class="muted">© ${new Date().getFullYear()} Push Notification Service · <a href="#/docs">Docs</a></div>`;
+        el.appendChild(inner);
+        return el;
+    }
+
     function render() {
         app.innerHTML = '';
         app.appendChild(Header());
-        if (!state.token) return app.appendChild(Login());
-        if (state.role === 'admin') return app.appendChild(Admin());
-        return app.appendChild(Customer());
+        // Routing
+        const route = state.route || getRoute();
+        if (!state.token) {
+            if (route === 'docs') return app.appendChild(Docs());
+            if (route === 'login') return app.appendChild(Login());
+            app.appendChild(Home());
+            return app.appendChild(Footer());
+        }
+        if (route === 'docs') return app.appendChild(Docs());
+        // Dashboard
+        if (state.role === 'admin') {
+            app.appendChild(Admin());
+            return app.appendChild(Footer());
+        }
+        app.appendChild(Customer());
+        return app.appendChild(Footer());
     }
 
+    // Init route and first render
+    if (!location.hash) location.hash = '#/home';
+    state.route = getRoute();
     render();
 })();

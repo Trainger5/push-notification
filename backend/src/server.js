@@ -46,6 +46,12 @@ app.get('/pn-sw.js', (_req, res) => {
 // Serve static admin/customer UI
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// Pretty UI demo page provided by user
+app.get('/notifypro', (_req, res) => {
+  res.type('text/html');
+  res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'notifypro.html'), 'utf-8'));
+});
+
 // Routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

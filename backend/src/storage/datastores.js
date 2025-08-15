@@ -13,7 +13,8 @@ function getDatastores() {
     apiKeys: Datastore.create({ filename: path.join(base, 'apiKeys.db'), autoload: true }),
     subscriptions: Datastore.create({ filename: path.join(base, 'subscriptions.db'), autoload: true }),
     pushSettings: Datastore.create({ filename: path.join(base, 'pushSettings.db'), autoload: true }),
-    notifications: Datastore.create({ filename: path.join(base, 'notifications.db'), autoload: true })
+    notifications: Datastore.create({ filename: path.join(base, 'notifications.db'), autoload: true }),
+    metrics: Datastore.create({ filename: path.join(base, 'metrics.db'), autoload: true })
   };
   return stores;
 }

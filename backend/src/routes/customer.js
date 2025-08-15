@@ -11,12 +11,27 @@ router.use(requireAuth, requireRole('customer'));
 
 // Get own push settings and subscribers
 router.get('/me', async (req, res) => {
-  const { customers, pushSettings, subscriptions } = getDatastores();
+  const { customers, pushSettings, subscriptions, notifications, metrics } = getDatastores();
   const customer = await customers.findOne({ userId: req.user.userId });
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
   const settings = await pushSettings.findOne({ customerId: customer._id });
   const count = await subscriptions.count({ customerId: customer._id });
-  res.json({ customer, settings, subscriberCount: count });
+  // Aggregate notification stats (sent/failed); open/click rates are placeholders until tracked
+  const notifDocs = await notifications.find({ customerId: customer._id });
+  const successTotal = notifDocs.reduce((acc, n) => acc + (Number(n.success) || 0), 0);
+  const failTotal = notifDocs.reduce((acc, n) => acc + (Number(n.failed) || 0), 0);
+  const totalSends = notifDocs.length;
+  const opens = await metrics.count({ customerId: customer._id, type: 'open' });
+  const clicks = await metrics.count({ customerId: customer._id, type: 'click' });
+  const delivered = successTotal || 0;
+  const openRate = delivered > 0 ? Math.round((opens / delivered) * 100) : 0;
+  const clickRate = delivered > 0 ? Math.round((clicks / delivered) * 100) : 0;
+  res.json({
+    customer,
+    settings,
+    subscriberCount: count,
+    notificationStats: { totalSends, sent: successTotal, failed: failTotal, openRate, clickRate }
+  });
 });
 
 // Update push settings
@@ -67,7 +82,16 @@ router.post(
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
     const subs = await subscriptions.find({ customerId: customer._id });
-    const payload = JSON.stringify({ title: req.body.title, body: req.body.body, url: req.body.url });
+    const cid = customer._id;
+    const payload = JSON.stringify({
+      title: req.body.title,
+      body: req.body.body,
+      url: req.body.url,
+      track: { // optional; SW may ignore if not present
+        openUrl: `/api/metrics/open?cid=${encodeURIComponent(cid)}`,
+        clickUrl: `/api/metrics/click?cid=${encodeURIComponent(cid)}`
+      }
+    });
 
     if (DEBUG_PUSH) {
       console.log('[push] preparing', {

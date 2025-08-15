@@ -13,6 +13,7 @@ const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const customerRoutes = require('./routes/customer');
 const publicRoutes = require('./routes/public');
+const metricsRoutes = require('./routes/metrics');
 
 const app = express();
 
@@ -61,6 +62,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api', publicRoutes);
+app.use('/api/metrics', metricsRoutes);
 
 // Error handler
 // eslint-disable-next-line no-unused-vars

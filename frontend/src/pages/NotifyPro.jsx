@@ -169,6 +169,27 @@ export default function NotifyPro() {
     } catch (_) {}
   }
 
+  async function copyToClipboard(text) {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = String(text || '')
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.focus()
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      showToast('Copied to clipboard')
+    } catch (e) {
+      showToast('Copy failed')
+    }
+  }
+
   function logout() {
     localStorage.removeItem('token'); localStorage.removeItem('role');
     setMe(null); setCustomers([]); setLoginEmail(''); setLoginPassword(''); setRole(null);
@@ -427,16 +448,16 @@ export default function NotifyPro() {
             </div>
             <div className="np-stats">
               <div className="np-stat"><span className="np-stat-number">{me.subscriberCount}</span><div className="np-stat-label">Total Subscribers</div></div>
-              <div className="np-stat"><span className="np-stat-number">0</span><div className="np-stat-label">Notifications Sent</div></div>
-              <div className="np-stat"><span className="np-stat-number">0%</span><div className="np-stat-label">Open Rate</div></div>
-              <div className="np-stat"><span className="np-stat-number">0%</span><div className="np-stat-label">Click Rate</div></div>
+              <div className="np-stat"><span className="np-stat-number">{(me.notificationStats?.sent ?? 0)}</span><div className="np-stat-label">Notifications Sent</div></div>
+              <div className="np-stat"><span className="np-stat-number">{(me.notificationStats?.openRate ?? 0)}%</span><div className="np-stat-label">Open Rate</div></div>
+              <div className="np-stat"><span className="np-stat-number">{(me.notificationStats?.clickRate ?? 0)}%</span><div className="np-stat-label">Click Rate</div></div>
             </div>
             <div className="np-card">
               <h3 style={{ color:'#fff', fontSize:'1.2rem', marginBottom:'1rem' }}>API Configuration</h3>
               <p style={{ color:'rgba(255,255,255,.8)', marginBottom:'1rem' }}>Use this API key to integrate push notifications.</p>
               <div className="np-api-key">
                 <div className="np-api-key-code">{me.customer.apiKey}</div>
-                <button className="np-btn np-btn-secondary" onClick={() => { navigator.clipboard.writeText(me.customer.apiKey); showToast('API key copied') }}>Copy</button>
+                <button className="np-btn np-btn-secondary" onClick={() => copyToClipboard(me.customer.apiKey)}>Copy</button>
               </div>
             </div>
           </div>

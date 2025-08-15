@@ -5,6 +5,7 @@ const { getDatastores } = require('../storage/datastores');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+const DEBUG_PUSH = ['1', 'true', 'on', 'yes'].includes(String(process.env.DEBUG_PUSH || '').toLowerCase());
 
 router.use(requireAuth, requireRole('customer'));
 
@@ -68,13 +69,40 @@ router.post(
     const subs = await subscriptions.find({ customerId: customer._id });
     const payload = JSON.stringify({ title: req.body.title, body: req.body.body, url: req.body.url });
 
+    if (DEBUG_PUSH) {
+      console.log('[push] preparing', {
+        customerId: customer._id,
+        subscriptions: subs.length,
+        vapidSubject,
+        vapidPublicKey: vapidPublicKey ? String(vapidPublicKey).slice(0, 8) + '...' : null,
+        title: req.body.title,
+      });
+    }
+
     const results = await Promise.allSettled(
       subs.map((s) => webpush.sendNotification(s.subscription, payload))
     );
 
     const ok = results.filter((r) => r.status === 'fulfilled').length;
     const fail = results.length - ok;
+
+    if (DEBUG_PUSH && fail > 0) {
+      results.forEach((r, i) => {
+        if (r.status === 'rejected') {
+          const err = r.reason || {};
+          const endpoint = subs[i] && subs[i].subscription ? subs[i].subscription.endpoint : null;
+          const statusCode = err.statusCode || err.status || null;
+          const name = err.name || null;
+          const message = err.message || String(err);
+          const body = err.body || null;
+          console.error('[push] failed', { endpoint, statusCode, name, message, body });
+        }
+      });
+    }
     await notifications.insert({ customerId: customer._id, payload: req.body, sentAt: new Date().toISOString(), success: ok, failed: fail });
+    if (DEBUG_PUSH) {
+      console.log('[push] summary', { customerId: customer._id, total: results.length, sent: ok, failed: fail });
+    }
     res.json({ sent: ok, failed: fail });
   }
 );

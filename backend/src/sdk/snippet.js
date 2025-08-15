@@ -17,9 +17,11 @@
       this.apiKey = apiKey || this.apiKey || (typeof document !== 'undefined' ? document.currentScript?.dataset?.apiKey : null);
       if (!this.apiKey) throw new Error('Missing apiKey');
       if (baseUrl) {
-        this.configEndpoint = baseUrl + '/api/config';
-        this.subscribeEndpoint = baseUrl + '/api/subscribe';
-        this.unsubscribeEndpoint = baseUrl + '/api/unsubscribe';
+        const trimmed = String(baseUrl).replace(/\/+$/, '');
+        const apiBase = /\/api$/i.test(trimmed) ? trimmed : trimmed + '/api';
+        this.configEndpoint = apiBase + '/config';
+        this.subscribeEndpoint = apiBase + '/subscribe';
+        this.unsubscribeEndpoint = apiBase + '/unsubscribe';
       }
       const cfgRes = await fetch(`${this.configEndpoint}?apiKey=${encodeURIComponent(this.apiKey)}`);
       const cfg = await cfgRes.json();

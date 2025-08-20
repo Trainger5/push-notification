@@ -44,7 +44,7 @@ importScripts('http://13.126.228.42/pn-sw.js');`}</pre>
                 <b>Add the SDK to your pages</b>
                 <pre style={{ background: 'rgba(0,0,0,0.4)', color: '#e0e6f0', padding: 12, borderRadius: 10, overflow: 'auto' }}>{`<script src="http://13.126.228.42/sdk.js" data-api-key="YOUR_API_KEY"></script>
 <script>
-  PN.init({ baseUrl: 'http://13.126.228.42/api/' });
+  PN.init({ apiKey: 'YOUR_API_KEY', baseUrl: 'http://13.126.228.42/api/' });
 </script>`}</pre>
               </li>
               <li style={{ marginBottom: 12 }}>

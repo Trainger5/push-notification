@@ -1,0 +1,121 @@
+EC2 deployment (Ubuntu 22.04) – Backend (Node/Express) and Frontend (Vite/React)
+
+1) SSH
+ssh -i "mailer123.pem" ubuntu@ec2-13-126-228-42.ap-south-1.compute.amazonaws.com
+
+sudo cp -r /var/www/html/push-notification/frontend/dist/* /var/www/notifypro/
+
+2) System packages and Node.js/PM2
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y nginx git curl
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+sudo npm i -g pm2
+
+3) Application files
+# Option A: Git clone your repo
+cd /var/www/html
+sudo mkdir -p push-notification && sudo chown -R ubuntu:ubuntu push-notification
+cd push-notification
+git clone <your_repo_url> .
+
+# Option B: Upload from local
+# scp -r ./push-notification-system ubuntu@<EC2_IP>:/var/www/html/push-notification
+
+4) Backend setup
+cd /var/www/html/push-notification/backend
+
+# Create .env with your secrets
+cat > .env << 'EOF'
+PORT=4000
+JWT_SECRET=change-me
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=ChangeMe!234
+VAPID_SUBJECT=mailto:admin@example.com
+# Optional: leave empty to use per-customer keys or set global keys
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+EOF
+
+# Install deps and run with PM2
+npm install --omit=dev
+pm2 start src/server.js --name notifypro-api
+pm2 save
+# Optional autostart on reboot
+pm2 startup systemd -u ubuntu --hp /home/ubuntu
+
+# Verify backend
+curl -s http://127.0.0.1:4000/api/health
+
+5) Frontend build and install to Nginx web root
+cd /var/www/html/push-notification/frontend
+# If no package-lock.json, prefer npm install over npm ci
+rm -rf node_modules package-lock.json
+npm install
+npm run build
+
+sudo mkdir -p /var/www/notifypro
+sudo rsync -a dist/ /var/www/notifypro/
+sudo chown -R www-data:www-data /var/www/notifypro
+sudo chmod -R 755 /var/www/notifypro
+
+6) Nginx config (static app + API proxy)
+# Use conf.d for a dedicated vhost
+sudo bash -lc 'cat > /etc/nginx/conf.d/push.conf << "NGINX" 
+server {
+    listen 80;
+    server_name _;  # replace with your domain/IP if desired
+
+    root /var/www/notifypro;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:4000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # SDK and Service Worker from backend
+    location = /sdk.js   { proxy_pass http://127.0.0.1:4000/sdk.js; }
+    location = /pn-sw.js { proxy_pass http://127.0.0.1:4000/pn-sw.js; }
+
+    # SPA fallback
+    location / { try_files $uri $uri/ /index.html; }
+}
+NGINX'
+
+sudo nginx -t && sudo systemctl reload nginx
+
+# Verify from server
+curl -I http://127.0.0.1/
+curl -I http://127.0.0.1/api/health
+
+7) Optional – HTTPS (Let’s Encrypt)
+sudo snap install core && sudo snap refresh core
+sudo snap install --classic certbot
+sudo ln -s /snap/bin/certbot /usr/bin/certbot
+sudo certbot --nginx -d <your_domain>
+
+8) Customer integration (summary)
+# On customer site root (same origin as their pages):
+# /pn-sw.js
+importScripts('https://<your_domain>/pn-sw.js');
+
+# In their HTML:
+<script src="https://<your_domain>/sdk.js" data-api-key="CUSTOMER_API_KEY"></script>
+<script> PN.init({ baseUrl: 'https://<your_domain>' }); </script>
+
+9) Troubleshooting
+sudo nginx -T | less
+sudo tail -n 100 /var/log/nginx/error.log
+sudo tail -n 100 /var/log/nginx/access.log
+pm2 logs notifypro-api --lines 200
+ss -ltnp | grep -E '(:80|:4000)'
+
+API quick test (admin default)
+curl -s -X POST http://127.0.0.1:4000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"ChangeMe!234"}'

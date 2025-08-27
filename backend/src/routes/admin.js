@@ -3,6 +3,7 @@ const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 const webpush = require('web-push');
+const geoip = require('geoip-lite');
 const { getDatastores } = require('../storage/datastores');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
@@ -23,10 +24,29 @@ router.post(
     const { users, customers, pushSettings } = getDatastores();
     const existingUser = await users.findOne({ email });
     if (existingUser) return res.status(409).json({ error: 'Email already in use' });
+    
+    // Get country from IP address
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
+    const geo = geoip.lookup(ip);
+    const country = geo ? geo.country : 'Unknown';
+    const city = geo ? geo.city : null;
+    const timezone = geo ? geo.timezone : null;
+    
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await users.insert({ email, passwordHash, role: 'customer', createdAt: new Date().toISOString() });
     const apiKey = uuidv4();
-    const customer = await customers.insert({ userId: user._id, email, name, apiKey, createdAt: new Date().toISOString(), active: true });
+    const customer = await customers.insert({ 
+      userId: user._id, 
+      email, 
+      name, 
+      apiKey, 
+      country,
+      city,
+      timezone,
+      registrationIp: ip,
+      createdAt: new Date().toISOString(), 
+      active: true 
+    });
     // Auto-generate VAPID keys and seed push settings
     const keys = webpush.generateVAPIDKeys();
     await pushSettings.insert({
@@ -41,7 +61,7 @@ router.post(
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
-    res.status(201).json({ id: customer._id, email, name, apiKey });
+    res.status(201).json({ id: customer._id, email, name, apiKey, country, city, timezone });
   }
 );
 

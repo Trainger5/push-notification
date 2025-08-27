@@ -3,6 +3,9 @@ const { body, validationResult } = require('express-validator');
 const webpush = require('web-push');
 const { getDatastores } = require('../storage/datastores');
 const crypto = require('crypto');
+const geoip = require('geoip-lite');
+const { subscriptionLimiter } = require('../middleware/rateLimiter');
+const { triggerWebhookEvent } = require('./webhooks');
 
 const router = express.Router();
 
@@ -42,6 +45,7 @@ router.get('/config', async (req, res) => {
 // Save a new subscription from the client SDK
 router.post(
   '/subscribe',
+  subscriptionLimiter,
   body('apiKey').isString(),
   body('subscription').isObject(),
   async (req, res) => {
@@ -53,7 +57,73 @@ router.post(
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
     const exists = await subscriptions.findOne({ customerId: customer._id, 'subscription.endpoint': subscription.endpoint });
     if (exists) return res.json({ status: 'exists' });
-    const doc = await subscriptions.insert({ customerId: customer._id, subscription, createdAt: new Date().toISOString() });
+    
+    // Enhanced subscription document with metadata for analytics and segmentation
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
+    const geo = geoip.lookup(ip);
+    const userAgent = req.headers['user-agent'] || '';
+    
+    // Parse user agent for device/browser info
+    const deviceInfo = {
+      browser: 'Unknown',
+      os: 'Unknown',
+      device: 'Unknown'
+    };
+    
+    if (userAgent) {
+      if (userAgent.includes('Chrome')) deviceInfo.browser = 'Chrome';
+      else if (userAgent.includes('Firefox')) deviceInfo.browser = 'Firefox';
+      else if (userAgent.includes('Safari')) deviceInfo.browser = 'Safari';
+      else if (userAgent.includes('Edge')) deviceInfo.browser = 'Edge';
+      
+      if (userAgent.includes('Windows')) deviceInfo.os = 'Windows';
+      else if (userAgent.includes('Mac')) deviceInfo.os = 'macOS';
+      else if (userAgent.includes('Linux')) deviceInfo.os = 'Linux';
+      else if (userAgent.includes('Android')) deviceInfo.os = 'Android';
+      else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) deviceInfo.os = 'iOS';
+      
+      if (userAgent.includes('Mobile') || userAgent.includes('Android') || userAgent.includes('iPhone')) {
+        deviceInfo.device = 'Mobile';
+      } else if (userAgent.includes('Tablet') || userAgent.includes('iPad')) {
+        deviceInfo.device = 'Tablet';
+      } else {
+        deviceInfo.device = 'Desktop';
+      }
+    }
+    
+    const subscriptionDoc = {
+      customerId: customer._id,
+      subscription,
+      userAgent,
+      ip,
+      country: geo ? geo.country : null,
+      city: geo ? geo.city : null,
+      region: geo ? geo.region : null,
+      timezone: geo ? geo.timezone : null,
+      browser: deviceInfo.browser,
+      os: deviceInfo.os,
+      device: deviceInfo.device,
+      tags: [], // For manual tagging
+      segments: [], // Auto-assigned segments
+      engagementScore: 0, // Based on opens/clicks
+      lastActive: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    };
+    
+    const doc = await subscriptions.insert(subscriptionDoc);
+    
+    // Trigger webhook event
+    await triggerWebhookEvent(customer._id, 'subscription.created', {
+      subscription_id: doc._id,
+      endpoint: subscription.endpoint,
+      country: doc.country,
+      city: doc.city,
+      browser: doc.browser,
+      os: doc.os,
+      device: doc.device,
+      created_at: doc.createdAt
+    });
+    
     res.status(201).json({ id: doc._id, status: 'subscribed' });
   }
 );
@@ -70,7 +140,17 @@ router.post(
     const { customers, subscriptions } = getDatastores();
     const customer = await customers.findOne({ apiKey, active: true });
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
-    await subscriptions.remove({ customerId: customer._id, 'subscription.endpoint': endpoint }, { multi: true });
+    const removedCount = await subscriptions.remove({ customerId: customer._id, 'subscription.endpoint': endpoint }, { multi: true });
+    
+    // Trigger webhook event if subscription was found and removed
+    if (removedCount > 0) {
+      await triggerWebhookEvent(customer._id, 'subscription.deleted', {
+        endpoint,
+        removed_count: removedCount,
+        removed_at: new Date().toISOString()
+      });
+    }
+    
     res.json({ status: 'unsubscribed' });
   }
 );

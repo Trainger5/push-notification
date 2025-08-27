@@ -3,6 +3,8 @@ const { body, validationResult } = require('express-validator');
 const webpush = require('web-push');
 const { getDatastores } = require('../storage/datastores');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { notificationLimiter, planBasedLimiter } = require('../middleware/rateLimiter');
+const { triggerWebhookEvent } = require('./webhooks');
 
 const router = express.Router();
 const DEBUG_PUSH = ['1', 'true', 'on', 'yes'].includes(String(process.env.DEBUG_PUSH || '').toLowerCase());
@@ -65,6 +67,8 @@ router.post(
 // Send a test notification to all subscribers
 router.post(
   '/notify',
+  notificationLimiter,
+  planBasedLimiter,
   body('title').isString(),
   body('body').isString(),
   body('url').optional().isURL(),
@@ -123,7 +127,20 @@ router.post(
         }
       });
     }
-    await notifications.insert({ customerId: customer._id, payload: req.body, sentAt: new Date().toISOString(), success: ok, failed: fail });
+    const notificationRecord = await notifications.insert({ customerId: customer._id, payload: req.body, sentAt: new Date().toISOString(), success: ok, failed: fail });
+    
+    // Trigger webhook event
+    await triggerWebhookEvent(customer._id, 'notification.sent', {
+      notification_id: notificationRecord._id,
+      title: req.body.title,
+      body: req.body.body,
+      url: req.body.url,
+      sent: ok,
+      failed: fail,
+      total_recipients: results.length,
+      sent_at: notificationRecord.sentAt
+    });
+    
     if (DEBUG_PUSH) {
       console.log('[push] summary', { customerId: customer._id, total: results.length, sent: ok, failed: fail });
     }

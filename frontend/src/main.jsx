@@ -9,11 +9,13 @@ import Login from './pages/Login.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import NotifyPro from './pages/NotifyPro.jsx'
 import Pricing from './pages/Pricing.jsx'
+import Register from './pages/Register.jsx'
 
 const router = createBrowserRouter([
   { path: '/', element: <NotifyPro /> },
   { path: '/pricing', element: <Pricing /> },
   { path: '/login', element: <NotifyPro /> },
+  { path: '/register', element: <Register /> },
   { path: '/admin', element: <NotifyPro /> },
   { path: '/app', element: <NotifyPro /> },
   { path: '/admin-dashboard', element: <NotifyPro /> },

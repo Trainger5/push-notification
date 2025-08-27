@@ -14,7 +14,12 @@ function getDatastores() {
     subscriptions: Datastore.create({ filename: path.join(base, 'subscriptions.db'), autoload: true }),
     pushSettings: Datastore.create({ filename: path.join(base, 'pushSettings.db'), autoload: true }),
     notifications: Datastore.create({ filename: path.join(base, 'notifications.db'), autoload: true }),
-    metrics: Datastore.create({ filename: path.join(base, 'metrics.db'), autoload: true })
+    scheduledNotifications: Datastore.create({ filename: path.join(base, 'scheduledNotifications.db'), autoload: true }),
+    notificationTemplates: Datastore.create({ filename: path.join(base, 'notificationTemplates.db'), autoload: true }),
+    userSegments: Datastore.create({ filename: path.join(base, 'userSegments.db'), autoload: true }),
+    metrics: Datastore.create({ filename: path.join(base, 'metrics.db'), autoload: true }),
+    webhooks: Datastore.create({ filename: path.join(base, 'webhooks.db'), autoload: true }),
+    webhookDeliveries: Datastore.create({ filename: path.join(base, 'webhookDeliveries.db'), autoload: true })
   };
   return stores;
 }

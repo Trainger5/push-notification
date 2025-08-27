@@ -9,11 +9,17 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const { getDatastores, seedAdminIfMissing } = require('./storage/datastores');
+const { apiLimiter } = require('./middleware/rateLimiter');
+const { getScheduler } = require('./services/scheduler');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const customerRoutes = require('./routes/customer');
 const publicRoutes = require('./routes/public');
 const metricsRoutes = require('./routes/metrics');
+const scheduledRoutes = require('./routes/scheduled');
+const templatesRoutes = require('./routes/templates');
+const segmentsRoutes = require('./routes/segments');
+const { router: webhooksRoutes } = require('./routes/webhooks');
 
 const app = express();
 
@@ -21,6 +27,9 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
+
+// Apply general rate limiting to all API routes
+app.use('/api/', apiLimiter);
 
 // Ensure data directory exists
 const dataDir = path.join(__dirname, '..', 'data');
@@ -33,6 +42,9 @@ getDatastores();
 seedAdminIfMissing().catch((err) => {
   console.error('Failed to seed admin user:', err);
 });
+
+// Initialize notification scheduler
+getScheduler();
 
 // Serve SDK files
 app.get('/sdk.js', (_req, res) => {
@@ -61,6 +73,10 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/customer', customerRoutes);
+app.use('/api/scheduled', scheduledRoutes);
+app.use('/api/templates', templatesRoutes);
+app.use('/api/segments', segmentsRoutes);
+app.use('/api/webhooks', webhooksRoutes);
 app.use('/api', publicRoutes);
 app.use('/api/metrics', metricsRoutes);
 

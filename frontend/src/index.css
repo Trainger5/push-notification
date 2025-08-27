@@ -9,3 +9,181 @@ html, body, #root {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Force all text to be visible */
+.chakra-text, p {
+  color: #2D3748 !important; /* gray.700 */
+  opacity: 1 !important;
+}
+
+/* Headings */
+.chakra-heading, h1, h2, h3, h4, h5, h6 {
+  color: #1A202C !important; /* gray.800 */
+  opacity: 1 !important;
+  font-weight: bold !important;
+}
+
+/* Text in spans and divs that contain actual text content */
+span:not(:empty), div[class*="chakra-"] {
+  color: inherit;
+  opacity: 1 !important;
+}
+
+/* Ensure text in cards is visible */
+.chakra-card .chakra-text,
+.chakra-card p,
+.chakra-card h1, .chakra-card h2, .chakra-card h3,
+.chakra-card .chakra-heading {
+  color: #2D3748 !important;
+}
+
+/* Form labels */
+.chakra-form__label {
+  color: #2D3748 !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  margin-bottom: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.chakra-form__label svg {
+  color: #718096 !important;
+  margin-right: 8px !important;
+}
+
+/* Form helper text */
+.chakra-form__helper-text {
+  color: #718096 !important;
+  font-size: 13px !important;
+  margin-top: 6px !important;
+}
+
+/* Form error messages */
+.chakra-form__error-message {
+  color: #E53E3E !important;
+  font-size: 13px !important;
+  margin-top: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Form control spacing */
+.chakra-form-control {
+  margin-bottom: 20px !important;
+}
+
+/* Input fields */
+.chakra-input, .chakra-textarea, .chakra-select {
+  color: #1A202C !important;
+  background-color: white !important;
+  border: 2px solid #E2E8F0 !important;
+  border-radius: 8px !important;
+  padding: 12px 16px !important;
+  font-size: 16px !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.chakra-input:hover, .chakra-textarea:hover, .chakra-select:hover {
+  border-color: #CBD5E0 !important;
+  background-color: #FAFAFA !important;
+}
+
+.chakra-input:focus, .chakra-textarea:focus, .chakra-select:focus {
+  border-color: #3182CE !important;
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.1) !important;
+  background-color: white !important;
+  outline: none !important;
+}
+
+.chakra-input::placeholder, .chakra-textarea::placeholder {
+  color: #A0AEC0 !important;
+  opacity: 1 !important;
+}
+
+/* Invalid input state */
+.chakra-input[aria-invalid="true"], .chakra-textarea[aria-invalid="true"] {
+  border-color: #FC8181 !important;
+  box-shadow: 0 0 0 3px rgba(252, 129, 129, 0.1) !important;
+}
+
+.chakra-input[aria-invalid="true"]:focus, .chakra-textarea[aria-invalid="true"]:focus {
+  border-color: #F56565 !important;
+  box-shadow: 0 0 0 3px rgba(245, 101, 101, 0.1) !important;
+}
+
+/* Links */
+a, .chakra-link {
+  opacity: 1 !important;
+}
+
+/* Buttons */
+.chakra-button {
+  opacity: 1 !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+  text-transform: none !important;
+  border-radius: 8px !important;
+}
+
+.chakra-button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.chakra-button:active {
+  transform: translateY(0) !important;
+}
+
+/* Primary buttons (blue) */
+.chakra-button[data-variant="solid"][colorscheme="blue"] {
+  background: linear-gradient(135deg, #3182CE, #2B6CB0) !important;
+  box-shadow: 0 2px 4px rgba(49, 130, 206, 0.3) !important;
+}
+
+/* Loading state */
+.chakra-button[data-loading] {
+  opacity: 0.7 !important;
+  cursor: not-allowed !important;
+}
+
+/* Alert text */
+.chakra-alert {
+  opacity: 1 !important;
+}
+
+/* Cards */
+.chakra-card {
+  background-color: white !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid #E2E8F0 !important;
+}
+
+/* Animations */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chakra-form__error-message {
+  animation: slideDown 0.2s ease !important;
+}
+
+/* Focus visible for accessibility */
+*:focus-visible {
+  outline: 2px solid #3182CE !important;
+  outline-offset: 2px !important;
+}
+
+/* Disable outline for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none !important;
+}

@@ -3,3 +3,4 @@
 {"email":"wer@wer.cm","passwordHash":"$2b$10$urM8gYzUqt9nWzDJbfLQKunBhxYy.CeWt6xJoQu9EV9/k4dTrQKsC","role":"customer","createdAt":"2025-08-10T15:42:15.970Z","_id":"JKKiuHDBOs1pSTF9"}
 {"email":"admin@example.com","passwordHash":"$2b$10$kBJ/c2BuQSzRWonzSnU2o.JoxlV106UMWEYIqpkUy2RLgPJbmhupm","role":"admin","createdAt":"2025-08-10T15:07:04.912Z","_id":"ZdqbgkIEFNwUCt2v"}
 {"email":"tyu@rty.cm","passwordHash":"$2b$10$c.sh9BxYbjp6KIm/pF8The71u4pAedj9EKa2bESLbtOLFdm7/jUv6","role":"customer","createdAt":"2025-08-11T00:18:10.488Z","_id":"t0qnTjQeqKaDOHzv"}
+{"email":"ceo@yopmail.com","passwordHash":"$2b$10$ePohSjBo7jUHuzkvRhWiX.X5fw41Re4t6T7O.k3VfHRGVf3kW8t22","role":"customer","createdAt":"2025-08-27T15:12:20.445Z","_id":"umAoj9wU2v8HEHM7"}

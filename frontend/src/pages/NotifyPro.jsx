@@ -1,29 +1,50 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { Input } from '@chakra-ui/react'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom'
+import { Key, Puzzle, Users, MessageSquare, Shield, BarChart3, Rocket } from 'lucide-react'
 import '../styles/notifypro.css'
 
 function useApi() {
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null
   const headers = useMemo(() => (token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }), [token])
   const apiBaseRaw =
-    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || ''
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://localhost:4000'
   const apiBase = (apiBaseRaw || '').toString().replace(/\/?$/, '')
   const full = (p) => (apiBase ? `${apiBase}${p}` : p)
   return {
     async get(path) {
       const res = await fetch(full('/api' + path), { headers })
-      if (!res.ok) throw new Error((await res.json()).error || res.statusText)
+      if (!res.ok) {
+        let errorMessage = res.statusText;
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (_) {}
+        throw new Error(errorMessage);
+      }
       return res.json()
     },
     async post(path, body) {
       const res = await fetch(full('/api' + path), { method: 'POST', headers, body: JSON.stringify(body) })
-      if (!res.ok) throw new Error((await res.json()).error || res.statusText)
+      if (!res.ok) {
+        let errorMessage = res.statusText;
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (_) {}
+        throw new Error(errorMessage);
+      }
       return res.json()
     },
     async patch(path, body) {
       const res = await fetch(full('/api' + path), { method: 'PATCH', headers, body: JSON.stringify(body) })
-      if (!res.ok) throw new Error((await res.json()).error || res.statusText)
+      if (!res.ok) {
+        let errorMessage = res.statusText;
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (_) {}
+        throw new Error(errorMessage);
+      }
       return res.json()
     },
   }
@@ -36,12 +57,10 @@ function Toast({ message }) {
 }
 
 export default function NotifyPro() {
-  const [page, setPage] = useState('landing')
   const [toast, setToast] = useState('')
   const [adminEmail, setAdminEmail] = useState('')
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
-  // removed backend URL input; using build-time VITE_API_BASE
   const [role, setRole] = useState(typeof localStorage !== 'undefined' ? localStorage.getItem('role') : null)
   const [customers, setCustomers] = useState([])
   const [createForm, setCreateForm] = useState({ companyName: '', email: '', password: '' })
@@ -52,6 +71,19 @@ export default function NotifyPro() {
   const api = useApi()
   const navigate = useNavigate()
   const location = useLocation()
+  
+  // Determine current page from URL
+  const getCurrentPage = () => {
+    const path = location.pathname
+    if (path === '/' || path === '/home') return 'landing'
+    if (path === '/login' || path === '/admin') return 'login'
+    if (path === '/admin-dashboard') return 'admin-dashboard'
+    if (path === '/app') return 'customer-dashboard'
+    if (path === '/docs') return 'docs'
+    return 'landing'
+  }
+  
+  const page = getCurrentPage()
 
   useEffect(() => {
     const i = setInterval(() => {
@@ -77,41 +109,25 @@ export default function NotifyPro() {
     setTimeout(() => setToast(''), 2500)
   }
 
-  // no-op
-
-  // Route <-> page sync
-  function pathToPage(pathname) {
-    if (pathname === '/' || pathname === '/home') return 'landing'
-    if (pathname === '/login' || pathname === '/admin') return 'login'
-    if (pathname === '/admin-dashboard') return 'admin-dashboard'
-    if (pathname === '/app') return 'customer-dashboard'
-    return 'landing'
-  }
-  useEffect(() => { setPage(pathToPage(location.pathname)) }, [location.pathname])
-  // NOTE: URL drives state. We don't navigate based on page to avoid loops.
-
-  // If already authenticated and on /login, redirect to dashboard
+  // Auto-redirect authenticated users from login page
   useEffect(() => {
     if (!role) return;
     if (location.pathname === '/login') {
       if (role === 'admin') {
-        setPage('admin-dashboard');
         navigate('/admin-dashboard', { replace: true });
       } else {
-        setPage('customer-dashboard');
         navigate('/app', { replace: true });
       }
     }
-  }, [role, location.pathname]);
+  }, [role, location.pathname, navigate]);
 
   // Guard dashboards if not authenticated
   useEffect(() => {
     if (role) return;
     if (location.pathname === '/admin-dashboard' || location.pathname === '/app') {
-      setPage('login');
       navigate('/login', { replace: true });
     }
-  }, [role, location.pathname]);
+  }, [role, location.pathname, navigate]);
 
   // Load data when landing on dashboards (e.g., after refresh)
   useEffect(() => {
@@ -149,15 +165,17 @@ export default function NotifyPro() {
       if (r.role === 'admin') {
         setAdminEmail(r.email)
         await loadCustomers()
-        setPage('admin-dashboard')
         navigate('/admin-dashboard', { replace: true })
       } else {
         await loadMe()
-        setPage('customer-dashboard')
-        navigate('/app', { replace: true })
+        // Navigate to professional dashboard for customers
+        navigate('/dashboard', { replace: true })
       }
       showToast('Welcome!')
-    } catch (e) { showToast(e.message) }
+    } catch (e) { 
+      const errorMessage = e && e.message ? e.message : 'Login failed';
+      showToast(errorMessage);
+    }
   }
 
   async function loadMe() {
@@ -193,27 +211,27 @@ export default function NotifyPro() {
   function logout() {
     localStorage.removeItem('token'); localStorage.removeItem('role');
     setMe(null); setCustomers([]); setLoginEmail(''); setLoginPassword(''); setRole(null);
-    setPage('landing')
+    navigate('/', { replace: true })
     showToast('Logged out')
   }
 
   return (
-    <div className="np-page">
+    <div className="np-page" style={{ animation: 'fadeIn 0.3s ease-in-out' }}>
       <div className="np-gradient-bg" />
       <div className="np-glass-overlay" />
       <nav className="np-nav">
         <div className="np-nav-inner">
           <RouterLink className="np-logo" to="/">NotifyPro</RouterLink>
           <ul className="np-nav-links">
-            <li><a href="#" onClick={(e)=>{e.preventDefault(); setPage('landing');}}>Home</a></li>
-            <li><a href="#features" onClick={(e)=>{e.preventDefault(); setPage('landing'); setTimeout(()=>document.getElementById('np-features')?.scrollIntoView({behavior:'smooth'}),0)}}>Features</a></li>
+            <li><RouterLink to="/">Home</RouterLink></li>
+            <li><a href="#features" onClick={(e)=>{e.preventDefault(); navigate('/'); setTimeout(()=>document.getElementById('np-features')?.scrollIntoView({behavior:'smooth'}),100)}}>Features</a></li>
             <li><RouterLink to="/pricing">Pricing</RouterLink></li>
             <li><RouterLink to="/docs">Docs</RouterLink></li>
             {!role && <li><RouterLink to="/login">Login</RouterLink></li>}
             {role && (role === 'admin' ? (
-              <li><RouterLink to="/admin-dashboard">Dashboard</RouterLink></li>
+              <li><RouterLink to="/admin-dashboard">Admin Dashboard</RouterLink></li>
             ) : (
-              <li><RouterLink to="/app">Dashboard</RouterLink></li>
+              <li><RouterLink to="/app" style={{color: '#3182CE', fontWeight: 'bold'}}>Dashboard</RouterLink></li>
             ))}
           </ul>
           {!role ? (
@@ -232,8 +250,24 @@ export default function NotifyPro() {
                 <h1 className="np-hero-title">Engage Users with Precision Push Notifications</h1>
                 <p className="np-hero-sub">Deliver the right message at the right time. Our advanced push notification service helps you boost engagement, retain users, and drive conversions.</p>
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-                  <button className="np-btn np-btn-primary" onClick={() => setPage('login')}>Start Free Trial</button>
-                  <a className="np-btn np-btn-secondary" href="#features" onClick={(e)=>{e.preventDefault(); setTimeout(()=>document.getElementById('np-features')?.scrollIntoView({behavior:'smooth'}),0)}}>View Features</a>
+                  <RouterLink className="np-btn np-btn-primary" to="/login" style={{textDecoration:'none'}}>Start Free Trial</RouterLink>
+                  {role ? (
+                    <RouterLink 
+                      className="np-btn" 
+                      to="/dashboard" 
+                      style={{ 
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white',
+                        textDecoration: 'none',
+                        border: 'none',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      <Rocket className="w-5 h-5 inline mr-1" /> Professional Dashboard
+                    </RouterLink>
+                  ) : (
+                    <a className="np-btn np-btn-secondary" href="#features" onClick={(e)=>{e.preventDefault(); setTimeout(()=>document.getElementById('np-features')?.scrollIntoView({behavior:'smooth'}),0)}}>View Features</a>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '2rem' }}>
                   <div style={{ textAlign: 'center' }}>
@@ -271,12 +305,12 @@ export default function NotifyPro() {
             <p>Everything you need to integrate, send, and analyze push notifications that drive results</p>
           </section>
           <div className="np-features-grid">
-            <div className="np-feature-card"><div className="np-feature-icon">🔑</div><h3>Auto VAPID</h3><p>Keys are generated per customer automatically or on demand.</p></div>
-            <div className="np-feature-card"><div className="np-feature-icon">🧩</div><h3>Drop-in SDK</h3><p>Lightweight script and service worker stub to get started fast.</p></div>
-            <div className="np-feature-card"><div className="np-feature-icon">👥</div><h3>Subscriber List</h3><p>See who’s subscribed and manage endpoints cleanly.</p></div>
-            <div className="np-feature-card"><div className="np-feature-icon">📣</div><h3>Broadcast</h3><p>Send to all subscribers with title, message, and optional URL.</p></div>
-            <div className="np-feature-card"><div className="np-feature-icon">🔒</div><h3>JWT Security</h3><p>Admin/customer roles with secure token-based access.</p></div>
-            <div className="np-feature-card"><div className="np-feature-icon">📈</div><h3>Ready for Analytics</h3><p>APIs log sends; extend to measure open and click rates.</p></div>
+            <div className="np-feature-card"><div className="np-feature-icon"><Key className="w-8 h-8 text-blue-500" /></div><h3>Auto VAPID</h3><p>Keys are generated per customer automatically or on demand.</p></div>
+            <div className="np-feature-card"><div className="np-feature-icon"><Puzzle className="w-8 h-8 text-purple-500" /></div><h3>Drop-in SDK</h3><p>Lightweight script and service worker stub to get started fast.</p></div>
+            <div className="np-feature-card"><div className="np-feature-icon"><Users className="w-8 h-8 text-green-500" /></div><h3>Subscriber List</h3><p>See who's subscribed and manage endpoints cleanly.</p></div>
+            <div className="np-feature-card"><div className="np-feature-icon"><MessageSquare className="w-8 h-8 text-orange-500" /></div><h3>Broadcast</h3><p>Send to all subscribers with title, message, and optional URL.</p></div>
+            <div className="np-feature-card"><div className="np-feature-icon"><Shield className="w-8 h-8 text-red-500" /></div><h3>JWT Security</h3><p>Admin/customer roles with secure token-based access.</p></div>
+            <div className="np-feature-card"><div className="np-feature-icon"><BarChart3 className="w-8 h-8 text-indigo-500" /></div><h3>Ready for Analytics</h3><p>APIs log sends; extend to measure open and click rates.</p></div>
           </div>
 
           {/* How it works */}
@@ -345,8 +379,8 @@ export default function NotifyPro() {
             <h3 style={{ color:'#fff', marginBottom: 12 }}>Ready to get started?</h3>
             <p style={{ color:'rgba(255,255,255,.85)', marginBottom: 16 }}>Sign in to your dashboard or browse the docs to integrate.</p>
             <div style={{ display:'flex', gap:12, justifyContent:'center', flexWrap:'wrap' }}>
-              <button className="np-btn np-btn-primary" onClick={() => setPage('login')}>Sign In</button>
-              <RouterLink className="np-btn np-btn-secondary" to="/docs">View Docs</RouterLink>
+              <RouterLink className="np-btn np-btn-primary" to="/login" style={{textDecoration:'none'}}>Sign In</RouterLink>
+              <RouterLink className="np-btn np-btn-secondary" to="/docs" style={{textDecoration:'none'}}>View Docs</RouterLink>
             </div>
           </div>
         </>
@@ -358,9 +392,9 @@ export default function NotifyPro() {
             <h2 className="np-form-title">Sign In</h2>
             <form onSubmit={onLogin}>
               <label className="np-label">Email</label>
-              <Input className="np-input" value={loginEmail} onChange={(e)=>setLoginEmail(e.target.value)} placeholder="you@example.com" type="email" mb={4} />
+              <input className="np-input" value={loginEmail} onChange={(e)=>setLoginEmail(e.target.value)} placeholder="you@example.com" type="email" mb={4} />
               <label className="np-label">Password</label>
-              <Input className="np-input" value={loginPassword} onChange={(e)=>setLoginPassword(e.target.value)} type="password" placeholder="••••••••" mb={6} />
+              <input className="np-input" value={loginPassword} onChange={(e)=>setLoginPassword(e.target.value)} type="password" placeholder="••••••••" mb={6} />
               <button className="np-btn np-btn-primary" type="submit" style={{ width: '100%', marginTop: '1rem' }}>Login</button>
             </form>
           </div>
@@ -393,15 +427,15 @@ export default function NotifyPro() {
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem' }}>
                     <div>
                       <label className="np-label">Company Name</label>
-                      <Input className="np-input" value={createForm.companyName} onChange={(e)=>setCreateForm({ ...createForm, companyName: e.target.value })} required />
+                      <input className="np-input" value={createForm.companyName} onChange={(e)=>setCreateForm({ ...createForm, companyName: e.target.value })} required />
                     </div>
                     <div>
                       <label className="np-label">Contact Email</label>
-                      <Input className="np-input" value={createForm.email} onChange={(e)=>setCreateForm({ ...createForm, email: e.target.value })} type="email" required />
+                      <input className="np-input" value={createForm.email} onChange={(e)=>setCreateForm({ ...createForm, email: e.target.value })} type="email" required />
                     </div>
                     <div>
                       <label className="np-label">Password</label>
-                      <Input className="np-input" value={createForm.password} onChange={(e)=>setCreateForm({ ...createForm, password: e.target.value })} type="password" placeholder="At least 6 characters" required />
+                      <input className="np-input" value={createForm.password} onChange={(e)=>setCreateForm({ ...createForm, password: e.target.value })} type="password" placeholder="At least 6 characters" required />
                     </div>
                   </div>
                   <div style={{ marginTop:'1rem' }}>
@@ -435,7 +469,77 @@ export default function NotifyPro() {
         </div>
       )}
 
-      {/* Single login form handles both roles; removed duplicate forms */}
+      {page === 'docs' && (
+        <div className="np-dashboard">
+          <div className="np-dashboard-inner">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3rem' }}>
+              <h1 className="np-hero-title" style={{ fontSize: '2.2rem' }}>Documentation</h1>
+            </div>
+            
+            <div className="np-card" style={{ maxWidth: 1000, margin: '0 auto' }}>
+              <h3 style={{ color:'#fff', marginBottom: '1.5rem' }}>Quick Start Guide</h3>
+              
+              <div style={{ display:'grid', gap: '2rem' }}>
+                <div className="np-card" style={{ margin:0 }}>
+                  <h4 style={{ color:'#fff', marginBottom:'1rem' }}>1. Get Your API Key</h4>
+                  <p style={{ color:'rgba(255,255,255,.85)', marginBottom:'1rem' }}>First, create an account and get your API key from the dashboard.</p>
+                  <div style={{ background:'rgba(0,0,0,.3)', padding:'1rem', borderRadius:8, fontFamily:'monospace', fontSize:'.9rem', color:'#e2e8f0' }}>
+                    {`// Your API key will be available in your dashboard
+const apiKey = 'your-api-key-here';`}
+                  </div>
+                </div>
+
+                <div className="np-card" style={{ margin:0 }}>
+                  <h4 style={{ color:'#fff', marginBottom:'1rem' }}>2. Add the SDK Script</h4>
+                  <p style={{ color:'rgba(255,255,255,.85)', marginBottom:'1rem' }}>Include the NotifyPro SDK in your HTML:</p>
+                  <div style={{ background:'rgba(0,0,0,.3)', padding:'1rem', borderRadius:8, fontFamily:'monospace', fontSize:'.9rem', color:'#e2e8f0' }}>
+                    {`<script src="/api/sdk.js?apiKey=YOUR_API_KEY"></script>`}
+                  </div>
+                </div>
+
+                <div className="np-card" style={{ margin:0 }}>
+                  <h4 style={{ color:'#fff', marginBottom:'1rem' }}>3. Add Service Worker</h4>
+                  <p style={{ color:'rgba(255,255,255,.85)', marginBottom:'1rem' }}>Download and host the service worker at your domain root:</p>
+                  <div style={{ background:'rgba(0,0,0,.3)', padding:'1rem', borderRadius:8, fontFamily:'monospace', fontSize:'.9rem', color:'#e2e8f0' }}>
+                    {`// Download from: /api/sdk/service-worker.js
+// Host at: https://yourdomain.com/pn-sw.js`}
+                  </div>
+                </div>
+
+                <div className="np-card" style={{ margin:0 }}>
+                  <h4 style={{ color:'#fff', marginBottom:'1rem' }}>4. Initialize and Subscribe</h4>
+                  <p style={{ color:'rgba(255,255,255,.85)', marginBottom:'1rem' }}>Initialize the SDK and request permission:</p>
+                  <div style={{ background:'rgba(0,0,0,.3)', padding:'1rem', borderRadius:8, fontFamily:'monospace', fontSize:'.9rem', color:'#e2e8f0' }}>
+                    {`// The SDK auto-initializes
+// Request permission when ready
+NotifyPro.requestPermission().then(granted => {
+  if (granted) {
+    console.log('User granted notification permission');
+  }
+});`}
+                  </div>
+                </div>
+
+                <div className="np-card" style={{ margin:0 }}>
+                  <h4 style={{ color:'#fff', marginBottom:'1rem' }}>5. Send Notifications</h4>
+                  <p style={{ color:'rgba(255,255,255,.85)', marginBottom:'1rem' }}>Use the dashboard or API to send notifications to your subscribers.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="np-card" style={{ maxWidth: 1000, margin: '2rem auto 0' }}>
+              <h3 style={{ color:'#fff', marginBottom: '1rem' }}>API Reference</h3>
+              <div style={{ color:'rgba(255,255,255,.85)' }}>
+                <p style={{ marginBottom:'1rem' }}>For full API documentation and advanced features, visit your dashboard or contact support.</p>
+                <div style={{ display:'flex', gap:'1rem', flexWrap:'wrap' }}>
+                  <RouterLink className="np-btn np-btn-primary" to="/login" style={{textDecoration:'none'}}>Get Started</RouterLink>
+                  <RouterLink className="np-btn np-btn-secondary" to="/" style={{textDecoration:'none'}}>Back to Home</RouterLink>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {page === 'customer-dashboard' && me && (
         <div className="np-dashboard">

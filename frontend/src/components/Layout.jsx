@@ -1,5 +1,5 @@
-import { Box, Button, Container, Flex, HStack, Link as ChakraLink, Text } from '@chakra-ui/react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Button } from './ui'
 
 export default function Layout({ children }) {
   const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null
@@ -16,38 +16,63 @@ export default function Layout({ children }) {
   }
 
   return (
-    <Box bg="#f7fafc" minH="100vh">
-      <Box bg="white" borderBottom="1px solid #e2e8f0" py={3} position="sticky" top={0} zIndex={10}>
-        <Container maxW="6xl">
-          <Flex align="center" justify="space-between">
-            <HStack spacing={6}>
-              <ChakraLink as={Link} to="/" fontWeight={700} fontSize="lg" _hover={{ textDecoration: 'none' }}>PushNotify</ChakraLink>
-              <HStack spacing={4} display={{ base: 'none', md: 'flex' }}>
-                <ChakraLink as={Link} to="/docs" color={isActive('/docs') ? 'blue.600' : 'gray.600'}>Docs</ChakraLink>
-                {token ? (
-                  <ChakraLink as={Link} to="/app" color={isActive('/app') ? 'blue.600' : 'gray.600'}>Dashboard</ChakraLink>
-                ) : null}
-              </HStack>
-            </HStack>
-            <HStack spacing={3}>
+    <div className="bg-gray-50 min-h-screen">
+      <header className="bg-white border-b border-gray-200 py-3 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              <Link 
+                to="/" 
+                className="font-bold text-lg text-gray-900 hover:text-primary-600 transition-colors"
+              >
+                PushNotify
+              </Link>
+              <nav className="hidden md:flex items-center space-x-4">
+                <Link 
+                  to="/docs" 
+                  className={`hover:text-primary-600 transition-colors ${
+                    isActive('/docs') ? 'text-primary-600' : 'text-gray-600'
+                  }`}
+                >
+                  Docs
+                </Link>
+                {token && (
+                  <Link 
+                    to="/app" 
+                    className={`hover:text-primary-600 transition-colors ${
+                      isActive('/app') ? 'text-primary-600' : 'text-gray-600'
+                    }`}
+                  >
+                    Dashboard
+                  </Link>
+                )}
+              </nav>
+            </div>
+            <div className="flex items-center space-x-3">
               {token ? (
-                <Button variant="outline" onClick={logout}>Logout</Button>
+                <Button variant="secondary" onClick={logout}>
+                  Logout
+                </Button>
               ) : (
-                <Button as={Link} to="/login" colorScheme="blue">Sign In</Button>
+                <Link to="/login">
+                  <Button variant="primary">Sign In</Button>
+                </Link>
               )}
-            </HStack>
-          </Flex>
-        </Container>
-      </Box>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      <Box as="main">{children}</Box>
+      <main>{children}</main>
 
-      <Box as="footer" mt={12} py={6} bg="white" borderTop="1px solid #e2e8f0">
-        <Container maxW="6xl">
-          <Text fontSize="sm" color="gray.600">© {new Date().getFullYear()} PushNotify. All rights reserved.</Text>
-        </Container>
-      </Box>
-    </Box>
+      <footer className="mt-12 py-6 bg-white border-t border-gray-200">
+        <div className="max-w-6xl mx-auto px-4">
+          <p className="text-sm text-gray-600">
+            © {new Date().getFullYear()} PushNotify. All rights reserved.
+          </p>
+        </div>
+      </footer>
+    </div>
   )
 }
 

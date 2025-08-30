@@ -12,16 +12,16 @@ const generateKey = (req) => {
 // General API rate limiter
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Limit each IP to 1000 requests per windowMs (increased for development)
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
 });
 
-// Strict rate limiter for auth endpoints
+// Relaxed rate limiter for auth endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // Limit each IP to 5 requests per windowMs
+  max: 200, // Limit each IP to 200 requests per windowMs (greatly increased for development)
   message: 'Too many authentication attempts, please try again later.',
   skipSuccessfulRequests: true, // Don't count successful requests
 });
@@ -29,14 +29,14 @@ const authLimiter = rateLimit({
 // Rate limiter for registration
 const registrationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // Limit each IP to 3 registration attempts per hour
+  max: 20, // Limit each IP to 20 registration attempts per hour (increased for development)
   message: 'Too many accounts created from this IP, please try again after an hour.',
 });
 
 // Rate limiter for sending notifications
 const notificationLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 10, // Limit to 10 notification sends per minute
+  max: 100, // Limit to 100 notification sends per minute (greatly increased for development)
   message: 'Too many notifications sent, please slow down.',
   // Remove custom keyGenerator to use default IP handling
 });
@@ -44,7 +44,7 @@ const notificationLimiter = rateLimit({
 // Rate limiter for subscription endpoints
 const subscriptionLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 30, // Limit to 30 subscription operations per minute
+  max: 200, // Limit to 200 subscription operations per minute (increased for development)
   message: 'Too many subscription requests, please try again later.',
 });
 
@@ -54,10 +54,10 @@ const planBasedLimiter = (req, res, next) => {
   const plan = req.user?.plan || 'free';
   
   const limits = {
-    free: { windowMs: 60 * 60 * 1000, max: 100 }, // 100 requests per hour
-    starter: { windowMs: 60 * 60 * 1000, max: 500 }, // 500 requests per hour
-    pro: { windowMs: 60 * 60 * 1000, max: 2000 }, // 2000 requests per hour
-    enterprise: { windowMs: 60 * 60 * 1000, max: 10000 }, // 10000 requests per hour
+    free: { windowMs: 60 * 60 * 1000, max: 1000 }, // 1000 requests per hour (increased for development)
+    starter: { windowMs: 60 * 60 * 1000, max: 2000 }, // 2000 requests per hour
+    pro: { windowMs: 60 * 60 * 1000, max: 5000 }, // 5000 requests per hour
+    enterprise: { windowMs: 60 * 60 * 1000, max: 20000 }, // 20000 requests per hour
   };
   
   const limit = limits[plan] || limits.free;

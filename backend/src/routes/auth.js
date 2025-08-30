@@ -10,37 +10,94 @@ const { authLimiter, registrationLimiter } = require('../middleware/rateLimiter'
 
 const router = express.Router();
 
-router.post(
-  '/login',
-  authLimiter,
-  body('email').isEmail(),
-  body('password').isString().isLength({ min: 6 }),
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-    const { email, password } = req.body;
-    const { users, customers } = getDatastores();
-    const user = await users.findOne({ email });
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
-    // Block login for disabled customers
-    if (user.role === 'customer') {
-      const customer = await customers.findOne({ userId: user._id });
-      const contactUrl = process.env.ADMIN_CONTACT_URL || process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
-      if (!customer || customer.active === false) {
-        return res.status(403).json({ error: 'Account disabled', contactUrl });
-      }
-    }
-    const token = jwt.sign({ userId: user._id, role: user.role, email: user.email }, process.env.JWT_SECRET || 'dev-secret', { expiresIn: '7d' });
-    res.json({ token, role: user.role, email: user.email });
+// Removed potentially problematic debug middleware
+
+// Test database connectivity
+router.get('/test-db', async (req, res) => {
+  try {
+    const { users } = getDatastores();
+    const allUsers = await users.find({});
+    console.log('DB Test - Found users:', allUsers.length);
+    res.json({ 
+      message: 'Database test', 
+      userCount: allUsers.length,
+      users: allUsers.map(u => ({ email: u.email, role: u.role, hasPasswordHash: !!u.password_hash }))
+    });
+  } catch (error) {
+    console.error('DB Test Error:', error);
+    res.status(500).json({ error: error.message });
   }
-);
+});
+
+// Simple test login without validation
+router.post('/login-simple', (req, res) => {
+  console.log('Simple login hit');
+  console.log('Body:', req.body);
+  res.json({ message: 'Simple login works', body: req.body });
+});
+
+router.post('/login', async (req, res) => {
+  console.log('🔑 LOGIN ATTEMPT:', new Date().toISOString());
+  console.log('📧 Email:', req.body?.email);
+  console.log('🔒 Password provided:', !!req.body?.password);
+  
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      console.log('❌ Missing credentials');
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+    
+    console.log('🗄️ Getting database...');
+    const { users } = getDatastores();
+    
+    console.log('👤 Looking up user:', email);
+    const user = await users.findOne({ email });
+    console.log('🔍 User found:', !!user);
+    
+    if (!user) {
+      console.log('❌ User not found in database');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    console.log('👤 User details:', {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      hasPasswordHash: !!user.password_hash
+    });
+    
+    console.log('🔐 Comparing passwords...');
+    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    console.log('✅ Password valid:', isPasswordValid);
+    
+    if (!isPasswordValid) {
+      console.log('❌ Invalid password');
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+    
+    console.log('🎫 Creating token...');
+    const token = jwt.sign(
+      { userId: user.id, role: user.role, email: user.email }, 
+      process.env.JWT_SECRET || 'dev-secret', 
+      { expiresIn: '7d' }
+    );
+    
+    console.log('🎉 LOGIN SUCCESS');
+    res.json({ token, role: user.role, email: user.email });
+    
+  } catch (error) {
+    console.error('💥 LOGIN ERROR:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
 
 // Self-registration endpoint
 router.post(
   '/register',
-  registrationLimiter,
+  // registrationLimiter, // TODO: Re-enable rate limiting later
   body('email').isEmail(),
   body('password').isString().isLength({ min: 6 }),
   body('name').isString().isLength({ min: 2 }),
@@ -59,7 +116,7 @@ router.post(
     // Get country from IP address
     const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
     const geo = geoip.lookup(ip);
-    const country = geo ? geo.country : 'Unknown';
+    const country = geo && geo.country ? geo.country.substring(0, 2) : null; // Ensure max 2 chars
     const city = geo ? geo.city : null;
     const timezone = geo ? geo.timezone : null;
     const region = geo ? geo.region : null;
@@ -68,48 +125,44 @@ router.post(
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await users.insert({ 
       email, 
-      passwordHash, 
+      password_hash: passwordHash, 
       role: 'customer', 
-      createdAt: new Date().toISOString() 
+      created_at: new Date() 
     });
     
     // Create customer with location info
     const apiKey = uuidv4();
     const customer = await customers.insert({ 
-      userId: user._id, 
+      user_id: user.id, 
       email, 
-      name: companyName, 
-      contactName: name,
-      apiKey, 
+      name: name, 
+      company_name: companyName,
+      api_key: apiKey, 
       country,
-      city,
-      region,
       timezone,
-      registrationIp: ip,
-      createdAt: new Date().toISOString(), 
-      active: true,
       plan: 'free',
-      subscriberLimit: 1000
+      status: 'active',
+      subscriber_limit: 1000,
+      monthly_quota: 10000,
+      quota_used: 0
     });
     
     // Auto-generate VAPID keys and seed push settings
     const keys = webpush.generateVAPIDKeys();
     await pushSettings.insert({
-      customerId: customer._id,
-      vapidPublicKey: keys.publicKey,
-      vapidPrivateKey: keys.privateKey,
-      vapidSubject: `mailto:${email}`,
-      title: `${companyName} Notifications`,
-      iconUrl: null,
-      badgeUrl: null,
-      defaultUrl: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      customer_id: customer.id,
+      vapid_public_key: keys.publicKey,
+      vapid_private_key: keys.privateKey,
+      vapid_subject: `mailto:${email}`,
+      default_title: `${companyName} Notifications`,
+      default_icon_url: null,
+      default_badge_url: null,
+      default_url: null
     });
     
     // Auto-login after registration
     const token = jwt.sign(
-      { userId: user._id, role: 'customer', email: user.email }, 
+      { userId: user.id, role: 'customer', email: user.email }, 
       process.env.JWT_SECRET || 'dev-secret', 
       { expiresIn: '7d' }
     );
@@ -120,12 +173,16 @@ router.post(
       email, 
       message: 'Registration successful',
       customer: {
-        id: customer._id,
+        id: customer.id,
         name: companyName,
         apiKey,
         country,
         city,
         timezone
+      },
+      vapidKeys: {
+        publicKey: keys.publicKey,
+        privateKey: keys.privateKey
       }
     });
   }

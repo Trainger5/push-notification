@@ -3,7 +3,20 @@
     "allow": [
       "Bash(npm install:*)",
       "WebSearch",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run:*)",
+      "Bash(node:*)",
+      "Bash(sed:*)",
+      "Bash(curl:*)",
+      "Bash(npm start)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx tailwindcss init:*)",
+      "Bash(npx vite:*)",
+      "Bash(sqlite3:*)",
+      "Bash(pkill:*)",
+      "Bash(del nul)",
+      "Bash(del package-lock.json)"
     ],
     "deny": [],
     "ask": []

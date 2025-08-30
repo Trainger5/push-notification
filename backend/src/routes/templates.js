@@ -103,7 +103,7 @@ router.get('/list', async (req, res) => {
       query.isActive = active === 'true';
     }
 
-    let templates = await notificationTemplates.find(query).sort({ updatedAt: -1 });
+    let templates = await notificationTemplates.find(query, { sort: { updated_at: -1 } });
 
     // Apply search filter if provided
     if (search) {

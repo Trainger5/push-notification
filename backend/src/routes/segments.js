@@ -7,13 +7,14 @@ const router = express.Router();
 
 router.use(requireAuth, requireRole('customer'));
 
-// Create a new segment
+// Create a new advanced segment
 router.post(
   '/create',
   body('name').isString().notEmpty().isLength({ min: 1, max: 100 }),
   body('description').optional().isString().isLength({ max: 500 }),
   body('criteria').isObject(),
   body('color').optional().isString().matches(/^#[0-9A-F]{6}$/i),
+  body('isActive').optional().isBoolean(),
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -22,14 +23,14 @@ router.post(
       }
 
       const { customers, userSegments } = getDatastores();
-      const customer = await customers.findOne({ userId: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.userId });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       // Check if segment name already exists for this customer
       const existingSegment = await userSegments.findOne({
-        customerId: customer._id,
+        customer_id: customer.id,
         name: req.body.name
       });
       
@@ -37,27 +38,30 @@ router.post(
         return res.status(409).json({ error: 'Segment with this name already exists' });
       }
 
+      // Calculate initial segment size
+      const matchedUsersCount = await calculateSegmentSize(customer.id, req.body.criteria);
+
       const segment = {
-        customerId: customer._id,
+        customer_id: customer.id,
         name: req.body.name,
         description: req.body.description || '',
-        criteria: req.body.criteria,
+        type: 'custom',
+        conditions: JSON.stringify(req.body.criteria),
+        subscriber_count: matchedUsersCount,
+        is_active: req.body.isActive !== false,
         color: req.body.color || '#3182CE',
-        isActive: true,
-        subscriberCount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: req.user.userId
+        engagement_score: 0, // Will be calculated later
+        growth_rate: 0, // Will be calculated over time
+        last_calculated: new Date(),
+        created_at: new Date(),
+        updated_at: new Date(),
+        created_by: req.user.userId
       };
 
       const newSegment = await userSegments.insert(segment);
       
-      // Calculate initial subscriber count
-      const count = await calculateSegmentSize(customer._id, segment.criteria);
-      await userSegments.update({ _id: newSegment._id }, { $set: { subscriberCount: count } });
-      
       res.status(201).json({
-        segment: { ...newSegment, subscriberCount: count },
+        segment: newSegment,
         message: 'Segment created successfully'
       });
     } catch (error) {
@@ -67,26 +71,53 @@ router.post(
   }
 );
 
-// Get all segments for customer
-router.get('/list', async (req, res) => {
+// Real-time segment size calculation
+router.post('/calculate', async (req, res) => {
   try {
-    const { customers, userSegments } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const { customers } = getDatastores();
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const segments = await userSegments.find({ customerId: customer._id }).sort({ updatedAt: -1 });
+    const { criteria } = req.body;
+    const matchedUsersCount = await calculateSegmentSize(customer.id, criteria);
+    
+    res.json({ 
+      count: matchedUsersCount,
+      estimatedReach: matchedUsersCount,
+      criteria: analyzeCriteria(criteria)
+    });
+  } catch (error) {
+    console.error('Segment calculation error:', error);
+    res.status(500).json({ error: 'Failed to calculate segment size' });
+  }
+});
+
+// Get all segments for customer
+router.get('/list', async (req, res) => {
+  try {
+    const { customers, userSegments } = getDatastores();
+    const customer = await customers.findOne({ user_id: req.user.userId });
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const segments = await userSegments.find(
+      { customer_id: customer.id }, 
+      { sort: { updated_at: -1 } }
+    );
     
     // Update subscriber counts for all segments
     for (const segment of segments) {
-      const count = await calculateSegmentSize(customer._id, segment.criteria);
-      if (count !== segment.subscriberCount) {
+      const conditions = JSON.parse(segment.conditions);
+      const count = await calculateSegmentSize(customer.id, conditions);
+      if (count !== segment.subscriber_count) {
         await userSegments.update(
-          { _id: segment._id }, 
-          { $set: { subscriberCount: count, updatedAt: new Date().toISOString() } }
+          { id: segment.id }, 
+          { $set: { subscriber_count: count, updated_at: new Date() } }
         );
-        segment.subscriberCount = count;
+        segment.subscriber_count = count;
       }
     }
 
@@ -104,14 +135,14 @@ router.get('/list', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { customers, userSegments } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     const segment = await userSegments.findOne({
-      _id: req.params.id,
-      customerId: customer._id
+      id: req.params.id,
+      customer_id: customer.id
     });
 
     if (!segment) {
@@ -119,13 +150,14 @@ router.get('/:id', async (req, res) => {
     }
 
     // Update subscriber count
-    const count = await calculateSegmentSize(customer._id, segment.criteria);
-    if (count !== segment.subscriberCount) {
+    const conditions = JSON.parse(segment.conditions);
+    const count = await calculateSegmentSize(customer.id, conditions);
+    if (count !== segment.subscriber_count) {
       await userSegments.update(
-        { _id: segment._id }, 
-        { $set: { subscriberCount: count, updatedAt: new Date().toISOString() } }
+        { id: segment.id }, 
+        { $set: { subscriber_count: count, updated_at: new Date() } }
       );
-      segment.subscriberCount = count;
+      segment.subscriber_count = count;
     }
 
     res.json(segment);
@@ -151,14 +183,14 @@ router.put(
       }
 
       const { customers, userSegments } = getDatastores();
-      const customer = await customers.findOne({ userId: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.userId });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       const segment = await userSegments.findOne({
-        _id: req.params.id,
-        customerId: customer._id
+        id: req.params.id,
+        customer_id: customer.id
       });
 
       if (!segment) {
@@ -168,9 +200,9 @@ router.put(
       // If name is being changed, check for conflicts
       if (req.body.name && req.body.name !== segment.name) {
         const existingSegment = await userSegments.findOne({
-          customerId: customer._id,
+          customer_id: customer.id,
           name: req.body.name,
-          _id: { $ne: req.params.id }
+          id: { $ne: req.params.id }
         });
         
         if (existingSegment) {
@@ -178,23 +210,28 @@ router.put(
         }
       }
 
-      const updates = {
-        ...req.body,
-        updatedAt: new Date().toISOString()
-      };
-
+      const updateData = {};
+      
+      if (req.body.name) updateData.name = req.body.name;
+      if (req.body.description !== undefined) updateData.description = req.body.description;
+      if (req.body.color) updateData.color = req.body.color;
+      if (req.body.isActive !== undefined) updateData.is_active = req.body.isActive;
+      
       // If criteria changed, recalculate subscriber count
       if (req.body.criteria) {
-        const count = await calculateSegmentSize(customer._id, req.body.criteria);
-        updates.subscriberCount = count;
+        updateData.conditions = JSON.stringify(req.body.criteria);
+        const count = await calculateSegmentSize(customer.id, req.body.criteria);
+        updateData.subscriber_count = count;
       }
+      
+      updateData.updated_at = new Date();
 
       await userSegments.update(
-        { _id: req.params.id },
-        { $set: updates }
+        { id: req.params.id },
+        { $set: updateData }
       );
 
-      const updatedSegment = await userSegments.findOne({ _id: req.params.id });
+      const updatedSegment = await userSegments.findOne({ id: req.params.id });
 
       res.json({
         segment: updatedSegment,
@@ -211,21 +248,21 @@ router.put(
 router.delete('/:id', async (req, res) => {
   try {
     const { customers, userSegments } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     const segment = await userSegments.findOne({
-      _id: req.params.id,
-      customerId: customer._id
+      id: req.params.id,
+      customer_id: customer.id
     });
 
     if (!segment) {
       return res.status(404).json({ error: 'Segment not found' });
     }
 
-    await userSegments.remove({ _id: req.params.id });
+    await userSegments.remove({ id: req.params.id });
 
     res.json({
       message: 'Segment deleted successfully'
@@ -240,14 +277,14 @@ router.delete('/:id', async (req, res) => {
 router.get('/:id/subscribers', async (req, res) => {
   try {
     const { customers, userSegments, subscriptions } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     const segment = await userSegments.findOne({
-      _id: req.params.id,
-      customerId: customer._id
+      id: req.params.id,
+      customer_id: customer.id
     });
 
     if (!segment) {
@@ -258,26 +295,34 @@ router.get('/:id/subscribers', async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
 
-    const query = buildSegmentQuery(customer._id, segment.criteria);
-    const allSubscribers = await subscriptions.find(query);
-    const subscribers = allSubscribers.slice(skip, skip + limit);
+    const conditions = JSON.parse(segment.conditions);
+    const query = buildSegmentQuery(customer.id, conditions);
+    
+    // Get total count
+    const totalCount = await subscriptions.count(query);
+    
+    // Get paginated subscribers
+    const subscribers = await subscriptions.find(query, { 
+      limit: limit, 
+      skip: skip 
+    });
 
     res.json({
       subscribers: subscribers.map(sub => ({
-        id: sub._id,
+        id: sub.id,
         country: sub.country,
         city: sub.city,
         browser: sub.browser,
         os: sub.os,
         device: sub.device,
-        tags: sub.tags || [],
-        engagementScore: sub.engagementScore || 0,
-        lastActive: sub.lastActive,
-        createdAt: sub.createdAt
+        tags: sub.tags ? JSON.parse(sub.tags) : [],
+        engagement_score: sub.engagement_score || 0,
+        last_active: sub.last_active,
+        created_at: sub.created_at
       })),
-      total: allSubscribers.length,
+      total: totalCount,
       page,
-      totalPages: Math.ceil(allSubscribers.length / limit)
+      totalPages: Math.ceil(totalCount / limit)
     });
   } catch (error) {
     console.error('Get segment subscribers error:', error);
@@ -305,15 +350,15 @@ router.post(
       }
 
       const { customers, userSegments, subscriptions, pushSettings, notifications } = getDatastores();
-      const customer = await customers.findOne({ userId: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.userId });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       const segment = await userSegments.findOne({
-        _id: req.params.id,
-        customerId: customer._id,
-        isActive: true
+        id: req.params.id,
+        customer_id: customer.id,
+        is_active: true
       });
 
       if (!segment) {
@@ -321,7 +366,8 @@ router.post(
       }
 
       // Get subscribers in this segment
-      const query = buildSegmentQuery(customer._id, segment.criteria);
+      const conditions = JSON.parse(segment.conditions);
+      const query = buildSegmentQuery(customer.id, conditions);
       const segmentSubscribers = await subscriptions.find(query);
 
       if (segmentSubscribers.length === 0) {
@@ -335,7 +381,7 @@ router.post(
         
         // Create a special notification record for segments
         const scheduledNotification = await scheduler.scheduleNotification({
-          customerId: customer._id,
+          customerId: customer.id,
           title: req.body.title,
           body: req.body.body,
           url: req.body.url,
@@ -345,14 +391,14 @@ router.post(
           tag: req.body.tag,
           scheduledFor: new Date(req.body.scheduledFor).toISOString(),
           timezone: req.body.timezone || 'UTC',
-          segmentId: segment._id,
+          segmentId: segment.id,
           segmentName: segment.name,
-          createdBy: req.user.userId
+          created_by: req.user.userId
         });
 
         res.json({
           scheduled: true,
-          scheduledNotificationId: scheduledNotification._id,
+          scheduledNotificationId: scheduledNotification.id,
           segmentSize: segmentSubscribers.length,
           message: `Notification scheduled for ${segment.name} segment (${segmentSubscribers.length} subscribers)`
         });
@@ -360,67 +406,76 @@ router.post(
         // Send immediately
         const webpush = require('web-push');
         
-        const settings = await pushSettings.findOne({ customerId: customer._id });
+        const settings = await pushSettings.findOne({ customer_id: customer.id });
         if (!settings) {
           return res.status(400).json({ error: 'Push settings not found' });
         }
 
         // Configure web-push
         webpush.setVapidDetails(
-          settings.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
-          settings.vapidPublicKey || process.env.VAPID_PUBLIC_KEY,
-          settings.vapidPrivateKey || process.env.VAPID_PRIVATE_KEY
+          settings.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
+          settings.vapid_public_key || process.env.VAPID_PUBLIC_KEY,
+          settings.vapid_private_key || process.env.VAPID_PRIVATE_KEY
         );
 
         const payload = {
           title: req.body.title,
           body: req.body.body,
           url: req.body.url,
-          icon: req.body.icon || settings.iconUrl,
-          badge: req.body.badge || settings.badgeUrl,
+          icon: req.body.icon || settings.icon_url,
+          badge: req.body.badge || settings.badge_url,
           image: req.body.image,
           tag: req.body.tag,
-          data: { segmentId: segment._id, segmentName: segment.name }
+          data: { segmentId: segment.id, segmentName: segment.name }
         };
 
         // Send to segment subscribers
         let sent = 0;
         let failed = 0;
+        const results = [];
 
         for (const sub of segmentSubscribers) {
           try {
+            const subscriptionData = JSON.parse(sub.subscription);
             const pushSubscription = {
-              endpoint: sub.subscription.endpoint,
+              endpoint: subscriptionData.endpoint,
               keys: {
-                p256dh: sub.subscription.keys.p256dh,
-                auth: sub.subscription.keys.auth
+                p256dh: subscriptionData.keys.p256dh,
+                auth: subscriptionData.keys.auth
               }
             };
 
             await webpush.sendNotification(pushSubscription, JSON.stringify(payload));
             sent++;
+            results.push({ endpoint: subscriptionData.endpoint, status: 'sent' });
           } catch (error) {
             failed++;
+            results.push({ 
+              endpoint: sub.subscription?.endpoint, 
+              status: 'failed', 
+              error: error.message 
+            });
             
             // Remove invalid subscriptions
             if (error.statusCode === 410 || error.statusCode === 404) {
-              await subscriptions.remove({ _id: sub._id });
+              await subscriptions.remove({ id: sub.id });
             }
           }
         }
 
         // Save notification record
         await notifications.insert({
-          customerId: customer._id,
+          customer_id: customer.id,
           title: req.body.title,
           body: req.body.body,
           url: req.body.url,
-          success: sent,
-          failed: failed,
-          segmentId: segment._id,
-          segmentName: segment.name,
-          targetedSubscribers: segmentSubscribers.length,
-          createdAt: new Date().toISOString()
+          success_count: sent,
+          failure_count: failed,
+          segment_id: segment.id,
+          segment_name: segment.name,
+          targeted_subscribers: segmentSubscribers.length,
+          created_at: new Date(),
+          delivery_results: JSON.stringify(results)
         });
 
         res.json({
@@ -446,7 +501,7 @@ async function calculateSegmentSize(customerId, criteria) {
 }
 
 function buildSegmentQuery(customerId, criteria) {
-  const query = { customerId };
+  const query = { customer_id: customerId };
 
   if (criteria.countries && criteria.countries.length > 0) {
     query.country = { $in: criteria.countries };
@@ -468,33 +523,80 @@ function buildSegmentQuery(customerId, criteria) {
     query.device = { $in: criteria.devices };
   }
 
-  if (criteria.tags && criteria.tags.length > 0) {
-    query.tags = { $in: criteria.tags };
-  }
-
   if (criteria.engagementScore) {
     if (criteria.engagementScore.min !== undefined) {
-      query.engagementScore = query.engagementScore || {};
-      query.engagementScore.$gte = criteria.engagementScore.min;
+      query.engagement_score = query.engagement_score || {};
+      query.engagement_score.$gte = criteria.engagementScore.min;
     }
     if (criteria.engagementScore.max !== undefined) {
-      query.engagementScore = query.engagementScore || {};
-      query.engagementScore.$lte = criteria.engagementScore.max;
+      query.engagement_score = query.engagement_score || {};
+      query.engagement_score.$lte = criteria.engagementScore.max;
     }
   }
 
   if (criteria.dateRange) {
     if (criteria.dateRange.start) {
-      query.createdAt = query.createdAt || {};
-      query.createdAt.$gte = criteria.dateRange.start;
+      query.created_at = query.created_at || {};
+      query.created_at.$gte = criteria.dateRange.start;
     }
     if (criteria.dateRange.end) {
-      query.createdAt = query.createdAt || {};
-      query.createdAt.$lte = criteria.dateRange.end;
+      query.created_at = query.created_at || {};
+      query.created_at.$lte = criteria.dateRange.end;
     }
   }
 
   return query;
+}
+
+// Analyze criteria to provide UI insights
+function analyzeCriteria(criteria) {
+  const counts = {
+    location: 0,
+    device: 0,
+    behavior: 0,
+    time: 0,
+    advanced: 0
+  };
+
+  // Count location filters
+  if (criteria.countries?.length) counts.location++;
+  if (criteria.cities?.length) counts.location++;
+  if (criteria.regions?.length) counts.location++;
+  if (criteria.timezone) counts.location++;
+
+  // Count device filters
+  if (criteria.browsers?.length) counts.device++;
+  if (criteria.os?.length) counts.device++;
+  if (criteria.devices?.length) counts.device++;
+
+  // Count behavior filters
+  if (criteria.engagementScore && (criteria.engagementScore.min > 0 || criteria.engagementScore.max < 100)) {
+    counts.behavior++;
+  }
+  if (criteria.lastSeen) counts.behavior++;
+  if (criteria.notificationOpens && (criteria.notificationOpens.min > 0 || criteria.notificationOpens.max < 1000)) {
+    counts.behavior++;
+  }
+  if (criteria.notificationClicks && (criteria.notificationClicks.min > 0 || criteria.notificationClicks.max < 1000)) {
+    counts.behavior++;
+  }
+  if (criteria.subscriptionDate && (criteria.subscriptionDate.start || criteria.subscriptionDate.end)) {
+    counts.behavior++;
+  }
+
+  // Count time filters
+  if (criteria.activeHours && (criteria.activeHours.start !== 9 || criteria.activeHours.end !== 17)) {
+    counts.time++;
+  }
+  if (criteria.weekdays && criteria.weekdays.length < 7) counts.time++;
+
+  // Count advanced filters
+  if (criteria.customTags?.length) counts.advanced++;
+  if (criteria.abTestParticipant) counts.advanced++;
+  if (criteria.highValueUser) counts.advanced++;
+  if (criteria.recentlyActive) counts.advanced++;
+
+  return counts;
 }
 
 module.exports = router;

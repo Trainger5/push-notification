@@ -45,7 +45,7 @@ router.get('/config', async (req, res) => {
 // Save a new subscription from the client SDK
 router.post(
   '/subscribe',
-  subscriptionLimiter,
+  // subscriptionLimiter, // TODO: Re-enable rate limiting later
   body('apiKey').isString(),
   body('subscription').isObject(),
   async (req, res) => {

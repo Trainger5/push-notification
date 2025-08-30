@@ -1,36 +1,11 @@
 import { useState } from 'react'
-import { useNavigate, Link as RouterLink } from 'react-router-dom'
-import {
-  Box,
-  Button,
-  Container,
-  Input,
-  VStack,
-  Heading,
-  Text,
-  Link,
-  Grid,
-  GridItem,
-  Icon,
-  Badge,
-  HStack
-} from '@chakra-ui/react'
-import { Card, CardBody, CardHeader } from '@chakra-ui/card'
-import { useToast } from '@chakra-ui/toast'
-import { Alert, AlertIcon } from '@chakra-ui/alert'
-import {
-  FormControl,
-  FormLabel,
-  FormErrorMessage,
-  FormHelperText
-} from '@chakra-ui/form-control'
-import { useColorModeValue } from '@chakra-ui/color-mode'
-import { FiCheck, FiUser, FiMail, FiLock, FiBriefcase, FiGlobe, FiBell, FiZap, FiShield } from 'react-icons/fi'
+import { useNavigate, Link } from 'react-router-dom'
+import { Button, Card, CardBody, Input, Alert } from '../components/ui'
+import { Bell, User, Mail, Lock, Briefcase, Globe, Zap, Shield } from 'lucide-react'
 import Layout from '../components/Layout.jsx'
 
 export default function Register() {
   const navigate = useNavigate()
-  const toast = useToast()
   const [form, setForm] = useState({
     name: '',
     companyName: '',
@@ -40,15 +15,6 @@ export default function Register() {
   })
   const [errors, setErrors] = useState({})
   const [isLoading, setIsLoading] = useState(false)
-  
-  // Theme colors
-  const bgColor = useColorModeValue('gray.50', 'gray.900')
-  const cardBg = useColorModeValue('white', 'gray.800')
-  const borderColor = useColorModeValue('gray.200', 'gray.600')
-  const textColor = useColorModeValue('gray.900', 'gray.100')
-  const mutedColor = useColorModeValue('gray.700', 'gray.300')
-  const headingColor = useColorModeValue('gray.900', 'white')
-  const labelColor = useColorModeValue('gray.800', 'gray.200')
 
   const validateForm = () => {
     const newErrors = {}
@@ -80,9 +46,7 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    if (!validateForm()) {
-      return
-    }
+    if (!validateForm()) return
     
     setIsLoading(true)
     
@@ -108,35 +72,10 @@ export default function Register() {
       localStorage.setItem('token', data.token)
       localStorage.setItem('role', data.role)
       
-      toast({
-        title: 'Registration successful!',
-        description: `Welcome to Push Notification Service, ${form.name}!`,
-        status: 'success',
-        duration: 5000,
-        isClosable: true,
-      })
-      
-      // Show country info if available
-      if (data.customer.country) {
-        toast({
-          title: 'Location detected',
-          description: `Registered from ${data.customer.city || 'Unknown City'}, ${data.customer.country}`,
-          status: 'info',
-          duration: 5000,
-          isClosable: true,
-        })
-      }
-      
       // Redirect to dashboard
       navigate('/app')
     } catch (error) {
-      toast({
-        title: 'Registration failed',
-        description: error.message,
-        status: 'error',
-        duration: 5000,
-        isClosable: true,
-      })
+      alert(error.message)
     } finally {
       setIsLoading(false)
     }
@@ -152,227 +91,172 @@ export default function Register() {
   }
 
   return (
-    <Layout>
-      <Box bg={bgColor} minH="100vh" py={12}>
-        <Container maxW="7xl">
-          <Grid templateColumns={{ base: '1fr', lg: '1fr 1fr' }} gap={12} alignItems="center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      {/* Navigation */}
+      <nav className="bg-white/95 backdrop-blur-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <Link to="/" className="flex items-center space-x-3">
+              <div className="p-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl">
+                <Bell className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">NotifyPro</h1>
+                <p className="text-xs text-gray-500 -mt-1">Push Notifications</p>
+              </div>
+            </Link>
+            <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+              Already have an account? Sign in
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      <div className="py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Side - Registration Form */}
-            <GridItem>
-              <Card maxW="md" mx="auto" bg={cardBg} shadow="xl" borderRadius="xl">
-                <CardBody p={8}>
-                <VStack spacing={6} align="stretch">
-                  <Box textAlign="center">
-                    <Box bg="blue.50" p={4} borderRadius="full" display="inline-block" mb={4}>
-                      <Icon as={FiBell} boxSize={12} color="blue.500" />
-                    </Box>
-                    <Text as="h1" fontSize="3xl" fontWeight="bold" mb={2} color="gray.900">Create Your Account</Text>
-                    <Text color="gray.600" fontSize="lg">Start sending push notifications in minutes</Text>
-                  </Box>
+            <div>
+              <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200 p-8 max-w-md mx-auto">
+                <div className="text-center mb-8">
+                  <div className="inline-flex p-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl mb-6">
+                    <Bell className="w-8 h-8 text-white" />
+                  </div>
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Your Account</h1>
+                  <p className="text-gray-600">Start sending push notifications in minutes</p>
+                </div>
                   
-                  <form onSubmit={handleSubmit}>
-                    <VStack spacing={4}>
-                      <FormControl isInvalid={!!errors.name}>
-                        <FormLabel color="gray.700" fontWeight="semibold" display="flex" alignItems="center">
-                          <Icon as={FiUser} mr={2} />
-                          Your Name
-                        </FormLabel>
-                        <Input
-                          name="name"
-                          value={form.name}
-                          onChange={handleChange}
-                          placeholder="John Doe"
-                        />
-                        <FormErrorMessage>{errors.name}</FormErrorMessage>
-                      </FormControl>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <Input
+                      label="Your Name"
+                      name="name"
+                      value={form.name}
+                      onChange={handleChange}
+                      placeholder="John Doe"
+                      error={errors.name}
+                    />
 
-                      <FormControl isInvalid={!!errors.companyName}>
-                        <FormLabel color="gray.700" fontWeight="semibold" display="flex" alignItems="center">
-                          <Icon as={FiBriefcase} mr={2} />
-                          Company Name
-                        </FormLabel>
-                        <Input
-                          name="companyName"
-                          value={form.companyName}
-                          onChange={handleChange}
-                          placeholder="Acme Inc."
-                        />
-                        <FormErrorMessage>{errors.companyName}</FormErrorMessage>
-                        <FormHelperText color="gray.600">This will be used in your notifications</FormHelperText>
-                      </FormControl>
+                    <Input
+                      label="Company Name"
+                      name="companyName"
+                      value={form.companyName}
+                      onChange={handleChange}
+                      placeholder="Acme Inc."
+                      error={errors.companyName}
+                    />
 
-                      <FormControl isInvalid={!!errors.email}>
-                        <FormLabel color="gray.700" fontWeight="semibold" display="flex" alignItems="center">
-                          <Icon as={FiMail} mr={2} />
-                          Email Address
-                        </FormLabel>
-                        <Input
-                          type="email"
-                          name="email"
-                          value={form.email}
-                          onChange={handleChange}
-                          placeholder="john@example.com"
-                        />
-                        <FormErrorMessage>{errors.email}</FormErrorMessage>
-                      </FormControl>
+                    <Input
+                      label="Email Address"
+                      type="email"
+                      name="email"
+                      value={form.email}
+                      onChange={handleChange}
+                      placeholder="john@example.com"
+                      error={errors.email}
+                    />
 
-                      <FormControl isInvalid={!!errors.password}>
-                        <FormLabel color="gray.700" fontWeight="semibold" display="flex" alignItems="center">
-                          <Icon as={FiLock} mr={2} />
-                          Password
-                        </FormLabel>
-                        <Input
-                          type="password"
-                          name="password"
-                          value={form.password}
-                          onChange={handleChange}
-                          placeholder="At least 6 characters"
-                        />
-                        <FormErrorMessage>{errors.password}</FormErrorMessage>
-                      </FormControl>
+                    <Input
+                      label="Password"
+                      type="password"
+                      name="password"
+                      value={form.password}
+                      onChange={handleChange}
+                      placeholder="At least 6 characters"
+                      error={errors.password}
+                    />
 
-                      <FormControl isInvalid={!!errors.confirmPassword}>
-                        <FormLabel color="gray.700" fontWeight="semibold" display="flex" alignItems="center">
-                          <Icon as={FiLock} mr={2} />
-                          Confirm Password
-                        </FormLabel>
-                        <Input
-                          type="password"
-                          name="confirmPassword"
-                          value={form.confirmPassword}
-                          onChange={handleChange}
-                          placeholder="Re-enter your password"
-                        />
-                        <FormErrorMessage>{errors.confirmPassword}</FormErrorMessage>
-                      </FormControl>
+                    <Input
+                      label="Confirm Password"
+                      type="password"
+                      name="confirmPassword"
+                      value={form.confirmPassword}
+                      onChange={handleChange}
+                      placeholder="Re-enter your password"
+                      error={errors.confirmPassword}
+                    />
 
-                      <Button
-                        type="submit"
-                        colorScheme="blue"
-                        size="lg"
-                        width="full"
-                        isLoading={isLoading}
-                        loadingText="Creating account..."
-                      >
-                        Create Account
-                      </Button>
-                    </VStack>
+                    <Button
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                      loading={isLoading}
+                    >
+                      Create Account
+                    </Button>
                   </form>
 
-                  <Box borderTop="1px solid" borderColor="gray.200" />
+                  <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+                    <p className="text-sm text-gray-600">
+                      Already have an account?{' '}
+                      <Link to="/login" className="text-blue-600 font-medium hover:text-blue-700">
+                        Sign in
+                      </Link>
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-                  <Text textAlign="center" fontSize="sm" color="gray.600">
-                    Already have an account?{' '}
-                    <Link as={RouterLink} to="/login" color="blue.500" fontWeight="semibold">
-                      Sign in
-                    </Link>
-                  </Text>
-                </VStack>
-              </CardBody>
-            </Card>
-          </GridItem>
-
-          {/* Right Side - Features */}
-          <GridItem>
-            <VStack spacing={8} align="stretch">
-              <Box>
-                <Text as="h2" fontSize="4xl" fontWeight="bold" mb={4} color="gray.800">
-                  Why Choose Our Platform?
-                </Text>
-                <Text fontSize="xl" color="gray.600" mb={6}>
+            {/* Right Side - Features */}
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                  Why Choose NotifyPro?
+                </h2>
+                <p className="text-xl text-gray-600 mb-6">
                   Join thousands of businesses worldwide using our push notification service
-                </Text>
-              </Box>
+                </p>
+              </div>
 
-              <Alert status="success" borderRadius="lg" bg="green.50" borderWidth="1px" borderColor="green.200">
-                <AlertIcon />
-                <Box>
-                  <Text fontWeight="bold" color="green.800">Free Plan Included</Text>
-                  <Text fontSize="sm" color="green.700">Start with 1,000 free subscribers. No credit card required.</Text>
-                </Box>
-              </Alert>
+              <div className="bg-green-50 border border-green-200 rounded-xl p-6">
+                <div className="flex items-center mb-3">
+                  <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mr-3">
+                    <Bell className="w-4 h-4 text-white" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-green-800">Free Plan Included</h3>
+                </div>
+                <p className="text-green-700">Start with 1,000 free subscribers. No credit card required.</p>
+              </div>
 
-              <VStack spacing={6} align="stretch">
-                <HStack align="start" spacing={4}>
-                  <Box bg="blue.50" p={3} borderRadius="lg">
-                    <Icon as={FiGlobe} boxSize={6} color="blue.500" />
-                  </Box>
-                  <Box flex={1}>
-                    <Text fontWeight="bold" fontSize="lg" color="gray.800">Global Reach</Text>
-                    <Text fontSize="md" color="gray.600" mt={1}>
-                      We automatically detect your location to provide optimized service and comply with regional regulations
-                    </Text>
-                  </Box>
-                </HStack>
+              <div className="space-y-6">
+                <div className="flex items-start space-x-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Globe className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Global Reach</h3>
+                    <p className="text-gray-600 mt-1">
+                      Reliable delivery across all major browsers and devices worldwide
+                    </p>
+                  </div>
+                </div>
 
-                <HStack align="start" spacing={4}>
-                  <Box bg="green.50" p={3} borderRadius="lg">
-                    <Icon as={FiZap} boxSize={6} color="green.500" />
-                  </Box>
-                  <Box flex={1}>
-                    <Text fontWeight="bold" fontSize="lg" color="gray.800">Instant Setup</Text>
-                    <Text fontSize="md" color="gray.600" mt={1}>
+                <div className="flex items-start space-x-4">
+                  <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Zap className="w-6 h-6 text-yellow-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Lightning Fast Setup</h3>
+                    <p className="text-gray-600 mt-1">
                       VAPID keys generated automatically. Start sending notifications in under 5 minutes
-                    </Text>
-                  </Box>
-                </HStack>
+                    </p>
+                  </div>
+                </div>
 
-                <HStack align="start" spacing={4}>
-                  <Box bg="purple.50" p={3} borderRadius="lg">
-                    <Icon as={FiShield} boxSize={6} color="purple.500" />
-                  </Box>
-                  <Box flex={1}>
-                    <Text fontWeight="bold" fontSize="lg" color="gray.800">Enterprise Security</Text>
-                    <Text fontSize="md" color="gray.600" mt={1}>
-                      JWT authentication, encrypted storage, and API key protection
-                    </Text>
-                  </Box>
-                </HStack>
-              </VStack>
-
-              <Card bg="blue.50" borderColor="blue.200" borderWidth={2} shadow="md">
-                <CardHeader pb={2}>
-                  <Text fontSize="xl" fontWeight="bold" color="blue.900">What's Included:</Text>
-                </CardHeader>
-                <CardBody pt={2}>
-                  <VStack spacing={3} align="stretch">
-                    <HStack spacing={3}>
-                      <Icon as={FiCheck} color="green.500" boxSize={5} />
-                      <Text color="blue.800" fontWeight="medium">Real-time push notifications</Text>
-                    </HStack>
-                    <HStack spacing={3}>
-                      <Icon as={FiCheck} color="green.500" boxSize={5} />
-                      <Text color="blue.800" fontWeight="medium">Comprehensive API documentation</Text>
-                    </HStack>
-                    <HStack spacing={3}>
-                      <Icon as={FiCheck} color="green.500" boxSize={5} />
-                      <Text color="blue.800" fontWeight="medium">JavaScript SDK for easy integration</Text>
-                    </HStack>
-                    <HStack spacing={3}>
-                      <Icon as={FiCheck} color="green.500" boxSize={5} />
-                      <Text color="blue.800" fontWeight="medium">Analytics and delivery metrics</Text>
-                    </HStack>
-                    <HStack spacing={3}>
-                      <Icon as={FiCheck} color="green.500" boxSize={5} />
-                      <Text color="blue.800" fontWeight="medium">Multi-browser support</Text>
-                    </HStack>
-                    <HStack spacing={3}>
-                      <Icon as={FiCheck} color="green.500" boxSize={5} />
-                      <Text color="blue.800" fontWeight="medium">24/7 technical support</Text>
-                    </HStack>
-                  </VStack>
-                </CardBody>
-              </Card>
-
-              <HStack spacing={4} justify="center">
-                <Badge colorScheme="green" fontSize="md" px={3} py={1}>No Setup Fees</Badge>
-                <Badge colorScheme="blue" fontSize="md" px={3} py={1}>GDPR Compliant</Badge>
-                <Badge colorScheme="purple" fontSize="md" px={3} py={1}>99.9% Uptime</Badge>
-              </HStack>
-            </VStack>
-          </GridItem>
-        </Grid>
-        </Container>
-      </Box>
-    </Layout>
+                <div className="flex items-start space-x-4">
+                  <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Shield className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Enterprise Security</h3>
+                    <p className="text-gray-600 mt-1">
+                      VAPID authentication, HTTPS encryption, and SOC 2 compliance
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

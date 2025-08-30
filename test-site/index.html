@@ -480,7 +480,7 @@
     <!-- Push Notification SDK Integration -->
     <script>
         // Configuration - Update these with your actual values
-        const API_KEY = '799788e1-b7b6-4e7f-bc65-c82f2221208e'; // Replace with actual API key
+        const API_KEY = '8b37437e-c9ab-4b47-83b9-5bf3cc10248c'; // Replace with actual API key
         const SERVER_URL = 'http://13.126.228.42'; // Your backend server
         const API_BASE_URL = 'http://13.126.228.42/api'; // API endpoints base URL
 
@@ -500,19 +500,14 @@
 
         // Load Push SDK
         function loadPushSDK() {
-            console.log('Loading SDK from:', `${SERVER_URL}/sdk.js`);
             const script = document.createElement('script');
             script.src = `${SERVER_URL}/sdk.js`;
             script.onload = () => {
-                console.log('Push SDK loaded successfully');
-                setTimeout(() => {
-                    initializePushSDK();
-                }, 200); // Give SDK time to initialize
+                console.log('Push SDK loaded');
+                initializePushSDK();
             };
-            script.onerror = (error) => {
-                console.error('Failed to load Push SDK from:', `${SERVER_URL}/sdk.js`);
-                console.error('Error details:', error);
-                showToast('❌ Failed to load Push SDK. Check console.');
+            script.onerror = () => {
+                console.error('Failed to load Push SDK');
             };
             document.head.appendChild(script);
         }
@@ -520,7 +515,6 @@
         // Initialize Push SDK
         async function initializePushSDK() {
             console.log('Checking for SDK...');
-            console.log('Available globals:', Object.keys(window).filter(k => k.includes('P')));
             
             if (typeof PN !== 'undefined') {
                 try {
@@ -536,20 +530,9 @@
                     console.error('Failed to initialize PN SDK:', error);
                     showToast('❌ Failed to initialize Push SDK: ' + error.message);
                 }
-            } else if (typeof PushNotificationSDK !== 'undefined') {
-                try {
-                    pushSDK = new PushNotificationSDK(API_KEY, {
-                        serverUrl: SERVER_URL
-                    });
-                    console.log('PushNotificationSDK initialized successfully');
-                    showToast('✅ Push system ready!');
-                } catch (error) {
-                    console.error('Failed to initialize SDK:', error);
-                    showToast('❌ Failed to initialize Push SDK: ' + error.message);
-                }
             } else {
-                console.error('No push notification SDK found');
-                showToast('❌ Push SDK not loaded. Check if ' + SERVER_URL + '/sdk.js is accessible.');
+                console.error('PN SDK not found');
+                showToast('❌ Push SDK not loaded properly');
             }
         }
 
@@ -568,48 +551,30 @@
             try {
                 hideNotificationPrompt();
                 
-                if (!pushSDK) {
-                    showToast('⚠️ Push system not ready. Please refresh and try again.');
-                    return;
-                }
-
-                // For PN SDK, the init() method handles permission request and subscription
-                if (pushSDK === PN) {
-                    // PN.init() already handles everything, so we just need to check if it worked
-                    if (Notification.permission === 'granted') {
-                        showToast('✅ Notifications enabled! You\'ll receive alerts for deals.');
-                        // Send welcome notification
-                        sendWelcomeNotification();
-                    } else {
-                        // Try to re-init if permission wasn't granted
-                        await pushSDK.init({ 
+                const permission = await Notification.requestPermission();
+                
+                if (permission === 'granted') {
+                    // Re-initialize SDK to handle subscription after permission granted
+                    if (typeof PN !== 'undefined') {
+                        await PN.init({ 
                             apiKey: API_KEY, 
                             baseUrl: SERVER_URL 
                         });
-                        if (Notification.permission === 'granted') {
-                            showToast('✅ Notifications enabled! You\'ll receive alerts for deals.');
-                            sendWelcomeNotification();
-                        } else {
-                            showToast('❌ Notifications blocked. Enable them in browser settings.');
-                        }
-                    }
-                } else if (pushSDK.subscribe) {
-                    // For other SDK types with subscribe method
-                    const permission = await Notification.requestPermission();
-                    
-                    if (permission === 'granted') {
-                        const subscription = await pushSDK.subscribe();
-                        if (subscription) {
-                            showToast('✅ Notifications enabled! You\'ll receive alerts for deals.');
-                            sendWelcomeNotification();
-                        }
+                        pushSDK = PN;
+                        
+                        showToast('✅ Notifications enabled! You\'ll receive alerts for deals.');
+                        
+                        // Send welcome notification
+                        sendWelcomeNotification();
                     } else {
-                        showToast('❌ Notifications blocked. Enable them in browser settings.');
+                        showToast('⚠️ Push system not ready. Please refresh and try again.');
                     }
+                } else {
+                    showToast('❌ Notifications blocked. Enable them in browser settings.');
                 }
             } catch (error) {
                 console.error('Failed to enable notifications:', error);
-                showToast('❌ Failed to enable notifications: ' + error.message);
+                showToast('❌ Failed to enable notifications. Please try again.');
             }
         }
 

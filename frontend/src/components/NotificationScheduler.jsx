@@ -10,7 +10,6 @@ import {
   GridItem,
   Input,
   Textarea,
-  Select,
   Switch,
   Badge,
   IconButton,
@@ -56,7 +55,7 @@ function useAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
 }
 
-const QuickScheduleOptions = ({ onSelect }) => {
+const QuickScheduleOptions = ({ onselect }) => {
   const options = [
     { label: 'In 1 hour', value: addHours(new Date(), 1) },
     { label: 'In 2 hours', value: addHours(new Date(), 2) },
@@ -74,7 +73,7 @@ const QuickScheduleOptions = ({ onSelect }) => {
           size="sm"
           variant="ghost"
           justifyContent="start"
-          onClick={() => onSelect(option.value)}
+          onClick={() => onselect(option.value)}
         >
           {option.label}
         </Button>
@@ -185,12 +184,17 @@ export default function NotificationScheduler() {
 
   const [errors, setErrors] = useState({})
 
+  const getApiUrl = (endpoint) => {
+    const apiBase = 'http://localhost:4000'
+    return `${apiBase}${endpoint}`
+  }
+
   const fetchData = async () => {
     try {
       setLoading(true)
       const [notificationsRes, statsRes] = await Promise.all([
-        fetch('/api/scheduled/list', { headers }),
-        fetch('/api/scheduled/stats/overview', { headers })
+        fetch(getApiUrl('/api/scheduled/list'), { headers }),
+        fetch(getApiUrl('/api/scheduled/stats/overview'), { headers })
       ])
 
       if (notificationsRes.ok) {
@@ -577,7 +581,7 @@ export default function NotificationScheduler() {
 
                   <FormControl>
                     <FormLabel>Timezone</FormLabel>
-                    <Select
+                    <select
                       value={form.timezone}
                       onChange={(e) => setForm({ ...form, timezone: e.target.value })}
                     >
@@ -591,12 +595,12 @@ export default function NotificationScheduler() {
                       <option value="Asia/Tokyo">Tokyo</option>
                       <option value="Asia/Shanghai">Shanghai</option>
                       <option value="Australia/Sydney">Sydney</option>
-                    </Select>
+                    </select>
                   </FormControl>
                 </VStack>
 
                 <VStack spacing={4} align="stretch">
-                  <QuickScheduleOptions onSelect={handleQuickSchedule} />
+                  <QuickScheduleOptions onselect={handleQuickSchedule} />
                   
                   {form.title && form.body && (
                     <Box>

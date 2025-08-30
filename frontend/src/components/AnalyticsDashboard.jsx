@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useColorModeValue } from '@chakra-ui/color-mode'
 import {
   Box,
   Grid,
@@ -9,14 +8,13 @@ import {
   VStack,
   HStack,
   Badge,
-  Progress,
   Button,
-  Select,
   Icon,
-  Flex
+  Flex,
+  Spinner
 } from '@chakra-ui/react'
+import { useColorModeValue } from '@chakra-ui/color-mode'
 import { Card, CardBody, CardHeader } from '@chakra-ui/card'
-import { Spinner } from '@chakra-ui/spinner'
 import { Alert } from '@chakra-ui/alert'
 import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/tabs'
 import {
@@ -51,7 +49,7 @@ import {
   AreaChart,
   Area
 } from 'recharts'
-import { FiTrendingUp, FiUsers, FiBell, FiMail, FiEye, FiMousePointer, FiMonitor, FiSmartphone, FiGlobe } from 'react-icons/fi'
+import { FiTrendingUp, FiUsers, FiBell, FiMail, FiEye, FiMousePointer, FiMonitor, FiSmartphone, FiGlobe, FiMapPin, FiTablet, FiBarChart } from 'react-icons/fi'
 import { format, parseISO } from 'date-fns'
 
 function useAuthHeaders() {
@@ -115,11 +113,13 @@ export default function AnalyticsDashboard() {
   const fetchAnalytics = async () => {
     try {
       setLoading(true)
+      const getApiUrl = (endpoint) => 'http://localhost:4000' + endpoint
+      
       const [overviewRes, timeseriesRes, demographicsRes, activityRes] = await Promise.all([
-        fetch('/api/metrics/analytics/overview', { headers }),
-        fetch(`/api/metrics/analytics/timeseries?days=${timeRange}`, { headers }),
-        fetch('/api/metrics/analytics/demographics', { headers }),
-        fetch('/api/metrics/analytics/activity?limit=10', { headers })
+        fetch(getApiUrl('/api/metrics/analytics/overview'), { headers }),
+        fetch(getApiUrl(`/api/metrics/analytics/timeseries?days=${timeRange}`), { headers }),
+        fetch(getApiUrl('/api/metrics/analytics/demographics'), { headers }),
+        fetch(getApiUrl('/api/metrics/analytics/activity?limit=10'), { headers })
       ])
 
       if (!overviewRes.ok) throw new Error('Failed to fetch analytics')
@@ -145,7 +145,9 @@ export default function AnalyticsDashboard() {
   }
 
   useEffect(() => {
-    fetchAnalytics()
+    if (!loading) {
+      fetchAnalytics()
+    }
   }, [timeRange])
 
   const formatDate = (dateStr) => {
@@ -165,19 +167,52 @@ export default function AnalyticsDashboard() {
   }
 
   return (
-    <VStack spacing={6} align="stretch">
-      {/* Header */}
-      <Flex justify="space-between" align="center">
-        <Box>
-          <Heading size="lg">Analytics Dashboard</Heading>
-          <Text color="gray.600" mt={1}>Monitor your push notification performance</Text>
+    <VStack spacing={8} align="stretch">
+      {/* Professional Header */}
+      <Box 
+        bgGradient="linear(to-r, green.500, teal.600)"
+        borderRadius="2xl"
+        p={8}
+        color="white"
+        position="relative"
+        overflow="hidden"
+      >
+        <Box position="absolute" top={0} right={0} opacity={0.1}>
+          <Icon as={FiTrendingUp} boxSize="120px" />
         </Box>
-        <Select w="200px" value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
-          <option value="7">Last 7 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-        </Select>
-      </Flex>
+        <Flex justify="space-between" align="center" position="relative" zIndex={1}>
+          <HStack spacing={4}>
+            <Box p={3} bg="whiteAlpha.200" borderRadius="xl">
+              <Icon as={FiBarChart} boxSize={8} />
+            </Box>
+            <VStack align="start" spacing={1}>
+              <Heading size="xl" color="white">Analytics Dashboard</Heading>
+              <Text opacity={0.9} fontSize="lg">
+                Monitor performance and engagement metrics
+              </Text>
+            </VStack>
+          </HStack>
+          <Box bg="whiteAlpha.200" borderRadius="xl" p={4}>
+            <Text fontSize="sm" opacity={0.8} mb={2}>Time Period</Text>
+            <select 
+              style={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.3)', 
+                border: 'none', 
+                color: 'white', 
+                padding: '8px 12px', 
+                borderRadius: '8px', 
+                width: '100%'
+              }}
+              value={timeRange} 
+              onChange={(e) => setTimeRange(e.target.value)}
+            >
+              <option value="7" style={{color: 'black'}}>Last 7 days</option>
+              <option value="30" style={{color: 'black'}}>Last 30 days</option>
+              <option value="90" style={{color: 'black'}}>Last 90 days</option>
+            </select>
+          </Box>
+        </Flex>
+      </Box>
 
       {/* Overview Cards */}
       <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(4, 1fr)' }} gap={6}>
@@ -281,10 +316,46 @@ export default function AnalyticsDashboard() {
             ) : (
               <Tabs variant="enclosed" size="sm">
                 <TabList>
+                  <Tab>Devices</Tab>
                   <Tab>Browsers</Tab>
-                  <Tab>Platforms</Tab>
+                  <Tab>Locations</Tab>
                 </TabList>
                 <TabPanels>
+                  <TabPanel p={0} pt={4}>
+                    <VStack spacing={4}>
+                      <ResponsiveContainer width="100%" height={180}>
+                        <PieChart>
+                          <Pie
+                            data={demographics?.devices || []}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={35}
+                            outerRadius={70}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {demographics?.devices?.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <HStack spacing={4} justify="center">
+                        {demographics?.devices?.map((device, i) => (
+                          <HStack key={i} spacing={1}>
+                            <Icon as={
+                              device.name === 'Mobile' ? FiSmartphone : 
+                              device.name === 'Tablet' ? FiTablet : 
+                              FiMonitor
+                            } color={COLORS[i % COLORS.length]} />
+                            <Text fontSize="xs">{device.value}</Text>
+                          </HStack>
+                        ))}
+                      </HStack>
+                    </VStack>
+                  </TabPanel>
                   <TabPanel p={0} pt={4}>
                     <ResponsiveContainer width="100%" height={200}>
                       <PieChart>
@@ -307,25 +378,17 @@ export default function AnalyticsDashboard() {
                     </ResponsiveContainer>
                   </TabPanel>
                   <TabPanel p={0} pt={4}>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <PieChart>
-                        <Pie
-                          data={demographics?.platforms || []}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={40}
-                          outerRadius={80}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          {demographics?.platforms?.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <VStack spacing={2} align="stretch">
+                      {demographics?.countries?.slice(0, 5).map((country, i) => (
+                        <HStack key={i} justify="space-between" p={2} bg="gray.50" borderRadius="md">
+                          <HStack>
+                            <Icon as={FiMapPin} color={COLORS[i % COLORS.length]} />
+                            <Text fontSize="sm" fontWeight="medium">{country.name}</Text>
+                          </HStack>
+                          <Badge colorScheme="blue">{country.value}</Badge>
+                        </HStack>
+                      ))}
+                    </VStack>
                   </TabPanel>
                 </TabPanels>
               </Tabs>
@@ -348,12 +411,9 @@ export default function AnalyticsDashboard() {
                   <Text fontSize="sm" fontWeight="medium">Delivery Rate</Text>
                   <Text fontSize="sm" fontWeight="bold">{analytics?.delivery.rate || 0}%</Text>
                 </Flex>
-                <Progress 
-                  value={analytics?.delivery.rate || 0} 
-                  colorScheme="green" 
-                  size="md" 
-                  borderRadius="md"
-                />
+                <div style={{width: '100%', height: '12px', backgroundColor: '#E2E8F0', borderRadius: '6px'}}>
+                  <div style={{width: `${analytics?.delivery.rate || 0}%`, height: '100%', backgroundColor: '#38A169', borderRadius: '6px'}}></div>
+                </div>
               </Box>
               <Box borderTop="1px" borderColor="gray.200" />
               <HStack justify="space-between">
@@ -386,24 +446,18 @@ export default function AnalyticsDashboard() {
                   <Text fontSize="sm" fontWeight="medium">Open Rate</Text>
                   <Text fontSize="sm" fontWeight="bold">{analytics?.engagement.openRate || 0}%</Text>
                 </Flex>
-                <Progress 
-                  value={analytics?.engagement.openRate || 0} 
-                  colorScheme="blue" 
-                  size="md" 
-                  borderRadius="md"
-                />
+                <div style={{width: '100%', height: '12px', backgroundColor: '#E2E8F0', borderRadius: '6px'}}>
+                  <div style={{width: `${analytics?.engagement.openRate || 0}%`, height: '100%', backgroundColor: '#3182CE', borderRadius: '6px'}}></div>
+                </div>
               </Box>
               <Box>
                 <Flex justify="space-between" mb={2}>
                   <Text fontSize="sm" fontWeight="medium">Click Rate</Text>
                   <Text fontSize="sm" fontWeight="bold">{analytics?.engagement.clickRate || 0}%</Text>
                 </Flex>
-                <Progress 
-                  value={analytics?.engagement.clickRate || 0} 
-                  colorScheme="purple" 
-                  size="md" 
-                  borderRadius="md"
-                />
+                <div style={{width: '100%', height: '12px', backgroundColor: '#E2E8F0', borderRadius: '6px'}}>
+                  <div style={{width: `${analytics?.engagement.clickRate || 0}%`, height: '100%', backgroundColor: '#3182CE', borderRadius: '6px'}}></div>
+                </div>
               </Box>
             </VStack>
           </CardBody>

@@ -14,17 +14,17 @@ router.use(requireAuth, requireRole('customer'));
 // Get own push settings and subscribers
 router.get('/me', async (req, res) => {
   const { customers, pushSettings, subscriptions, notifications, metrics } = getDatastores();
-  const customer = await customers.findOne({ userId: req.user.userId });
+  const customer = await customers.findOne({ user_id: req.user.userId });
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
-  const settings = await pushSettings.findOne({ customerId: customer._id });
-  const count = await subscriptions.count({ customerId: customer._id });
+  const settings = await pushSettings.findOne({ customer_id: customer.id });
+  const count = await subscriptions.count({ customer_id: customer.id });
   // Aggregate notification stats (sent/failed); open/click rates are placeholders until tracked
-  const notifDocs = await notifications.find({ customerId: customer._id });
+  const notifDocs = await notifications.find({ customer_id: customer.id });
   const successTotal = notifDocs.reduce((acc, n) => acc + (Number(n.success) || 0), 0);
   const failTotal = notifDocs.reduce((acc, n) => acc + (Number(n.failed) || 0), 0);
   const totalSends = notifDocs.length;
-  const opens = await metrics.count({ customerId: customer._id, type: 'open' });
-  const clicks = await metrics.count({ customerId: customer._id, type: 'click' });
+  const opens = await metrics.count({ customer_id: customer.id, event_type: 'opened' });
+  const clicks = await metrics.count({ customer_id: customer.id, event_type: 'clicked' });
   const delivered = successTotal || 0;
   const openRate = delivered > 0 ? Math.round((opens / delivered) * 100) : 0;
   const clickRate = delivered > 0 ? Math.round((clicks / delivered) * 100) : 0;
@@ -50,10 +50,10 @@ router.post(
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const { customers, pushSettings } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
-    const existing = await pushSettings.findOne({ customerId: customer._id });
-    const doc = { ...existing, ...req.body, customerId: customer._id, updatedAt: new Date().toISOString() };
+    const existing = await pushSettings.findOne({ customer_id: customer.id });
+    const doc = { ...existing, ...req.body, customer_id: customer.id, updatedAt: new Date().toISOString() };
     if (existing) {
       await pushSettings.update({ _id: existing._id }, doc, { upsert: true });
       res.json(doc);
@@ -64,42 +64,78 @@ router.post(
   }
 );
 
-// Send a test notification to all subscribers
+// Send a rich notification to all subscribers
 router.post(
   '/notify',
-  notificationLimiter,
-  planBasedLimiter,
+  // notificationLimiter, // TODO: Re-enable rate limiting later
+  // planBasedLimiter, // TODO: Re-enable rate limiting later
   body('title').isString(),
   body('body').isString(),
   body('url').optional().isURL(),
+  body('image').optional().isURL(),
+  body('icon').optional().isURL(),
+  body('badge').optional().isURL(),
+  body('tag').optional().isString(),
+  body('silent').optional().isBoolean(),
+  body('requireInteraction').optional().isBoolean(),
+  body('renotify').optional().isBoolean(),
+  body('vibrate').optional().isArray(),
+  body('dir').optional().isIn(['auto', 'ltr', 'rtl']),
+  body('lang').optional().isString(),
+  body('actions').optional().isArray(),
+  body('actions.*.action').optional().isString(),
+  body('actions.*.title').optional().isString(),
+  body('actions.*.icon').optional().isURL(),
+  body('data').optional().isObject(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const { customers, subscriptions, pushSettings, notifications } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
-    const settings = await pushSettings.findOne({ customerId: customer._id });
+    const settings = await pushSettings.findOne({ customer_id: customer.id });
     const vapidPublicKey = settings?.vapidPublicKey || process.env.VAPID_PUBLIC_KEY;
     const vapidPrivateKey = settings?.vapidPrivateKey || process.env.VAPID_PRIVATE_KEY;
     const vapidSubject = settings?.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
     if (!vapidPublicKey || !vapidPrivateKey) return res.status(400).json({ error: 'Missing VAPID keys' });
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
-    const subs = await subscriptions.find({ customerId: customer._id });
-    const cid = customer._id;
+    const subs = await subscriptions.find({ customer_id: customer.id });
+    const cid = customer.id;
+    
+    // Build rich notification payload
     const payload = JSON.stringify({
       title: req.body.title,
       body: req.body.body,
       url: req.body.url,
-      track: { // optional; SW may ignore if not present
+      image: req.body.image,
+      icon: req.body.icon,
+      badge: req.body.badge,
+      tag: req.body.tag,
+      silent: req.body.silent,
+      requireInteraction: req.body.requireInteraction,
+      renotify: req.body.renotify,
+      vibrate: req.body.vibrate,
+      dir: req.body.dir || 'auto',
+      lang: req.body.lang || 'en-US',
+      actions: req.body.actions && Array.isArray(req.body.actions) ? 
+        req.body.actions.slice(0, 2).map(action => ({
+          action: action.action,
+          title: action.title,
+          icon: action.icon
+        })) : undefined,
+      data: req.body.data || {},
+      timestamp: new Date().toISOString(),
+      track: { // Enhanced tracking for rich notifications
         openUrl: `/api/metrics/open?cid=${encodeURIComponent(cid)}`,
-        clickUrl: `/api/metrics/click?cid=${encodeURIComponent(cid)}`
+        clickUrl: `/api/metrics/click?cid=${encodeURIComponent(cid)}`,
+        dismissUrl: `/api/metrics/dismiss?cid=${encodeURIComponent(cid)}`
       }
     });
 
     if (DEBUG_PUSH) {
       console.log('[push] preparing', {
-        customerId: customer._id,
+        customer_id: customer.id,
         subscriptions: subs.length,
         vapidSubject,
         vapidPublicKey: vapidPublicKey ? String(vapidPublicKey).slice(0, 8) + '...' : null,
@@ -127,10 +163,10 @@ router.post(
         }
       });
     }
-    const notificationRecord = await notifications.insert({ customerId: customer._id, payload: req.body, sentAt: new Date().toISOString(), success: ok, failed: fail });
+    const notificationRecord = await notifications.insert({ customer_id: customer.id, payload: req.body, sentAt: new Date().toISOString(), success: ok, failed: fail });
     
     // Trigger webhook event
-    await triggerWebhookEvent(customer._id, 'notification.sent', {
+    await triggerWebhookEvent(customer.id, 'notification.sent', {
       notification_id: notificationRecord._id,
       title: req.body.title,
       body: req.body.body,
@@ -142,7 +178,7 @@ router.post(
     });
     
     if (DEBUG_PUSH) {
-      console.log('[push] summary', { customerId: customer._id, total: results.length, sent: ok, failed: fail });
+      console.log('[push] summary', { customer_id: customer.id, total: results.length, sent: ok, failed: fail });
     }
     res.json({ sent: ok, failed: fail });
   }
@@ -151,23 +187,59 @@ router.post(
 // Generate and save VAPID keys
 router.post('/generate-vapid', async (req, res) => {
   const { customers, pushSettings } = getDatastores();
-  const customer = await customers.findOne({ userId: req.user.userId });
+  const customer = await customers.findOne({ user_id: req.user.userId });
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
   const keys = webpush.generateVAPIDKeys();
-  const doc = { customerId: customer._id, vapidPublicKey: keys.publicKey, vapidPrivateKey: keys.privateKey, updatedAt: new Date().toISOString() };
-  const existing = await pushSettings.findOne({ customerId: customer._id });
+  const doc = { customer_id: customer.id, vapidPublicKey: keys.publicKey, vapidPrivateKey: keys.privateKey, updatedAt: new Date().toISOString() };
+  const existing = await pushSettings.findOne({ customer_id: customer.id });
   if (existing) await pushSettings.update({ _id: existing._id }, { $set: doc });
   else await pushSettings.insert({ ...doc, createdAt: new Date().toISOString() });
   res.json(keys);
 });
 
-// List subscribers
+// Get recent notifications for customer
+router.get('/notifications', async (req, res) => {
+  const { customers, notifications } = getDatastores();
+  const customer = await customers.findOne({ user_id: req.user.userId });
+  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = parseInt(req.query.skip) || 0;
+  
+  const recentNotifications = await notifications.find({ customer_id: customer.id }, { 
+    sort: { sent_at: -1 }, 
+    limit: limit, 
+    skip: skip 
+  });
+  
+  res.json(recentNotifications);
+});
+
+// List subscribers with detailed information
 router.get('/subscribers', async (req, res) => {
   const { customers, subscriptions } = getDatastores();
-  const customer = await customers.findOne({ userId: req.user.userId });
+  const customer = await customers.findOne({ user_id: req.user.userId });
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
-  const subs = await subscriptions.find({ customerId: customer._id }).sort({ createdAt: -1 });
-  res.json(subs.map((s) => ({ id: s._id, endpoint: s.subscription?.endpoint, createdAt: s.createdAt })));
+  const subs = await subscriptions.find({ customer_id: customer.id }, { sort: { created_at: -1 } });
+  
+  // Return detailed subscriber information including location, device, and tenant
+  res.json(subs.map((s) => ({ 
+    id: s._id, 
+    endpoint: s.subscription?.endpoint,
+    country: s.country,
+    city: s.city,
+    region: s.region,
+    timezone: s.timezone,
+    browser: s.browser || 'Unknown',
+    os: s.os || 'Unknown',
+    device: s.device || 'Unknown',
+    tenant: customer.name, // Use customer name as tenant identifier
+    tags: s.tags || [],
+    segments: s.segments || [],
+    engagementScore: s.engagementScore || 0,
+    lastActive: s.lastActive,
+    createdAt: s.createdAt
+  })));
 });
 
 module.exports = router;

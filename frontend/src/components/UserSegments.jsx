@@ -9,7 +9,6 @@ import {
   Badge,
   Input,
   Textarea,
-  Select,
   CheckboxGroup,
   Checkbox,
   useDisclosure,
@@ -69,7 +68,7 @@ import { FiUsers, FiPlus, FiEdit, FiTrash2, FiTarget, FiFilter, FiMail, FiEye, F
 const UserSegments = () => {
   const [segments, setSegments] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedSegment, setSelectedSegment] = useState(null);
+  const [selectedSegment, setselectedSegment] = useState(null);
   const [subscribers, setSubscribers] = useState([]);
   const [subscribersLoading, setSubscribersLoading] = useState(false);
   
@@ -99,11 +98,13 @@ const UserSegments = () => {
     fetchSegments();
   }, []);
 
+  const getApiUrl = (endpoint) => 'http://localhost:4000' + endpoint;
+
   const fetchSegments = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/segments/list', {
+      const response = await fetch(getApiUrl('/api/segments/list'), {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
@@ -152,7 +153,7 @@ const UserSegments = () => {
   const handleCreateSegment = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/segments/create', {
+      const response = await fetch(getApiUrl('/api/segments/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -266,11 +267,11 @@ const UserSegments = () => {
         dateRange: { start: '', end: '' }
       }
     });
-    setSelectedSegment(null);
+    setselectedSegment(null);
   };
 
   const openEditModal = (segment) => {
-    setSelectedSegment(segment);
+    setselectedSegment(segment);
     setFormData({
       name: segment.name,
       description: segment.description || '',
@@ -281,7 +282,7 @@ const UserSegments = () => {
   };
 
   const openViewModal = (segment) => {
-    setSelectedSegment(segment);
+    setselectedSegment(segment);
     fetchSegmentSubscribers(segment._id);
     onViewOpen();
   };
@@ -336,18 +337,18 @@ const UserSegments = () => {
                     </Badge>
                   </HStack>
                   <Menu>
-                    <MenuButton as={IconButton} icon={<FiMoreVertical />} variant="ghost" size="sm" />
+                    <MenuButton as={IconButton} icon={<Icon as={FiMoreVertical} />} variant="ghost" size="sm" />
                     <MenuList>
-                      <MenuItem icon={<FiEye />} onClick={() => openViewModal(segment)}>
+                      <MenuItem icon={<Icon as={FiEye} />} onClick={() => openViewModal(segment)}>
                         View Subscribers
                       </MenuItem>
-                      <MenuItem icon={<FiEdit />} onClick={() => openEditModal(segment)}>
+                      <MenuItem icon={<Icon as={FiEdit} />} onClick={() => openEditModal(segment)}>
                         Edit Segment
                       </MenuItem>
-                      <MenuItem icon={<FiMail />}>
+                      <MenuItem icon={<Icon as={FiMail} />}>
                         Send Notification
                       </MenuItem>
-                      <MenuItem icon={<FiTrash2 />} onClick={() => handleDeleteSegment(segment._id)}>
+                      <MenuItem icon={<Icon as={FiTrash2} />} onClick={() => handleDeleteSegment(segment._id)}>
                         Delete
                       </MenuItem>
                     </MenuList>
@@ -373,10 +374,10 @@ const UserSegments = () => {
           {segments.length === 0 && (
             <Card>
               <CardBody textAlign="center" py={12}>
-                <Icon as={FiTarget} size="48px" color="gray.400" mb={4} />
+                <Icon as={FiTarget} boxSize="48px" color="gray.400" mb={4} />
                 <Text fontSize="lg" fontWeight="bold" mb={2}>No segments created yet</Text>
                 <Text color="gray.600" mb={4}>Create your first segment to start targeting specific users</Text>
-                <Button leftIcon={<FiPlus />} colorScheme="blue" onClick={onCreateOpen}>
+                <Button leftIcon={<Icon as={FiPlus} />} colorScheme="blue" onClick={onCreateOpen}>
                   Create Your First Segment
                 </Button>
               </CardBody>

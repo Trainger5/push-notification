@@ -10,7 +10,6 @@ import {
   GridItem,
   Input,
   Textarea,
-  Select,
   Switch,
   Badge,
   IconButton,
@@ -19,39 +18,19 @@ import {
   Tag,
   SimpleGrid,
   Wrap,
-  WrapItem
+  WrapItem,
+  Icon
 } from '@chakra-ui/react'
+import { Alert } from '@chakra-ui/alert'
 import { Card, CardBody, CardHeader } from '@chakra-ui/card'
 import { useToast } from '@chakra-ui/toast'
-import {
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalFooter,
-  ModalBody,
-  ModalCloseButton
-} from '@chakra-ui/modal'
-import { Alert } from '@chakra-ui/alert'
-import { Spinner } from '@chakra-ui/spinner'
-import { Tooltip } from '@chakra-ui/tooltip'
-import {
-  Menu,
-  MenuButton,
-  MenuList,
-  MenuItem
-} from '@chakra-ui/menu'
+import { useColorModeValue } from '@chakra-ui/color-mode'
+import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/tabs'
 import {
   FormControl,
   FormLabel,
   FormErrorMessage
 } from '@chakra-ui/form-control'
-import {
-  InputGroup,
-  InputLeftElement
-} from '@chakra-ui/input'
-import { useColorModeValue } from '@chakra-ui/color-mode'
-import { Tabs, TabList, TabPanels, Tab, TabPanel } from '@chakra-ui/tabs'
 import { 
   FiPlus, 
   FiEdit, 
@@ -67,6 +46,66 @@ import {
   FiRefreshCw,
   FiFilter
 } from 'react-icons/fi'
+
+// CSS for spinner animation and modals
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style')
+  style.textContent = `
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 90vw;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    }
+    .menu-container {
+      position: relative;
+      display: inline-block;
+    }
+    .menu-list {
+      position: absolute;
+      right: 0;
+      top: 100%;
+      background: white;
+      border: 1px solid #E2E8F0;
+      border-radius: 6px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      z-index: 100;
+      min-width: 160px;
+    }
+    .menu-item {
+      padding: 8px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #2D3748;
+      font-size: 14px;
+    }
+    .menu-item:hover {
+      background: #F7FAFC;
+    }
+  `
+  document.head.appendChild(style)
+}
 
 function useAuthHeaders() {
   const token = localStorage.getItem('token')
@@ -126,27 +165,36 @@ const TemplateCard = ({ template, onEdit, onDelete, onDuplicate, onUse, onView }
             </HStack>
           </Box>
           
-          <Menu>
-            <MenuButton as={IconButton} icon={<FiMoreVertical />} variant="ghost" size="sm" />
-            <MenuList>
-              <MenuItem icon={<FiEye />} onClick={() => onView(template)}>
-                View Details
-              </MenuItem>
-              <MenuItem icon={<FiSend />} onClick={() => onUse(template)}>
-                Use Template
-              </MenuItem>
-              <MenuItem icon={<FiEdit />} onClick={() => onEdit(template)}>
-                Edit
-              </MenuItem>
-              <MenuItem icon={<FiCopy />} onClick={() => onDuplicate(template)}>
-                Duplicate
-              </MenuItem>
-              <Box borderTop="1px" borderColor="gray.200" />
-              <MenuItem icon={<FiTrash2 />} color="red.500" onClick={() => onDelete(template)}>
-                Delete
-              </MenuItem>
-            </MenuList>
-          </Menu>
+          <div className="menu-container">
+            <IconButton
+              icon={<Icon as={FiMoreVertical} />}
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation()
+                const menu = e.target.closest('.menu-container').querySelector('.menu-list')
+                menu.style.display = menu.style.display === 'block' ? 'none' : 'block'
+              }}
+            />
+            <div className="menu-list" style={{display: 'none'}}>
+              <div className="menu-item" onClick={() => onView(template)}>
+                <Icon as={FiEye} /> View Details
+              </div>
+              <div className="menu-item" onClick={() => onUse(template)}>
+                <Icon as={FiSend} /> Use Template
+              </div>
+              <div className="menu-item" onClick={() => onEdit(template)}>
+                <Icon as={FiEdit} /> Edit
+              </div>
+              <div className="menu-item" onClick={() => onDuplicate(template)}>
+                <Icon as={FiCopy} /> Duplicate
+              </div>
+              <div style={{borderTop: '1px solid #E2E8F0', margin: '4px 0'}}></div>
+              <div className="menu-item" style={{color: '#E53E3E'}} onClick={() => onDelete(template)}>
+                <Icon as={FiTrash2} /> Delete
+              </div>
+            </div>
+          </div>
         </Flex>
       </CardBody>
     </Card>
@@ -255,6 +303,8 @@ export default function NotificationTemplates() {
   const [newVariable, setNewVariable] = useState('')
   const [errors, setErrors] = useState({})
 
+  const getApiUrl = (endpoint) => 'http://localhost:4000' + endpoint;
+
   const fetchTemplates = async () => {
     try {
       setLoading(true)
@@ -263,7 +313,7 @@ export default function NotificationTemplates() {
       if (searchTerm) params.append('search', searchTerm)
       if (!showInactive) params.append('active', 'true')
 
-      const response = await fetch(`/api/templates/list?${params}`, { headers })
+      const response = await fetch(getApiUrl(`/api/templates/list?${params}`), { headers })
       
       if (!response.ok) {
         throw new Error('Failed to fetch templates')
@@ -336,8 +386,8 @@ export default function NotificationTemplates() {
     setSubmitting(true)
     try {
       const url = editingTemplate 
-        ? `/api/templates/${editingTemplate._id}`
-        : '/api/templates/create'
+        ? getApiUrl(`/api/templates/${editingTemplate._id}`)
+        : getApiUrl('/api/templates/create')
       
       const method = editingTemplate ? 'PUT' : 'POST'
       
@@ -399,7 +449,7 @@ export default function NotificationTemplates() {
     if (!confirm(`Are you sure you want to delete "${template.name}"?`)) return
 
     try {
-      const response = await fetch(`/api/templates/${template._id}`, {
+      const response = await fetch(getApiUrl(`/api/templates/${template._id}`), {
         method: 'DELETE',
         headers
       })
@@ -429,7 +479,7 @@ export default function NotificationTemplates() {
 
   const handleDuplicate = async (template) => {
     try {
-      const response = await fetch(`/api/templates/${template._id}/duplicate`, {
+      const response = await fetch(getApiUrl(`/api/templates/${template._id}/duplicate`), {
         method: 'POST',
         headers
       })
@@ -480,7 +530,7 @@ export default function NotificationTemplates() {
         payload.timezone = useForm.timezone
       }
 
-      const response = await fetch(`/api/templates/${usingTemplate._id}/send`, {
+      const response = await fetch(getApiUrl(`/api/templates/${usingTemplate._id}/send`), {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
@@ -536,7 +586,7 @@ export default function NotificationTemplates() {
   if (loading) {
     return (
       <Flex justify="center" align="center" h="400px">
-        <Spinner size="lg" />
+        <div style={{width: '32px', height: '32px', border: '3px solid #E2E8F0', borderTop: '3px solid #3182CE', borderRadius: '50%', animation: 'spin 1s linear infinite'}}></div>
       </Flex>
     )
   }
@@ -550,10 +600,10 @@ export default function NotificationTemplates() {
           <Text color="gray.600">Create reusable notification templates with variables</Text>
         </Box>
         <HStack spacing={3}>
-          <Button leftIcon={<FiRefreshCw />} variant="ghost" onClick={fetchTemplates}>
+          <Button leftIcon={<Icon as={FiRefreshCw} />} variant="ghost" onClick={fetchTemplates}>
             Refresh
           </Button>
-          <Button leftIcon={<FiPlus />} colorScheme="blue" onClick={() => { resetForm(); onFormOpen(); }}>
+          <Button leftIcon={<Icon as={FiPlus} />} colorScheme="blue" onClick={() => { resetForm(); onFormOpen(); }}>
             Create Template
           </Button>
         </HStack>
@@ -563,35 +613,35 @@ export default function NotificationTemplates() {
       <Card bg={cardBg} borderRadius="xl">
         <CardBody>
           <Grid templateColumns={{ base: '1fr', md: 'repeat(4, 1fr)' }} gap={4} alignItems="end">
-            <FormControl>
-              <FormLabel fontSize="sm">Search</FormLabel>
-              <InputGroup>
-                <InputLeftElement>
-                  <FiSearch />
-                </InputLeftElement>
+            <div>
+              <label style={{fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block'}}>Search</label>
+              <div style={{position: 'relative'}}>
+                <Icon as={FiSearch} style={{position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#A0AEC0'}} />
                 <Input
                   placeholder="Search templates..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{paddingLeft: '40px'}}
                 />
-              </InputGroup>
-            </FormControl>
+              </div>
+            </div>
             
-            <FormControl>
-              <FormLabel fontSize="sm">Category</FormLabel>
-              <Select
+            <div>
+              <label style={{fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block'}}>Category</label>
+              <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
+                style={{padding: '8px 12px', border: '1px solid #E2E8F0', borderRadius: '6px', backgroundColor: 'white', width: '100%'}}
               >
                 <option value="">All Categories</option>
                 {categories.map(category => (
                   <option key={category} value={category}>{category}</option>
                 ))}
-              </Select>
-            </FormControl>
+              </select>
+            </div>
             
-            <FormControl>
-              <FormLabel fontSize="sm">Status</FormLabel>
+            <div>
+              <label style={{fontSize: '14px', fontWeight: '500', marginBottom: '8px', display: 'block'}}>Status</label>
               <HStack>
                 <Switch
                   isChecked={showInactive}
@@ -599,9 +649,9 @@ export default function NotificationTemplates() {
                 />
                 <Text fontSize="sm">Show Inactive</Text>
               </HStack>
-            </FormControl>
+            </div>
             
-            <Button leftIcon={<FiFilter />} variant="outline" onClick={() => {
+            <Button leftIcon={<Icon as={FiFilter} />} variant="outline" onClick={() => {
               setSearchTerm('')
               setSelectedCategory('')
               setShowInactive(false)
@@ -640,15 +690,14 @@ export default function NotificationTemplates() {
       )}
 
       {/* Create/Edit Template Modal */}
-      <Modal isOpen={isFormOpen} onClose={onFormClose} size="xl">
-        <ModalOverlay />
-        <ModalContent maxW="4xl">
-          <ModalHeader>
+      {isFormOpen && (
+        <div className="modal-overlay" onClick={onFormClose}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <Heading size="lg" mb={4}>
             {editingTemplate ? 'Edit Template' : 'Create New Template'}
-          </ModalHeader>
-          <ModalCloseButton />
+          </Heading>
           <form onSubmit={handleSubmit}>
-            <ModalBody>
+            <div>
               <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={6}>
                 <VStack spacing={4} align="stretch">
                   <Grid templateColumns="repeat(2, 1fr)" gap={4}>
@@ -763,9 +812,9 @@ export default function NotificationTemplates() {
                   />
                 </VStack>
               </Grid>
-            </ModalBody>
+            </div>
 
-            <ModalFooter>
+            <HStack justify="flex-end" mt={6}>
               <Button variant="ghost" mr={3} onClick={onFormClose}>
                 Cancel
               </Button>
@@ -777,18 +826,18 @@ export default function NotificationTemplates() {
               >
                 {editingTemplate ? 'Update' : 'Create'}
               </Button>
-            </ModalFooter>
+            </HStack>
           </form>
-        </ModalContent>
-      </Modal>
+          </div>
+        </div>
+      )}
 
       {/* Use Template Modal */}
-      <Modal isOpen={isUseOpen} onClose={onUseClose} size="lg">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Use Template: {usingTemplate?.name}</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
+      {isUseOpen && (
+        <div className="modal-overlay" onClick={onUseClose}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <Heading size="lg" mb={4}>Use Template: {usingTemplate?.name}</Heading>
+          <div>
             {usingTemplate && (
               <TemplatePreview
                 template={usingTemplate}
@@ -816,23 +865,23 @@ export default function NotificationTemplates() {
                 </FormControl>
                 <FormControl>
                   <FormLabel fontSize="sm">Timezone</FormLabel>
-                  <Select
-                    size="sm"
+                  <select
                     value={useForm.timezone}
                     onChange={(e) => setUseForm(prev => ({ ...prev, timezone: e.target.value }))}
+                    style={{padding: '6px', border: '1px solid #E2E8F0', borderRadius: '6px', backgroundColor: 'white', fontSize: '14px'}}
                   >
                     <option value="UTC">UTC</option>
                     <option value="America/New_York">Eastern Time</option>
                     <option value="America/Chicago">Central Time</option>
                     <option value="America/Denver">Mountain Time</option>
                     <option value="America/Los_Angeles">Pacific Time</option>
-                  </Select>
+                  </select>
                 </FormControl>
               </Grid>
             </Box>
-          </ModalBody>
+          </div>
 
-          <ModalFooter>
+          <HStack justify="flex-end" mt={6}>
             <Button variant="ghost" mr={3} onClick={onUseClose}>
               Cancel
             </Button>
@@ -855,17 +904,17 @@ export default function NotificationTemplates() {
                 Send Now
               </Button>
             )}
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </HStack>
+          </div>
+        </div>
+      )}
 
       {/* View Template Modal */}
-      <Modal isOpen={isViewOpen} onClose={onViewClose} size="lg">
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Template Details</ModalHeader>
-          <ModalCloseButton />
-          <ModalBody>
+      {isViewOpen && (
+        <div className="modal-overlay" onClick={onViewClose}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <Heading size="lg" mb={4}>Template Details</Heading>
+          <div>
             {viewingTemplate && (
               <VStack spacing={4} align="stretch">
                 <Box>
@@ -917,12 +966,13 @@ export default function NotificationTemplates() {
                 </Box>
               </VStack>
             )}
-          </ModalBody>
-          <ModalFooter>
+          </div>
+          <HStack justify="flex-end" mt={6}>
             <Button onClick={onViewClose}>Close</Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </HStack>
+          </div>
+        </div>
+      )}
     </VStack>
   )
 }

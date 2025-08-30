@@ -7,12 +7,17 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "seed": "node src/seed.js"
+    "seed": "node src/scripts/seed.js",
+    "seed:reset": "node src/scripts/seed.js --reset",
+    "setup": "node src/setup.js",
+    "migrate": "node src/migrations/run-migrations.js",
+    "reset-db": "node src/migrations/reset-database.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
@@ -22,6 +27,7 @@
     "geoip-lite": "^1.4.10",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.1",
+    "mysql2": "^3.14.3",
     "nedb-promises": "^6.2.3",
     "node-cron": "^4.2.1",
     "uuid": "^11.1.0",

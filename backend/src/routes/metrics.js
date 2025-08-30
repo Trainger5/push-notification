@@ -11,7 +11,19 @@ router.post('/open', async (req, res) => {
   try {
     const { metrics } = getDatastores();
     const cid = req.query && req.query.cid ? String(req.query.cid) : null;
-    await metrics.insert({ type: 'open', customerId: cid, at: new Date().toISOString() });
+    const abTestId = req.query && req.query.abtestId ? String(req.query.abtestId) : null;
+    const variantId = req.query && req.query.variantId ? String(req.query.variantId) : null;
+    
+    const metricData = { 
+      event_type: 'opened', 
+      customer_id: cid, 
+      timestamp: new Date() 
+    };
+    
+    if (abTestId) metricData.ab_test_id = abTestId;
+    if (variantId) metricData.event_data = { variant_id: variantId };
+    
+    await metrics.insert(metricData);
   } catch (_) {}
   res.status(204).end();
 });
@@ -20,7 +32,53 @@ router.post('/click', async (req, res) => {
   try {
     const { metrics } = getDatastores();
     const cid = req.query && req.query.cid ? String(req.query.cid) : null;
-    await metrics.insert({ type: 'click', customerId: cid, at: new Date().toISOString() });
+    const abTestId = req.query && req.query.abtestId ? String(req.query.abtestId) : null;
+    const variantId = req.query && req.query.variantId ? String(req.query.variantId) : null;
+    const action = req.query && req.query.action ? String(req.query.action) : 'default';
+    
+    const metricData = { 
+      event_type: 'clicked', 
+      customer_id: cid, 
+      timestamp: new Date(),
+      event_data: { action: action }
+    };
+    
+    if (abTestId) metricData.ab_test_id = abTestId;
+    if (variantId) metricData.event_data = { ...metricData.event_data, variant_id: variantId };
+    
+    // Parse request body for additional data
+    if (req.body && typeof req.body === 'object') {
+      if (req.body.customData) metricData.event_data = { ...metricData.event_data, custom_data: req.body.customData };
+      if (req.body.timestamp) metricData.event_data = { ...metricData.event_data, client_timestamp: req.body.timestamp };
+    }
+    
+    await metrics.insert(metricData);
+  } catch (_) {}
+  res.status(204).end();
+});
+
+router.post('/dismiss', async (req, res) => {
+  try {
+    const { metrics } = getDatastores();
+    const cid = req.query && req.query.cid ? String(req.query.cid) : null;
+    const abTestId = req.query && req.query.abtestId ? String(req.query.abtestId) : null;
+    const variantId = req.query && req.query.variantId ? String(req.query.variantId) : null;
+    
+    const metricData = { 
+      event_type: 'closed', 
+      customer_id: cid, 
+      timestamp: new Date() 
+    };
+    
+    if (abTestId) metricData.ab_test_id = abTestId;
+    if (variantId) metricData.event_data = { variant_id: variantId };
+    
+    // Parse request body for additional data
+    if (req.body && typeof req.body === 'object') {
+      if (req.body.timestamp) metricData.event_data = { ...metricData.event_data, client_timestamp: req.body.timestamp };
+    }
+    
+    await metrics.insert(metricData);
   } catch (_) {}
   res.status(204).end();
 });
@@ -32,52 +90,52 @@ router.use('/analytics', requireAuth, requireRole('customer'));
 router.get('/analytics/overview', async (req, res) => {
   try {
     const { customers, subscriptions, notifications, metrics } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
-    const customerId = customer._id;
+    const customerId = customer.id;
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     // Get subscriber count and growth
-    const totalSubscribers = await subscriptions.count({ customerId });
+    const totalSubscribers = await subscriptions.count({ customer_id: customerId });
     const newSubscribers7d = await subscriptions.count({ 
-      customerId, 
-      createdAt: { $gte: sevenDaysAgo.toISOString() }
+      customer_id: customerId, 
+      created_at: { $gte: sevenDaysAgo }
     });
     const newSubscribers30d = await subscriptions.count({ 
-      customerId, 
-      createdAt: { $gte: thirtyDaysAgo.toISOString() }
+      customer_id: customerId, 
+      created_at: { $gte: thirtyDaysAgo }
     });
 
     // Get notification stats
-    const totalNotifications = await notifications.count({ customerId });
+    const totalNotifications = await notifications.count({ customer_id: customerId });
     const notifications7d = await notifications.count({ 
-      customerId, 
-      createdAt: { $gte: sevenDaysAgo.toISOString() }
+      customer_id: customerId, 
+      created_at: { $gte: sevenDaysAgo }
     });
     const notifications30d = await notifications.count({ 
-      customerId, 
-      createdAt: { $gte: thirtyDaysAgo.toISOString() }
+      customer_id: customerId, 
+      created_at: { $gte: thirtyDaysAgo }
     });
 
     // Get engagement metrics
-    const totalOpens = await metrics.count({ customerId, type: 'open' });
-    const totalClicks = await metrics.count({ customerId, type: 'click' });
+    const totalOpens = await metrics.count({ customer_id: customerId, event_type: 'opened' });
+    const totalClicks = await metrics.count({ customer_id: customerId, event_type: 'clicked' });
     const opens7d = await metrics.count({ 
-      customerId, 
-      type: 'open', 
-      at: { $gte: sevenDaysAgo.toISOString() }
+      customer_id: customerId, 
+      event_type: 'opened', 
+      timestamp: { $gte: sevenDaysAgo }
     });
     const clicks7d = await metrics.count({ 
-      customerId, 
-      type: 'click', 
-      at: { $gte: sevenDaysAgo.toISOString() }
+      customer_id: customerId, 
+      event_type: 'clicked', 
+      timestamp: { $gte: sevenDaysAgo }
     });
 
     // Calculate delivery stats from notifications
-    const allNotifications = await notifications.find({ customerId });
+    const allNotifications = await notifications.find({ customer_id: customerId });
     const totalSent = allNotifications.reduce((sum, n) => sum + (n.success || 0), 0);
     const totalFailed = allNotifications.reduce((sum, n) => sum + (n.failed || 0), 0);
     const deliveryRate = totalSent + totalFailed > 0 ? ((totalSent / (totalSent + totalFailed)) * 100).toFixed(1) : 0;
@@ -120,23 +178,23 @@ router.get('/analytics/overview', async (req, res) => {
 router.get('/analytics/timeseries', async (req, res) => {
   try {
     const { customers, notifications, metrics } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
-    const customerId = customer._id;
+    const customerId = customer.id;
     const days = parseInt(req.query.days) || 30;
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     // Get daily notification counts
     const dailyNotifications = await notifications.find({ 
-      customerId, 
-      createdAt: { $gte: startDate.toISOString() }
+      customer_id: customerId, 
+      created_at: { $gte: startDate }
     });
 
     // Get daily engagement metrics
     const dailyMetrics = await metrics.find({ 
-      customerId, 
-      at: { $gte: startDate.toISOString() }
+      customer_id: customerId, 
+      timestamp: { $gte: startDate }
     });
 
     // Group by date
@@ -158,7 +216,7 @@ router.get('/analytics/timeseries', async (req, res) => {
 
     // Aggregate notifications
     dailyNotifications.forEach(notif => {
-      const date = notif.createdAt.split('T')[0];
+      const date = notif.created_at ? new Date(notif.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
       if (dateMap.has(date)) {
         const day = dateMap.get(date);
         day.notifications++;
@@ -169,11 +227,11 @@ router.get('/analytics/timeseries', async (req, res) => {
 
     // Aggregate metrics
     dailyMetrics.forEach(metric => {
-      const date = metric.at.split('T')[0];
+      const date = metric.timestamp ? new Date(metric.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
       if (dateMap.has(date)) {
         const day = dateMap.get(date);
-        if (metric.type === 'open') day.opens++;
-        if (metric.type === 'click') day.clicks++;
+        if (metric.event_type === 'opened') day.opens++;
+        if (metric.event_type === 'clicked') day.clicks++;
       }
     });
 
@@ -190,47 +248,79 @@ router.get('/analytics/timeseries', async (req, res) => {
 router.get('/analytics/demographics', async (req, res) => {
   try {
     const { customers, subscriptions } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
-    const customerId = customer._id;
-    const subs = await subscriptions.find({ customerId });
+    const customerId = customer.id;
+    const subs = await subscriptions.find({ customer_id: customerId });
 
-    // Analyze browser/platform distribution
+    // Analyze browser/platform/device/country distribution
     const browserStats = {};
     const platformStats = {};
+    const deviceStats = {};
+    const countryStats = {};
+    const cityStats = {};
     
     subs.forEach(sub => {
-      if (sub.userAgent) {
-        // Simple browser detection
-        let browser = 'Other';
-        if (sub.userAgent.includes('Chrome')) browser = 'Chrome';
-        else if (sub.userAgent.includes('Firefox')) browser = 'Firefox';
-        else if (sub.userAgent.includes('Safari')) browser = 'Safari';
-        else if (sub.userAgent.includes('Edge')) browser = 'Edge';
-        
-        browserStats[browser] = (browserStats[browser] || 0) + 1;
-        
-        // Platform detection
-        let platform = 'Other';
-        if (sub.userAgent.includes('Windows')) platform = 'Windows';
-        else if (sub.userAgent.includes('Mac')) platform = 'macOS';
-        else if (sub.userAgent.includes('Linux')) platform = 'Linux';
-        else if (sub.userAgent.includes('Android')) platform = 'Android';
-        else if (sub.userAgent.includes('iPhone') || sub.userAgent.includes('iPad')) platform = 'iOS';
-        
-        platformStats[platform] = (platformStats[platform] || 0) + 1;
+      // Browser stats (use stored data if available)
+      const browser = sub.browser || (sub.userAgent ? detectBrowser(sub.userAgent) : 'Other');
+      browserStats[browser] = (browserStats[browser] || 0) + 1;
+      
+      // Platform/OS stats
+      const platform = sub.os || (sub.userAgent ? detectPlatform(sub.userAgent) : 'Other');
+      platformStats[platform] = (platformStats[platform] || 0) + 1;
+      
+      // Device stats
+      const device = sub.device || 'Unknown';
+      deviceStats[device] = (deviceStats[device] || 0) + 1;
+      
+      // Location stats
+      if (sub.country) {
+        countryStats[sub.country] = (countryStats[sub.country] || 0) + 1;
+      }
+      if (sub.city) {
+        cityStats[sub.city] = (cityStats[sub.city] || 0) + 1;
       }
     });
+
+    function detectBrowser(ua) {
+      if (ua.includes('Chrome')) return 'Chrome';
+      if (ua.includes('Firefox')) return 'Firefox';
+      if (ua.includes('Safari')) return 'Safari';
+      if (ua.includes('Edge')) return 'Edge';
+      return 'Other';
+    }
+
+    function detectPlatform(ua) {
+      if (ua.includes('Windows')) return 'Windows';
+      if (ua.includes('Mac')) return 'macOS';
+      if (ua.includes('Linux')) return 'Linux';
+      if (ua.includes('Android')) return 'Android';
+      if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
+      return 'Other';
+    }
 
     // Convert to array format for charts
     const browsers = Object.entries(browserStats).map(([name, value]) => ({ name, value }));
     const platforms = Object.entries(platformStats).map(([name, value]) => ({ name, value }));
+    const devices = Object.entries(deviceStats).map(([name, value]) => ({ name, value }));
+    const countries = Object.entries(countryStats)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([name, value]) => ({ name, value }));
+    const cities = Object.entries(cityStats)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([name, value]) => ({ name, value }));
 
     res.json({
       browsers,
       platforms,
-      totalSubscribers: subs.length
+      devices,
+      countries,
+      cities,
+      totalSubscribers: subs.length,
+      tenant: customer.name // Include tenant info
     });
   } catch (error) {
     console.error('Demographics error:', error);
@@ -242,26 +332,29 @@ router.get('/analytics/demographics', async (req, res) => {
 router.get('/analytics/activity', async (req, res) => {
   try {
     const { customers, notifications, subscriptions, metrics } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.userId });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
-    const customerId = customer._id;
+    const customerId = customer.id;
     const limit = parseInt(req.query.limit) || 20;
 
     // Get recent notifications
-    const recentNotifications = await notifications.find({ customerId })
-      .sort({ createdAt: -1 })
-      .limit(limit);
+    const recentNotifications = await notifications.find({ customer_id: customerId }, {
+      sort: { created_at: -1 },
+      limit: limit
+    });
 
     // Get recent subscriptions
-    const recentSubscriptions = await subscriptions.find({ customerId })
-      .sort({ createdAt: -1 })
-      .limit(10);
+    const recentSubscriptions = await subscriptions.find({ customer_id: customerId }, {
+      sort: { created_at: -1 },
+      limit: 10
+    });
 
     // Get recent engagement
-    const recentEngagement = await metrics.find({ customerId })
-      .sort({ at: -1 })
-      .limit(20);
+    const recentEngagement = await metrics.find({ customer_id: customerId }, {
+      sort: { timestamp: -1 },
+      limit: 20
+    });
 
     res.json({
       notifications: recentNotifications,

@@ -101,11 +101,13 @@ const WebhookManagement = () => {
     fetchWebhooks();
   }, []);
 
+  const getApiUrl = (endpoint) => 'http://localhost:4000' + endpoint;
+
   const fetchWebhooks = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/webhooks/list', {
+      const response = await fetch(getApiUrl('/api/webhooks/list'), {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
@@ -154,7 +156,7 @@ const WebhookManagement = () => {
   const handleCreateWebhook = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/webhooks/create', {
+      const response = await fetch(getApiUrl('/api/webhooks/create'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -349,18 +351,18 @@ const WebhookManagement = () => {
                     </Badge>
                   </HStack>
                   <Menu>
-                    <MenuButton as={IconButton} icon={<FiMoreVertical />} variant="ghost" size="sm" />
+                    <MenuButton as={IconButton} icon={<Icon as={FiMoreVertical} />} variant="ghost" size="sm" />
                     <MenuList>
-                      <MenuItem icon={<FiPlay />} onClick={() => handleTestWebhook(webhook._id)}>
+                      <MenuItem icon={<Icon as={FiPlay} />} onClick={() => handleTestWebhook(webhook._id)}>
                         Test Webhook
                       </MenuItem>
-                      <MenuItem icon={<FiActivity />} onClick={() => openDeliveriesModal(webhook)}>
+                      <MenuItem icon={<Icon as={FiActivity} />} onClick={() => openDeliveriesModal(webhook)}>
                         View Deliveries
                       </MenuItem>
-                      <MenuItem icon={<FiEdit />} onClick={() => openEditModal(webhook)}>
+                      <MenuItem icon={<Icon as={FiEdit} />} onClick={() => openEditModal(webhook)}>
                         Edit Webhook
                       </MenuItem>
-                      <MenuItem icon={<FiTrash2 />} onClick={() => handleDeleteWebhook(webhook._id)}>
+                      <MenuItem icon={<Icon as={FiTrash2} />} onClick={() => handleDeleteWebhook(webhook._id)}>
                         Delete
                       </MenuItem>
                     </MenuList>
@@ -418,10 +420,10 @@ const WebhookManagement = () => {
           {webhooks.length === 0 && (
             <Card>
               <CardBody textAlign="center" py={12}>
-                <Icon as={FiCode} size="48px" color="gray.400" mb={4} />
+                <Icon as={FiCode} boxSize="48px" color="gray.400" mb={4} />
                 <Text fontSize="lg" fontWeight="bold" mb={2}>No webhooks configured</Text>
                 <Text color="gray.600" mb={4}>Create your first webhook to receive real-time events</Text>
-                <Button leftIcon={<FiPlus />} colorScheme="blue" onClick={onCreateOpen}>
+                <Button leftIcon={<Icon as={FiPlus} />} colorScheme="blue" onClick={onCreateOpen}>
                   Create Your First Webhook
                 </Button>
               </CardBody>

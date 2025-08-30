@@ -21,25 +21,30 @@ class NotificationScheduler {
     const { scheduledNotifications } = getDatastores();
     
     const scheduledNotification = {
-      customerId: notificationData.customerId,
-      title: notificationData.title,
-      body: notificationData.body,
-      url: notificationData.url,
-      icon: notificationData.icon,
-      badge: notificationData.badge,
-      image: notificationData.image,
-      tag: notificationData.tag,
-      data: notificationData.data,
-      actions: notificationData.actions,
-      scheduledFor: notificationData.scheduledFor, // ISO string
+      customer_id: notificationData.customerId,
+      name: notificationData.name || notificationData.title,
+      description: notificationData.description || '',
+      notification_data: JSON.stringify({
+        title: notificationData.title,
+        body: notificationData.body,
+        url: notificationData.url,
+        icon: notificationData.icon,
+        badge: notificationData.badge,
+        image: notificationData.image,
+        tag: notificationData.tag,
+        data: notificationData.data,
+        actions: notificationData.actions
+      }),
+      scheduled_for: notificationData.scheduledFor,
       timezone: notificationData.timezone || 'UTC',
-      status: 'scheduled',
-      createdAt: new Date().toISOString(),
-      createdBy: notificationData.createdBy
+      recurring: false,
+      status: 'active',
+      created_at: new Date(),
+      updated_at: new Date()
     };
     
     const doc = await scheduledNotifications.insert(scheduledNotification);
-    console.log(`Notification scheduled for ${scheduledNotification.scheduledFor}:`, doc._id);
+    console.log(`Notification scheduled for ${scheduledNotification.scheduled_for}:`, doc._id);
     
     return doc;
   }
@@ -51,8 +56,8 @@ class NotificationScheduler {
       
       // Find notifications that should be sent now
       const dueNotifications = await scheduledNotifications.find({
-        scheduledFor: { $lte: now },
-        status: 'scheduled'
+        scheduled_for: { $lte: now },
+        status: 'active'
       });
 
       for (const notification of dueNotifications) {
@@ -61,8 +66,8 @@ class NotificationScheduler {
           
           // Update status to sent
           await scheduledNotifications.update(
-            { _id: notification._id },
-            { $set: { status: 'sent', sentAt: new Date().toISOString() } }
+            { id: notification.id },
+            { $set: { status: 'sent', sent_at: new Date() } }
           );
           
           console.log(`Scheduled notification sent: ${notification._id}`);
@@ -71,12 +76,12 @@ class NotificationScheduler {
           
           // Update status to failed
           await scheduledNotifications.update(
-            { _id: notification._id },
+            { id: notification.id },
             { 
               $set: { 
                 status: 'failed', 
-                failedAt: new Date().toISOString(),
-                error: error.message 
+                failed_at: new Date(),
+                error_message: error.message 
               } 
             }
           );
@@ -91,18 +96,18 @@ class NotificationScheduler {
     const { customers, subscriptions, pushSettings, notifications } = getDatastores();
     
     // Get customer and settings
-    const customer = await customers.findOne({ _id: scheduledNotification.customerId });
+    const customer = await customers.findOne({ id: scheduledNotification.customer_id });
     if (!customer) {
       throw new Error('Customer not found');
     }
 
-    const settings = await pushSettings.findOne({ customerId: customer._id });
+    const settings = await pushSettings.findOne({ customer_id: customer.id });
     if (!settings) {
       throw new Error('Push settings not found');
     }
 
     // Get all subscriptions for this customer
-    const subs = await subscriptions.find({ customerId: customer._id });
+    const subs = await subscriptions.find({ customer_id: customer.id });
     if (subs.length === 0) {
       throw new Error('No subscribers found');
     }
@@ -114,20 +119,25 @@ class NotificationScheduler {
       settings.vapidPrivateKey || process.env.VAPID_PRIVATE_KEY
     );
 
+    // Parse notification data
+    const notificationData = typeof scheduledNotification.notification_data === 'string' 
+      ? JSON.parse(scheduledNotification.notification_data) 
+      : scheduledNotification.notification_data;
+
     // Prepare notification payload
     const payload = {
-      title: scheduledNotification.title,
-      body: scheduledNotification.body,
-      url: scheduledNotification.url,
-      icon: scheduledNotification.icon || settings.iconUrl,
-      badge: scheduledNotification.badge || settings.badgeUrl,
-      image: scheduledNotification.image,
-      tag: scheduledNotification.tag,
-      data: scheduledNotification.data
+      title: notificationData.title,
+      body: notificationData.body,
+      url: notificationData.url,
+      icon: notificationData.icon || settings.iconUrl,
+      badge: notificationData.badge || settings.badgeUrl,
+      image: notificationData.image,
+      tag: notificationData.tag,
+      data: notificationData.data
     };
 
-    if (scheduledNotification.actions) {
-      payload.actions = scheduledNotification.actions;
+    if (notificationData.actions) {
+      payload.actions = notificationData.actions;
     }
 
     // Send to all subscribers
@@ -137,45 +147,49 @@ class NotificationScheduler {
 
     for (const sub of subs) {
       try {
+        const subscriptionData = typeof sub.subscription === 'string' ? JSON.parse(sub.subscription) : sub.subscription;
         const pushSubscription = {
-          endpoint: sub.subscription.endpoint,
+          endpoint: subscriptionData.endpoint,
           keys: {
-            p256dh: sub.subscription.keys.p256dh,
-            auth: sub.subscription.keys.auth
+            p256dh: subscriptionData.keys.p256dh,
+            auth: subscriptionData.keys.auth
           }
         };
 
         await webpush.sendNotification(pushSubscription, JSON.stringify(payload));
         sent++;
-        results.push({ endpoint: sub.subscription.endpoint, status: 'sent' });
+        results.push({ endpoint: subscriptionData.endpoint, status: 'sent' });
       } catch (error) {
         failed++;
         results.push({ 
-          endpoint: sub.subscription.endpoint, 
+          endpoint: subscriptionData ? subscriptionData.endpoint : 'unknown', 
           status: 'failed', 
           error: error.message 
         });
         
         // Remove invalid subscriptions (410 = Gone, 404 = Not Found)
         if (error.statusCode === 410 || error.statusCode === 404) {
-          await subscriptions.remove({ _id: sub._id });
-          console.log(`Removed invalid subscription: ${sub._id}`);
+          await subscriptions.remove({ id: sub.id });
+          console.log(`Removed invalid subscription: ${sub.id}`);
         }
       }
     }
 
     // Save notification record
     await notifications.insert({
-      customerId: customer._id,
-      title: scheduledNotification.title,
-      body: scheduledNotification.body,
-      url: scheduledNotification.url,
-      success: sent,
-      failed: failed,
-      scheduledNotificationId: scheduledNotification._id,
-      isScheduled: true,
-      createdAt: new Date().toISOString(),
-      results: results
+      customer_id: customer.id,
+      title: notificationData.title,
+      body: notificationData.body,
+      url: notificationData.url,
+      target_type: 'all',
+      target_count: subs.length,
+      sent_count: sent,
+      failed_count: failed,
+      delivery_rate: subs.length > 0 ? ((sent / subs.length) * 100).toFixed(2) : 0,
+      status: 'sent',
+      sent_at: new Date(),
+      created_at: new Date(),
+      updated_at: new Date()
     });
 
     return { sent, failed };
@@ -185,9 +199,9 @@ class NotificationScheduler {
     const { scheduledNotifications } = getDatastores();
     
     const notification = await scheduledNotifications.findOne({ 
-      _id: notificationId, 
-      customerId: customerId,
-      status: 'scheduled'
+      id: notificationId, 
+      customer_id: customerId,
+      status: 'active'
     });
     
     if (!notification) {
@@ -195,11 +209,11 @@ class NotificationScheduler {
     }
     
     await scheduledNotifications.update(
-      { _id: notificationId },
+      { id: notificationId },
       { 
         $set: { 
           status: 'cancelled', 
-          cancelledAt: new Date().toISOString() 
+          updated_at: new Date() 
         } 
       }
     );
@@ -211,21 +225,21 @@ class NotificationScheduler {
   async getScheduledNotifications(customerId, status = null) {
     const { scheduledNotifications } = getDatastores();
     
-    const query = { customerId };
+    const query = { customer_id: customerId };
     if (status) {
       query.status = status;
     }
     
-    return await scheduledNotifications.find(query).sort({ scheduledFor: 1 });
+    return await scheduledNotifications.find(query, { sort: { scheduled_for: 1 } });
   }
 
   async updateScheduledNotification(notificationId, customerId, updates) {
     const { scheduledNotifications } = getDatastores();
     
     const notification = await scheduledNotifications.findOne({ 
-      _id: notificationId, 
-      customerId: customerId,
-      status: 'scheduled'
+      id: notificationId, 
+      customer_id: customerId,
+      status: 'active'
     });
     
     if (!notification) {
@@ -233,7 +247,7 @@ class NotificationScheduler {
     }
     
     // Only allow updates to certain fields
-    const allowedUpdates = ['title', 'body', 'url', 'icon', 'badge', 'image', 'tag', 'data', 'actions', 'scheduledFor', 'timezone'];
+    const allowedUpdates = ['name', 'description', 'notification_data', 'scheduled_for', 'timezone'];
     const updateData = {};
     
     for (const key of allowedUpdates) {
@@ -242,14 +256,14 @@ class NotificationScheduler {
       }
     }
     
-    updateData.updatedAt = new Date().toISOString();
+    updateData.updated_at = new Date();
     
     await scheduledNotifications.update(
-      { _id: notificationId },
+      { id: notificationId },
       { $set: updateData }
     );
     
-    return await scheduledNotifications.findOne({ _id: notificationId });
+    return await scheduledNotifications.findOne({ id: notificationId });
   }
 }
 

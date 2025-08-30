@@ -10,32 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@chakra-ui/alert": "^2.2.2",
-    "@chakra-ui/card": "^2.2.0",
-    "@chakra-ui/color-mode": "^2.2.0",
-    "@chakra-ui/form-control": "^2.2.0",
-    "@chakra-ui/input": "^2.1.2",
-    "@chakra-ui/menu": "^2.2.1",
-    "@chakra-ui/modal": "^2.3.1",
-    "@chakra-ui/number-input": "^2.1.2",
-    "@chakra-ui/react": "^3.24.2",
-    "@chakra-ui/slider": "^2.1.0",
-    "@chakra-ui/spinner": "^2.1.0",
-    "@chakra-ui/stat": "^2.1.1",
-    "@chakra-ui/table": "^2.1.0",
-    "@chakra-ui/tabs": "^3.0.0",
-    "@chakra-ui/toast": "^7.0.2",
-    "@chakra-ui/tooltip": "^2.3.1",
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
+    "@tailwindcss/postcss": "^4.1.12",
+    "autoprefixer": "^10.4.21",
     "axios": "^1.11.0",
     "date-fns": "^4.1.0",
-    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.542.0",
+    "postcss": "^8.5.6",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-icons": "^5.5.0",
     "react-router-dom": "6.27.0",
     "recharts": "^3.1.2",
+    "tailwindcss": "^3.4.15",
     "zustand": "^5.0.7"
   },
   "devDependencies": {
@@ -47,6 +33,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^16.3.0",
+    "terser": "^5.43.1",
     "vite": "5.4.11"
   }
 }

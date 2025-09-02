@@ -16,7 +16,7 @@ router.get('/config', async (req, res) => {
   const apiKey = req.query.apiKey;
   if (!apiKey) return res.status(400).json({ error: 'Missing apiKey' });
   const { customers, pushSettings } = getDatastores();
-  const customer = await customers.findOne({ apiKey, active: true });
+  const customer = await customers.findOne({ api_key: apiKey, active: true });
   if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
   let settings = await pushSettings.findOne({ customerId: customer._id });
   if (!settings || !settings.vapidPublicKey || !settings.vapidPrivateKey) {

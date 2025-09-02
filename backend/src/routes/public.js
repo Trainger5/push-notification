@@ -18,28 +18,28 @@ router.get('/config', async (req, res) => {
   const { customers, pushSettings } = getDatastores();
   const customer = await customers.findOne({ api_key: apiKey, status: 'active' });
   if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
-  let settings = await pushSettings.findOne({ customerId: customer._id });
-  if (!settings || !settings.vapidPublicKey || !settings.vapidPrivateKey) {
+  let settings = await pushSettings.findOne({ customer_id: customer.id });
+  if (!settings || !settings.vapid_public_key || !settings.vapid_private_key) {
     const keys = webpush.generateVAPIDKeys();
     const doc = {
-      customerId: customer._id,
-      vapidPublicKey: keys.publicKey,
-      vapidPrivateKey: keys.privateKey,
-      vapidSubject: settings?.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
-      title: settings?.title || `${customer.name || 'Notifications'}`,
-      iconUrl: settings?.iconUrl || null,
-      badgeUrl: settings?.badgeUrl || null,
-      defaultUrl: settings?.defaultUrl || null,
-      updatedAt: new Date().toISOString()
+      customer_id: customer.id,
+      vapid_public_key: keys.publicKey,
+      vapid_private_key: keys.privateKey,
+      vapid_subject: settings?.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
+      default_title: settings?.default_title || `${customer.name || 'Notifications'}`,
+      default_icon_url: settings?.default_icon_url || null,
+      default_badge_url: settings?.default_badge_url || null,
+      default_url: settings?.default_url || null,
+      updated_at: new Date().toISOString()
     };
     if (settings) {
-      await pushSettings.update({ _id: settings._id }, { $set: doc });
+      await pushSettings.update({ id: settings.id }, { $set: doc });
       settings = { ...settings, ...doc };
     } else {
-      settings = await pushSettings.insert({ ...doc, createdAt: new Date().toISOString() });
+      settings = await pushSettings.insert({ ...doc, created_at: new Date().toISOString() });
     }
   }
-  res.json({ vapidPublicKey: settings?.vapidPublicKey || process.env.VAPID_PUBLIC_KEY || null, title: settings?.title || null, iconUrl: settings?.iconUrl || null, badgeUrl: settings?.badgeUrl || null, defaultUrl: settings?.defaultUrl || null });
+  res.json({ vapid_public_key: settings?.vapid_public_key || process.env.VAPID_PUBLIC_KEY || null, title: settings?.default_title || null, iconUrl: settings?.default_icon_url || null, badgeUrl: settings?.default_badge_url || null, defaultUrl: settings?.default_url || null });
 });
 
 // Save a new subscription from the client SDK
@@ -55,7 +55,7 @@ router.post(
     const { customers, subscriptions } = getDatastores();
     const customer = await customers.findOne({ api_key: apiKey, status: 'active' });
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
-    const exists = await subscriptions.findOne({ customerId: customer._id, 'subscription.endpoint': subscription.endpoint });
+    const exists = await subscriptions.findOne({ customer_id: customer.id, endpoint: subscription.endpoint });
     if (exists) return res.json({ status: 'exists' });
     
     // Enhanced subscription document with metadata for analytics and segmentation
@@ -92,10 +92,12 @@ router.post(
     }
     
     const subscriptionDoc = {
-      customerId: customer._id,
-      subscription,
-      userAgent,
-      ip,
+      customer_id: customer.id,
+      endpoint: subscription.endpoint,
+      p256dh_key: subscription.keys.p256dh,
+      auth_key: subscription.keys.auth,
+      user_agent: userAgent,
+      ip_address: ip,
       country: geo ? geo.country : null,
       city: geo ? geo.city : null,
       region: geo ? geo.region : null,
@@ -105,26 +107,26 @@ router.post(
       device: deviceInfo.device,
       tags: [], // For manual tagging
       segments: [], // Auto-assigned segments
-      engagementScore: 0, // Based on opens/clicks
-      lastActive: new Date().toISOString(),
-      createdAt: new Date().toISOString()
+      engagement_score: 0, // Based on opens/clicks
+      last_active: new Date().toISOString(),
+      subscribed_at: new Date().toISOString()
     };
     
     const doc = await subscriptions.insert(subscriptionDoc);
     
     // Trigger webhook event
-    await triggerWebhookEvent(customer._id, 'subscription.created', {
-      subscription_id: doc._id,
+    await triggerWebhookEvent(customer.id, 'subscription.created', {
+      subscription_id: doc.id,
       endpoint: subscription.endpoint,
       country: doc.country,
       city: doc.city,
       browser: doc.browser,
       os: doc.os,
       device: doc.device,
-      created_at: doc.createdAt
+      created_at: doc.subscribed_at
     });
     
-    res.status(201).json({ id: doc._id, status: 'subscribed' });
+    res.status(201).json({ id: doc.id, status: 'subscribed' });
   }
 );
 
@@ -140,11 +142,11 @@ router.post(
     const { customers, subscriptions } = getDatastores();
     const customer = await customers.findOne({ api_key: apiKey, status: 'active' });
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
-    const removedCount = await subscriptions.remove({ customerId: customer._id, 'subscription.endpoint': endpoint }, { multi: true });
+    const removedCount = await subscriptions.remove({ customer_id: customer.id, endpoint: endpoint }, { multi: true });
     
     // Trigger webhook event if subscription was found and removed
     if (removedCount > 0) {
-      await triggerWebhookEvent(customer._id, 'subscription.deleted', {
+      await triggerWebhookEvent(customer.id, 'subscription.deleted', {
         endpoint,
         removed_count: removedCount,
         removed_at: new Date().toISOString()

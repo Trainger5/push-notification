@@ -23,7 +23,7 @@ router.post(
       }
 
       const { customers, userSegments } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -55,7 +55,7 @@ router.post(
         last_calculated: new Date(),
         created_at: new Date(),
         updated_at: new Date(),
-        created_by: req.user.userId
+        created_by: req.user.user_id
       };
 
       const newSegment = await userSegments.insert(segment);
@@ -75,7 +75,7 @@ router.post(
 router.post('/calculate', async (req, res) => {
   try {
     const { customers } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -98,7 +98,7 @@ router.post('/calculate', async (req, res) => {
 router.get('/list', async (req, res) => {
   try {
     const { customers, userSegments } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -135,7 +135,7 @@ router.get('/list', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { customers, userSegments } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -183,7 +183,7 @@ router.put(
       }
 
       const { customers, userSegments } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -248,7 +248,7 @@ router.put(
 router.delete('/:id', async (req, res) => {
   try {
     const { customers, userSegments } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -277,7 +277,7 @@ router.delete('/:id', async (req, res) => {
 router.get('/:id/subscribers', async (req, res) => {
   try {
     const { customers, userSegments, subscriptions } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -350,7 +350,7 @@ router.post(
       }
 
       const { customers, userSegments, subscriptions, pushSettings, notifications } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -381,7 +381,7 @@ router.post(
         
         // Create a special notification record for segments
         const scheduledNotification = await scheduler.scheduleNotification({
-          customerId: customer.id,
+          customer_id: customer.id,
           title: req.body.title,
           body: req.body.body,
           url: req.body.url,
@@ -393,7 +393,7 @@ router.post(
           timezone: req.body.timezone || 'UTC',
           segmentId: segment.id,
           segmentName: segment.name,
-          created_by: req.user.userId
+          created_by: req.user.user_id
         });
 
         res.json({
@@ -494,14 +494,14 @@ router.post(
 );
 
 // Helper functions
-async function calculateSegmentSize(customerId, criteria) {
+async function calculateSegmentSize(customer_id, criteria) {
   const { subscriptions } = getDatastores();
-  const query = buildSegmentQuery(customerId, criteria);
+  const query = buildSegmentQuery(customer_id, criteria);
   return await subscriptions.count(query);
 }
 
-function buildSegmentQuery(customerId, criteria) {
-  const query = { customer_id: customerId };
+function buildSegmentQuery(customer_id, criteria) {
+  const query = { customer_id: customer_id };
 
   if (criteria.countries && criteria.countries.length > 0) {
     query.country = { $in: criteria.countries };

@@ -27,7 +27,7 @@ router.post(
       }
 
       const { customers, webhooks } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -69,7 +69,7 @@ router.post(
         failure_count: 0,
         success_rate: 100.00,
         status: 'active',
-        created_by: req.user.userId,
+        created_by: req.user.user_id,
         created_at: new Date(),
         updated_at: new Date()
       };
@@ -99,7 +99,7 @@ router.post(
 router.get('/list', async (req, res) => {
   try {
     const { customers, webhooks } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -133,7 +133,7 @@ router.get('/list', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { customers, webhooks } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -181,7 +181,7 @@ router.put(
       }
 
       const { customers, webhooks } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -260,7 +260,7 @@ router.put(
 router.delete('/:id', async (req, res) => {
   try {
     const { customers, webhooks } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -289,7 +289,7 @@ router.delete('/:id', async (req, res) => {
 router.post('/:id/test', async (req, res) => {
   try {
     const { customers, webhooks } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -334,7 +334,7 @@ router.post('/:id/test', async (req, res) => {
 router.get('/:id/deliveries', async (req, res) => {
   try {
     const { customers, webhooks, webhookDeliveries } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -387,7 +387,7 @@ router.get('/:id/deliveries', async (req, res) => {
 router.get('/:id/stats', async (req, res) => {
   try {
     const { customers, webhooks, webhookDeliveries } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -552,13 +552,13 @@ async function sendWebhook(webhook, payload) {
 }
 
 // Function to trigger webhook events (used by other parts of the application)
-async function triggerWebhookEvent(customerId, event, data) {
+async function triggerWebhookEvent(customer_id, event, data) {
   const { webhooks } = getDatastores();
   
   try {
     // Find all active webhooks for this customer that listen for this event
     const customerWebhooks = await webhooks.find({
-      customer_id: customerId,
+      customer_id: customer_id,
       status: 'active'
     });
 

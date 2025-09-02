@@ -32,7 +32,7 @@ router.post(
       }
 
       const { customers } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -52,7 +52,7 @@ router.post(
 
       const scheduler = getScheduler();
       const notificationData = {
-        customerId: customer.id,
+        customer_id: customer.id,
         title: req.body.title,
         body: req.body.body,
         url: req.body.url,
@@ -64,7 +64,7 @@ router.post(
         actions: req.body.actions,
         scheduledFor: scheduledTime.toISOString(),
         timezone: req.body.timezone || 'UTC',
-        created_by: req.user.userId
+        created_by: req.user.user_id
       };
 
       const scheduledNotification = await scheduler.scheduleNotification(notificationData);
@@ -86,7 +86,7 @@ router.post(
 router.get('/list', async (req, res) => {
   try {
     const { customers } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -109,7 +109,7 @@ router.get('/list', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { customers, scheduledNotifications } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -152,7 +152,7 @@ router.put(
       }
 
       const { customers } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -197,7 +197,7 @@ router.put(
 router.delete('/:id', async (req, res) => {
   try {
     const { customers } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -227,39 +227,39 @@ router.delete('/:id', async (req, res) => {
 router.get('/stats/overview', async (req, res) => {
   try {
     const { customers, scheduledNotifications } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const customerId = customer.id;
+    const customer_id = customer.id;
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     // Get scheduling statistics
-    const totalScheduled = await scheduledNotifications.count({ customer_id: customerId });
+    const totalScheduled = await scheduledNotifications.count({ customer_id: customer_id });
     const pendingScheduled = await scheduledNotifications.count({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       status: 'scheduled',
       scheduled_for: { $gt: now.toISOString() }
     });
     const sentScheduled = await scheduledNotifications.count({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       status: 'sent'
     });
     const failedScheduled = await scheduledNotifications.count({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       status: 'failed'
     });
     const recentScheduled = await scheduledNotifications.count({
-      customer_id: customerId,
+      customer_id: customer_id,
       created_at: { $gte: thirtyDaysAgo.toISOString() }
     });
 
     // Get upcoming notifications (next 7 days)
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const upcomingNotifications = await scheduledNotifications.find({
-      customer_id: customerId,
+      customer_id: customer_id,
       status: 'scheduled',
       scheduled_for: { 
         $gte: now.toISOString(),

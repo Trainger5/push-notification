@@ -79,7 +79,7 @@ router.post('/login', async (req, res) => {
     
     console.log('🎫 Creating token...');
     const token = jwt.sign(
-      { userId: user.id, role: user.role, email: user.email }, 
+      { user_id: user.id, role: user.role, email: user.email }, 
       process.env.JWT_SECRET || 'dev-secret', 
       { expiresIn: '7d' }
     );
@@ -162,7 +162,7 @@ router.post(
     
     // Auto-login after registration
     const token = jwt.sign(
-      { userId: user.id, role: 'customer', email: user.email }, 
+      { user_id: user.id, role: 'customer', email: user.email }, 
       process.env.JWT_SECRET || 'dev-secret', 
       { expiresIn: '7d' }
     );

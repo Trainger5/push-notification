@@ -90,52 +90,52 @@ router.use('/analytics', requireAuth, requireRole('customer'));
 router.get('/analytics/overview', async (req, res) => {
   try {
     const { customers, subscriptions, notifications, metrics } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
-    const customerId = customer.id;
+    const customer_id = customer.id;
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     // Get subscriber count and growth
-    const totalSubscribers = await subscriptions.count({ customer_id: customerId });
+    const totalSubscribers = await subscriptions.count({ customer_id: customer_id });
     const newSubscribers7d = await subscriptions.count({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       created_at: { $gte: sevenDaysAgo }
     });
     const newSubscribers30d = await subscriptions.count({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       created_at: { $gte: thirtyDaysAgo }
     });
 
     // Get notification stats
-    const totalNotifications = await notifications.count({ customer_id: customerId });
+    const totalNotifications = await notifications.count({ customer_id: customer_id });
     const notifications7d = await notifications.count({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       created_at: { $gte: sevenDaysAgo }
     });
     const notifications30d = await notifications.count({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       created_at: { $gte: thirtyDaysAgo }
     });
 
     // Get engagement metrics
-    const totalOpens = await metrics.count({ customer_id: customerId, event_type: 'opened' });
-    const totalClicks = await metrics.count({ customer_id: customerId, event_type: 'clicked' });
+    const totalOpens = await metrics.count({ customer_id: customer_id, event_type: 'opened' });
+    const totalClicks = await metrics.count({ customer_id: customer_id, event_type: 'clicked' });
     const opens7d = await metrics.count({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       event_type: 'opened', 
       timestamp: { $gte: sevenDaysAgo }
     });
     const clicks7d = await metrics.count({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       event_type: 'clicked', 
       timestamp: { $gte: sevenDaysAgo }
     });
 
     // Calculate delivery stats from notifications
-    const allNotifications = await notifications.find({ customer_id: customerId });
+    const allNotifications = await notifications.find({ customer_id: customer_id });
     const totalSent = allNotifications.reduce((sum, n) => sum + (n.success || 0), 0);
     const totalFailed = allNotifications.reduce((sum, n) => sum + (n.failed || 0), 0);
     const deliveryRate = totalSent + totalFailed > 0 ? ((totalSent / (totalSent + totalFailed)) * 100).toFixed(1) : 0;
@@ -178,22 +178,22 @@ router.get('/analytics/overview', async (req, res) => {
 router.get('/analytics/timeseries', async (req, res) => {
   try {
     const { customers, notifications, metrics } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
-    const customerId = customer.id;
+    const customer_id = customer.id;
     const days = parseInt(req.query.days) || 30;
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     // Get daily notification counts
     const dailyNotifications = await notifications.find({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       created_at: { $gte: startDate }
     });
 
     // Get daily engagement metrics
     const dailyMetrics = await metrics.find({ 
-      customer_id: customerId, 
+      customer_id: customer_id, 
       timestamp: { $gte: startDate }
     });
 
@@ -248,11 +248,11 @@ router.get('/analytics/timeseries', async (req, res) => {
 router.get('/analytics/demographics', async (req, res) => {
   try {
     const { customers, subscriptions } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
-    const customerId = customer.id;
-    const subs = await subscriptions.find({ customer_id: customerId });
+    const customer_id = customer.id;
+    const subs = await subscriptions.find({ customer_id: customer_id });
 
     // Analyze browser/platform/device/country distribution
     const browserStats = {};
@@ -332,26 +332,26 @@ router.get('/analytics/demographics', async (req, res) => {
 router.get('/analytics/activity', async (req, res) => {
   try {
     const { customers, notifications, subscriptions, metrics } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
 
-    const customerId = customer.id;
+    const customer_id = customer.id;
     const limit = parseInt(req.query.limit) || 20;
 
     // Get recent notifications
-    const recentNotifications = await notifications.find({ customer_id: customerId }, {
+    const recentNotifications = await notifications.find({ customer_id: customer_id }, {
       sort: { created_at: -1 },
       limit: limit
     });
 
     // Get recent subscriptions
-    const recentSubscriptions = await subscriptions.find({ customer_id: customerId }, {
+    const recentSubscriptions = await subscriptions.find({ customer_id: customer_id }, {
       sort: { created_at: -1 },
       limit: 10
     });
 
     // Get recent engagement
-    const recentEngagement = await metrics.find({ customer_id: customerId }, {
+    const recentEngagement = await metrics.find({ customer_id: customer_id }, {
       sort: { timestamp: -1 },
       limit: 20
     });

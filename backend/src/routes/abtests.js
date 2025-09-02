@@ -39,7 +39,7 @@ router.post(
       }
 
       const { customers, abTests } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -87,7 +87,7 @@ router.post(
         statistical_significance: false,
         confidence_interval: null,
         status: 'draft',
-        created_by: req.user.userId,
+        created_by: req.user.user_id,
         created_at: new Date(),
         updated_at: new Date()
       };
@@ -150,7 +150,7 @@ router.post(
 router.get('/list', async (req, res) => {
   try {
     const { customers, abTests, abTestVariants } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -196,7 +196,7 @@ router.get('/list', async (req, res) => {
 router.get('/:testId', async (req, res) => {
   try {
     const { customers, abTests, abTestVariants, abTestParticipants, metrics } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -290,7 +290,7 @@ router.get('/:testId', async (req, res) => {
 router.post('/:testId/start', async (req, res) => {
   try {
     const { customers, abTests, abTestVariants, subscriptions, pushSettings } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -344,8 +344,8 @@ router.post('/:testId/start', async (req, res) => {
 
     // Get VAPID settings
     const settings = await pushSettings.findOne({ customer_id: customer.id });
-    const vapidPublicKey = settings?.vapidPublicKey || process.env.VAPID_PUBLIC_KEY;
-    const vapidPrivateKey = settings?.vapidPrivateKey || process.env.VAPID_PRIVATE_KEY;
+    const vapidPublicKey = settings?.vapid_public_key || process.env.VAPID_PUBLIC_KEY;
+    const vapidPrivateKey = settings?.vapid_private_key || process.env.VAPID_PRIVATE_KEY;
     const vapidSubject = settings?.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
 
     if (!vapidPublicKey || !vapidPrivateKey) {
@@ -377,7 +377,7 @@ router.post('/:testId/start', async (req, res) => {
         data: {
           abTestId: test.id,
           variantId: variant.id,
-          customerId: customer.id
+          customer_id: customer.id
         }
       });
 
@@ -469,7 +469,7 @@ router.post('/:testId/start', async (req, res) => {
 router.post('/:testId/pause', async (req, res) => {
   try {
     const { customers, abTests } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -505,7 +505,7 @@ router.post('/:testId/pause', async (req, res) => {
 router.post('/:testId/resume', async (req, res) => {
   try {
     const { customers, abTests } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -541,7 +541,7 @@ router.post('/:testId/resume', async (req, res) => {
 router.post('/:testId/stop', async (req, res) => {
   try {
     const { customers, abTests, abTestVariants } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -628,7 +628,7 @@ router.post('/:testId/stop', async (req, res) => {
 router.delete('/:testId', async (req, res) => {
   try {
     const { customers, abTests, abTestVariants } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -663,7 +663,7 @@ router.delete('/:testId', async (req, res) => {
 router.get('/:testId/analytics', async (req, res) => {
   try {
     const { customers, abTests, abTestVariants, abTestParticipants, metrics } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }

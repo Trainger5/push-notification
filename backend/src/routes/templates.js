@@ -31,14 +31,14 @@ router.post(
       }
 
       const { customers, notificationTemplates } = getDatastores();
-      const customer = await customers.findOne({ userId: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       // Check if template name already exists for this customer
       const existingTemplate = await notificationTemplates.findOne({
-        customerId: customer._id,
+        customer_id: customer.id,
         name: req.body.name
       });
       
@@ -47,7 +47,7 @@ router.post(
       }
 
       const template = {
-        customerId: customer._id,
+        customer_id: customer.id,
         name: req.body.name,
         description: req.body.description || '',
         title: req.body.title,
@@ -62,9 +62,9 @@ router.post(
         actions: req.body.actions || [],
         usageCount: 0,
         isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: req.user.userId
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        created_by: req.user.user_id
       };
 
       const newTemplate = await notificationTemplates.insert(template);
@@ -84,7 +84,7 @@ router.post(
 router.get('/list', async (req, res) => {
   try {
     const { customers, notificationTemplates } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -93,7 +93,7 @@ router.get('/list', async (req, res) => {
     const search = req.query.search;
     const active = req.query.active;
 
-    let query = { customerId: customer._id };
+    let query = { customer_id: customer.id };
     
     if (category) {
       query.category = category;
@@ -117,7 +117,7 @@ router.get('/list', async (req, res) => {
     }
 
     // Get unique categories
-    const allTemplates = await notificationTemplates.find({ customerId: customer._id });
+    const allTemplates = await notificationTemplates.find({ customer_id: customer.id });
     const categories = [...new Set(allTemplates.map(t => t.category))].filter(Boolean);
 
     res.json({
@@ -135,14 +135,14 @@ router.get('/list', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { customers, notificationTemplates } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     const template = await notificationTemplates.findOne({
-      _id: req.params.id,
-      customerId: customer._id
+      id: req.params.id,
+      customer_id: customer.id
     });
 
     if (!template) {
@@ -180,14 +180,14 @@ router.put(
       }
 
       const { customers, notificationTemplates } = getDatastores();
-      const customer = await customers.findOne({ userId: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       const template = await notificationTemplates.findOne({
-        _id: req.params.id,
-        customerId: customer._id
+        id: req.params.id,
+        customer_id: customer.id
       });
 
       if (!template) {
@@ -197,9 +197,9 @@ router.put(
       // If name is being changed, check for conflicts
       if (req.body.name && req.body.name !== template.name) {
         const existingTemplate = await notificationTemplates.findOne({
-          customerId: customer._id,
+          customer_id: customer.id,
           name: req.body.name,
-          _id: { $ne: req.params.id }
+          id: { $ne: req.params.id }
         });
         
         if (existingTemplate) {
@@ -209,15 +209,15 @@ router.put(
 
       const updates = {
         ...req.body,
-        updatedAt: new Date().toISOString()
+        updated_at: new Date().toISOString()
       };
 
       await notificationTemplates.update(
-        { _id: req.params.id },
+        { id: req.params.id },
         { $set: updates }
       );
 
-      const updatedTemplate = await notificationTemplates.findOne({ _id: req.params.id });
+      const updatedTemplate = await notificationTemplates.findOne({ id: req.params.id });
 
       res.json({
         template: updatedTemplate,
@@ -234,21 +234,21 @@ router.put(
 router.delete('/:id', async (req, res) => {
   try {
     const { customers, notificationTemplates } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     const template = await notificationTemplates.findOne({
-      _id: req.params.id,
-      customerId: customer._id
+      id: req.params.id,
+      customer_id: customer.id
     });
 
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    await notificationTemplates.remove({ _id: req.params.id });
+    await notificationTemplates.remove({ id: req.params.id });
 
     res.json({
       message: 'Template deleted successfully'
@@ -273,14 +273,14 @@ router.post(
       }
 
       const { customers, notificationTemplates } = getDatastores();
-      const customer = await customers.findOne({ userId: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       const template = await notificationTemplates.findOne({
-        _id: req.params.id,
-        customerId: customer._id,
+        id: req.params.id,
+        customer_id: customer.id,
         isActive: true
       });
 
@@ -317,7 +317,7 @@ router.post(
         image: template.image,
         tag: template.tag,
         actions: template.actions,
-        templateId: template._id,
+        templateId: template.id,
         templateName: template.name
       };
 
@@ -327,22 +327,22 @@ router.post(
         const scheduler = getScheduler();
         
         const scheduledNotification = await scheduler.scheduleNotification({
-          customerId: customer._id,
+          customer_id: customer.id,
           ...notificationData,
           scheduledFor: new Date(req.body.scheduledFor).toISOString(),
           timezone: req.body.timezone || 'UTC',
-          createdBy: req.user.userId
+          created_by: req.user.user_id
         });
 
         // Increment usage count
         await notificationTemplates.update(
-          { _id: template._id },
+          { id: template.id },
           { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date().toISOString() } }
         );
 
         res.json({
           scheduled: true,
-          scheduledNotificationId: scheduledNotification._id,
+          scheduledNotificationId: scheduledNotification.id,
           message: 'Notification scheduled successfully using template'
         });
       } else {
@@ -350,12 +350,12 @@ router.post(
         const webpush = require('web-push');
         const { subscriptions, pushSettings, notifications } = getDatastores();
 
-        const settings = await pushSettings.findOne({ customerId: customer._id });
+        const settings = await pushSettings.findOne({ customer_id: customer.id });
         if (!settings) {
           return res.status(400).json({ error: 'Push settings not found' });
         }
 
-        const subs = await subscriptions.find({ customerId: customer._id });
+        const subs = await subscriptions.find({ customer_id: customer.id });
         if (subs.length === 0) {
           return res.status(400).json({ error: 'No subscribers found' });
         }
@@ -363,8 +363,8 @@ router.post(
         // Configure web-push
         webpush.setVapidDetails(
           settings.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
-          settings.vapidPublicKey || process.env.VAPID_PUBLIC_KEY,
-          settings.vapidPrivateKey || process.env.VAPID_PRIVATE_KEY
+          settings.vapid_public_key || process.env.VAPID_PUBLIC_KEY,
+          settings.vapid_private_key || process.env.VAPID_PRIVATE_KEY
         );
 
         const payload = {
@@ -375,7 +375,7 @@ router.post(
           badge: notificationData.badge || settings.badgeUrl,
           image: notificationData.image,
           tag: notificationData.tag,
-          data: { templateId: template._id, templateName: template.name }
+          data: { templateId: template.id, templateName: template.name }
         };
 
         if (notificationData.actions) {
@@ -403,28 +403,28 @@ router.post(
             
             // Remove invalid subscriptions
             if (error.statusCode === 410 || error.statusCode === 404) {
-              await subscriptions.remove({ _id: sub._id });
+              await subscriptions.remove({ id: sub.id });
             }
           }
         }
 
         // Save notification record
         await notifications.insert({
-          customerId: customer._id,
+          customer_id: customer.id,
           title: processedTitle,
           body: processedBody,
           url: processedUrl,
           success: sent,
           failed: failed,
-          templateId: template._id,
+          templateId: template.id,
           templateName: template.name,
           variables: variables,
-          createdAt: new Date().toISOString()
+          created_at: new Date().toISOString()
         });
 
         // Increment usage count
         await notificationTemplates.update(
-          { _id: template._id },
+          { id: template.id },
           { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date().toISOString() } }
         );
 
@@ -446,14 +446,14 @@ router.post(
 router.post('/:id/duplicate', async (req, res) => {
   try {
     const { customers, notificationTemplates } = getDatastores();
-    const customer = await customers.findOne({ userId: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     const template = await notificationTemplates.findOne({
-      _id: req.params.id,
-      customerId: customer._id
+      id: req.params.id,
+      customer_id: customer.id
     });
 
     if (!template) {
@@ -465,12 +465,12 @@ router.post('/:id/duplicate', async (req, res) => {
       ...template,
       name: `${template.name} (Copy)`,
       usageCount: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      createdBy: req.user.userId
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      created_by: req.user.user_id
     };
 
-    delete duplicatedTemplate._id;
+    delete duplicatedTemplate.id;
 
     const newTemplate = await notificationTemplates.insert(duplicatedTemplate);
 

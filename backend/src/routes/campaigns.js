@@ -27,7 +27,7 @@ router.post(
       }
 
       const { customers, campaigns } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.userId });
+      const customer = await customers.findOne({ user_id: req.user.user_id });
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -74,7 +74,7 @@ router.post(
         started_at: null,
         paused_at: null,
         completed_at: null,
-        created_by: req.user.userId,
+        created_by: req.user.user_id,
         created_at: new Date(),
         updated_at: new Date()
       };
@@ -103,7 +103,7 @@ router.post(
 router.get('/list', async (req, res) => {
   try {
     const { customers, campaigns } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -137,7 +137,7 @@ router.get('/list', async (req, res) => {
 router.get('/:campaignId', async (req, res) => {
   try {
     const { customers, campaigns, campaignExecutions } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -180,7 +180,7 @@ router.get('/:campaignId', async (req, res) => {
 router.post('/:campaignId/start', async (req, res) => {
   try {
     const { customers, campaigns } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -226,7 +226,7 @@ router.post('/:campaignId/start', async (req, res) => {
 router.post('/:campaignId/pause', async (req, res) => {
   try {
     const { customers, campaigns } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -261,7 +261,7 @@ router.post('/:campaignId/pause', async (req, res) => {
 router.delete('/:campaignId', async (req, res) => {
   try {
     const { customers, campaigns, campaignExecutions } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -292,13 +292,13 @@ router.delete('/:campaignId', async (req, res) => {
 // Process campaign triggers (webhook endpoint)
 router.post('/trigger', async (req, res) => {
   try {
-    const { eventType, userId, eventData } = req.body;
+    const { eventType, user_id, eventData } = req.body;
     
-    if (!eventType || !userId) {
+    if (!eventType || !user_id) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    await processCampaignTriggers(eventType, userId, eventData);
+    await processCampaignTriggers(eventType, user_id, eventData);
     res.json({ message: 'Triggers processed successfully' });
   } catch (error) {
     console.error('Campaign trigger error:', error);
@@ -310,7 +310,7 @@ router.post('/trigger', async (req, res) => {
 router.get('/:campaignId/analytics', async (req, res) => {
   try {
     const { customers, campaigns, campaignExecutions } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.userId });
+    const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -421,7 +421,7 @@ async function initializeCampaignMonitoring(campaign) {
   campaignExecutor.start();
 }
 
-async function processCampaignTriggers(eventType, userId, eventData) {
+async function processCampaignTriggers(eventType, user_id, eventData) {
   try {
     const { campaigns, campaignExecutions, subscriptions } = getDatastores();
     
@@ -433,11 +433,11 @@ async function processCampaignTriggers(eventType, userId, eventData) {
 
     for (const campaign of activeCampaigns) {
       // Check if user matches campaign criteria
-      const userMatches = await checkUserMatchesCampaign(userId, campaign);
+      const userMatches = await checkUserMatchesCampaign(user_id, campaign);
       
       if (userMatches) {
         // Start campaign execution for this user
-        await startCampaignExecution(campaign, userId, eventData);
+        await startCampaignExecution(campaign, user_id, eventData);
       }
     }
   } catch (error) {
@@ -445,12 +445,12 @@ async function processCampaignTriggers(eventType, userId, eventData) {
   }
 }
 
-async function checkUserMatchesCampaign(userId, campaign) {
+async function checkUserMatchesCampaign(user_id, campaign) {
   try {
     const { subscriptions, userSegments } = getDatastores();
     
     // Get user subscription
-    const user = await subscriptions.findOne({ id: userId });
+    const user = await subscriptions.findOne({ id: user_id });
     if (!user || user.customer_id !== campaign.customer_id) {
       return false;
     }
@@ -471,26 +471,26 @@ async function checkUserMatchesCampaign(userId, campaign) {
   }
 }
 
-async function startCampaignExecution(campaign, userId, eventData) {
+async function startCampaignExecution(campaign, user_id, eventData) {
   try {
     const { campaignExecutions } = getDatastores();
     
     // Check if user already has an active execution for this campaign
     const existingExecution = await campaignExecutions.findOne({
       campaign_id: campaign.id,
-      subscription_id: userId,
+      subscription_id: user_id,
       status: { $in: ['active', 'waiting'] }
     });
 
     if (existingExecution) {
-      console.log(`User ${userId} already has active execution for campaign ${campaign.id}`);
+      console.log(`User ${user_id} already has active execution for campaign ${campaign.id}`);
       return;
     }
 
     // Create new execution
     const execution = {
       campaign_id: campaign.id,
-      subscription_id: userId,
+      subscription_id: user_id,
       current_step_index: 0,
       status: 'active',
       trigger_data: JSON.stringify(eventData),
@@ -509,7 +509,7 @@ async function startCampaignExecution(campaign, userId, eventData) {
     // Update campaign stats
     await updateCampaignStats(campaign.id, 'entry_count');
     
-    console.log(`Started campaign execution for user ${userId} in campaign ${campaign.id}`);
+    console.log(`Started campaign execution for user ${user_id} in campaign ${campaign.id}`);
   } catch (error) {
     console.error('Start campaign execution error:', error);
   }

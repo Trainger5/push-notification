@@ -53,7 +53,7 @@ router.post(
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const { apiKey, subscription } = req.body;
     const { customers, subscriptions } = getDatastores();
-    const customer = await customers.findOne({ apiKey, active: true });
+    const customer = await customers.findOne({ api_key: apiKey, active: true });
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
     const exists = await subscriptions.findOne({ customerId: customer._id, 'subscription.endpoint': subscription.endpoint });
     if (exists) return res.json({ status: 'exists' });
@@ -138,7 +138,7 @@ router.post(
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
     const { apiKey, endpoint } = req.body;
     const { customers, subscriptions } = getDatastores();
-    const customer = await customers.findOne({ apiKey, active: true });
+    const customer = await customers.findOne({ api_key: apiKey, active: true });
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
     const removedCount = await subscriptions.remove({ customerId: customer._id, 'subscription.endpoint': endpoint }, { multi: true });
     

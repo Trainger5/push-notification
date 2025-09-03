@@ -23,10 +23,28 @@ import Layout from '../components/Layout.jsx'
 const CodeBlock = ({ children, language = 'javascript' }) => {
   const [copied, setCopied] = useState(false)
   
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(children)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const copyToClipboard = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(children)
+      } else {
+        // Fallback for non-secure contexts or unsupported browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = children
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand('copy')
+        textArea.remove()
+      }
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
   }
 
   return (

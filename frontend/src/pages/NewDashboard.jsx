@@ -34,11 +34,27 @@ const SettingsPage = ({ me, setCurrentTab }) => {
 
   const copyToClipboard = async (text, label) => {
     try {
-      await navigator.clipboard.writeText(text)
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        // Fallback for non-secure contexts or unsupported browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = text
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand('copy')
+        textArea.remove()
+      }
       setCopySuccess(`${label} copied!`)
       setTimeout(() => setCopySuccess(''), 2000)
     } catch (err) {
       console.error('Failed to copy: ', err)
+      setCopySuccess('Copy failed - please copy manually')
+      setTimeout(() => setCopySuccess(''), 3000)
     }
   }
 
@@ -355,9 +371,27 @@ export default function NewDashboard() {
                   <Button 
                     variant="secondary" 
                     size="sm"
-                    onClick={() => {
+                    onClick={async () => {
                       const code = document.querySelector('pre').textContent;
-                      navigator.clipboard.writeText(code);
+                      try {
+                        if (navigator.clipboard && window.isSecureContext) {
+                          await navigator.clipboard.writeText(code)
+                        } else {
+                          // Fallback for non-secure contexts
+                          const textArea = document.createElement('textarea')
+                          textArea.value = code
+                          textArea.style.position = 'fixed'
+                          textArea.style.left = '-999999px'
+                          textArea.style.top = '-999999px'
+                          document.body.appendChild(textArea)
+                          textArea.focus()
+                          textArea.select()
+                          document.execCommand('copy')
+                          textArea.remove()
+                        }
+                      } catch (err) {
+                        console.error('Failed to copy:', err)
+                      }
                     }}
                   >
                     Copy Code

@@ -29,14 +29,38 @@ const CodeBlock = ({ children, language = 'javascript' }) => {
   const toast = useToast()
   const bg = 'gray.50'
   
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(children)
-    toast({
-      title: 'Copied to clipboard',
-      status: 'success',
-      duration: 2000,
-      isClosable: true,
-    })
+  const copyToClipboard = async () => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(children)
+      } else {
+        // Fallback for non-secure contexts or unsupported browsers
+        const textArea = document.createElement('textarea')
+        textArea.value = children
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        textArea.style.top = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand('copy')
+        textArea.remove()
+      }
+      toast({
+        title: 'Copied to clipboard',
+        status: 'success',
+        duration: 2000,
+        isClosable: true,
+      })
+    } catch (err) {
+      toast({
+        title: 'Failed to copy',
+        description: 'Please copy the code manually',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      })
+    }
   }
 
   return (

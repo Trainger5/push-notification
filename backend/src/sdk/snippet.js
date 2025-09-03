@@ -13,15 +13,20 @@
     subscribeEndpoint: '/api/subscribe',
     unsubscribeEndpoint: '/api/unsubscribe',
 
-    async init({ apiKey, baseUrl }) {
+    async init({ apiKey, baseUrl, serviceWorkerUrl }) {
       this.apiKey = apiKey || this.apiKey || (typeof document !== 'undefined' ? document.currentScript?.dataset?.apiKey : null);
       if (!this.apiKey) throw new Error('Missing apiKey');
+      this.serviceWorkerUrl = serviceWorkerUrl || '/pn-sw.js';
       if (baseUrl) {
         const trimmed = String(baseUrl).replace(/\/+$/, '');
         const apiBase = /\/api$/i.test(trimmed) ? trimmed : trimmed + '/api';
         this.configEndpoint = apiBase + '/config';
         this.subscribeEndpoint = apiBase + '/subscribe';
         this.unsubscribeEndpoint = apiBase + '/unsubscribe';
+        // If baseUrl is provided but no explicit serviceWorkerUrl, use baseUrl for SW too
+        if (!serviceWorkerUrl) {
+          this.serviceWorkerUrl = trimmed + '/pn-sw.js';
+        }
       }
       const cfgRes = await fetch(`${this.configEndpoint}?apiKey=${encodeURIComponent(this.apiKey)}`);
       const cfg = await cfgRes.json();
@@ -37,7 +42,7 @@
         console.warn('Notifications permission not granted');
         return;
       }
-      const sw = await navigator.serviceWorker.register('/pn-sw.js');
+      const sw = await navigator.serviceWorker.register(this.serviceWorkerUrl);
       const registration = await navigator.serviceWorker.ready;
       let sub = await registration.pushManager.getSubscription();
       if (!sub && this.vapidPublicKey) {

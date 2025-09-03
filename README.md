@@ -1,151 +1,233 @@
-## Web Push Notification Service (ready-to-use)
+## Push Notification System with Customer Dashboard
 
-See `DEPLOYMENT.md` for production deployment instructions.
+A complete push notification service with multi-tenant support, customer dashboard, admin panel, and comprehensive analytics.
 
-This is a small, production-ready Web Push backend with a tiny client SDK you can integrate into any website. It uses the W3C Push API and VAPID.
+### Features
+- 🔐 **Multi-tenant architecture** with customer isolation
+- 📊 **Admin dashboard** for system overview and management
+- 👤 **Customer portal** for self-service notification management
+- 🎯 **Advanced targeting** by segments, geography, device type
+- 📈 **Analytics & metrics** with delivery tracking
+- 🔗 **Webhook integration** for real-time events
+- 🎨 **Template system** for reusable notifications
+- ⏰ **Campaign scheduling** with automated delivery
+- 🧪 **A/B testing** for notification optimization
 
-### What you get
-- **HTTP API** to save subscriptions and send notifications
-- **SDK** (`/sdk.js`) for easy client integration
-- **Service Worker** (`/sw.js`) to show notifications
-- **File-based storage** for simplicity (can swap to DB later)
+### Quick Start
 
-### Requirements
-- Node.js 18+
-- HTTPS in production (Push requires secure origin). `http://localhost` works for local dev.
-
-### Quick start
-1) Install and run
+#### 1. Backend Setup
 
 ```bash
+cd backend
 npm install
-npm run start
-# Server runs on http://localhost:3000
+npm run setup  # Initialize database and create admin user
+npm start      # Server runs on http://localhost:4000
 ```
 
-2) Copy the default service worker to your website (must be same-origin):
+#### 2. Frontend Dashboard Setup
 
-```
-https://YOUR_SITE/sw.js  ← copy the file from this repo's `public/sw.js`
+```bash
+cd frontend
+npm install
+npm run build  # Build the admin/customer dashboard
 ```
 
-3) Add the SDK to your website and initialize:
+#### 3. Basic Integration
+
+Add this script to any website to enable push notifications:
 
 ```html
-<script src="https://YOUR_PUSH_SERVER/sdk.js"></script>
+<script src="http://your-server.com/sdk.js"></script>
 <script>
-  // Use any identifier you like for siteId (e.g., domain, slug, UUID)
-  PushClient.init({
-    serverUrl: 'https://YOUR_PUSH_SERVER',
-    siteId: 'YOUR_SITE_ID'
-  });
+  const API_KEY = 'your-api-key-here';
+  const SERVER_URL = 'http://your-server.com';
+  
+  // Load and initialize SDK
+  function loadNotificationSDK() {
+    PN.init({
+      apiKey: API_KEY,
+      baseUrl: SERVER_URL
+    }).then(() => {
+      console.log('✅ Push notifications ready!');
+    }).catch(err => {
+      console.error('Failed to initialize:', err);
+    });
+  }
+  
+  // Load on page ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadNotificationSDK);
+  } else {
+    loadNotificationSDK();
+  }
 </script>
 ```
 
-4) Send a notification from your server or a REST client:
+The SDK automatically:
+- Requests notification permission
+- Registers service worker from your server
+- Creates push subscription
+- Sends subscription to your backend
 
+#### 4. Sending Notifications
+
+Via Admin Dashboard:
+- Visit `http://your-server.com/admin` 
+- Login with admin credentials
+- Use the notification interface to send to all or targeted subscribers
+
+Via API:
 ```bash
-curl -X POST https://YOUR_PUSH_SERVER/api/notify \
-  -H 'Content-Type: application/json' \
+curl -X POST http://your-server.com/api/admin/notify \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-        "siteId": "YOUR_SITE_ID",
-        "title": "Hello from Web Push",
-        "body": "This is a test",
-        "icon": "https://your.site/icon.png",
-        "url": "https://your.site/landing"
-      }'
+    "title": "Test Notification",
+    "body": "This is a test message",
+    "targetType": "all"
+  }'
 ```
 
-### Endpoints
-- `GET /api/vapidPublicKey` → `{ publicKey }`
-- `POST /api/subscriptions` → Save a subscription
-  - Body: `{ siteId: string, subscription: PushSubscription }`
-- `POST /api/notify` → Send to all subscribers of a site
-  - Body: `{ siteId, title, body?, icon?, image?, badge?, tag?, url?, data?, actions?, ttl? }`
+### System Requirements
 
-### How integration works
-- The website hosts `/sw.js` on the same origin (required by browsers).
-- The SDK registers the service worker, requests notification permission, subscribes the user with the server's VAPID public key, and saves the subscription.
-- When you call `/api/notify`, the server sends a push message to all stored subscriptions for that `siteId`. The service worker displays the notification and opens `url` on click.
+- **Node.js** 18+ 
+- **MySQL/MariaDB** 8.0+
+- **HTTPS** in production (required for push notifications)
 
-### Configuration
-- The server auto-generates VAPID keys at first start and stores them in `config/vapid.json`.
-- You can customize the VAPID subject via `VAPID_SUBJECT` in `.env` (e.g., `mailto:you@example.com`).
-- Default port is `3000` (`PORT` env var to change).
+### Environment Configuration
 
-### Securing send endpoint
-- If you set `API_KEY` (env var), the `POST /api/notify` endpoint will require either:
-  - Header `Authorization: Bearer YOUR_API_KEY`, or
-  - Header `x-api-key: YOUR_API_KEY`
+Create `.env` file in backend directory:
 
-### Deploy options
+```env
+NODE_ENV=production
+PORT=4000
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=pushnotify
+DB_USER=pushuser
+DB_PASSWORD=your_password
+JWT_SECRET=your_jwt_secret_here
+VAPID_SUBJECT=mailto:admin@yoursite.com
+```
 
-#### Docker (recommended)
+### Database Setup
+
+The system automatically creates the database schema on first run. Ensure your MySQL user has CREATE database permissions.
+
+### Key API Endpoints
+
+#### Public (SDK Integration)
+- `GET /api/config?apiKey=KEY` - Get VAPID public key and settings
+- `POST /api/subscribe` - Save push subscription
+- `POST /api/unsubscribe` - Remove push subscription
+- `GET /sdk.js` - Client SDK
+- `GET /pn-sw.js` - Service worker
+
+#### Admin (Requires Authentication)
+- `POST /api/admin/notify` - Send notifications to subscribers
+- `GET /api/admin/overview` - System statistics
+- `GET /api/admin/subscribers` - List all subscribers
+- `GET /api/admin/analytics` - Usage analytics
+
+#### Customer (Requires Authentication)  
+- `POST /api/customer/notify` - Send notifications (customer scope)
+- `GET /api/customer/me` - Customer dashboard data
+- `POST /api/customer/settings` - Update push settings
+
+### Testing Your Integration
+
+1. **Create a test HTML file** with the integration script
+2. **Serve it locally** (or upload to your site)
+3. **Open browser dev tools** to monitor the subscription process
+4. **Grant notification permission** when prompted
+5. **Check the admin dashboard** to see your subscription
+6. **Send a test notification** from the dashboard
+
+### Advanced Features
+
+#### Segmentation
+Target users by:
+- Geographic location (country, city)
+- Device type (mobile, desktop, tablet) 
+- Browser type (Chrome, Firefox, Safari)
+- Custom tags and segments
+
+#### Campaign Scheduling
+- Schedule notifications for specific dates/times
+- Recurring campaigns (daily, weekly, monthly)
+- Timezone-aware delivery
+
+#### A/B Testing
+- Test different notification content
+- Compare delivery and engagement rates
+- Automatic winner selection
+
+#### Webhooks
+- Real-time event notifications
+- Subscription created/deleted events
+- Delivery status updates
+- Custom webhook endpoints
+
+### Troubleshooting
+
+#### Common Issues
+
+**Service Worker 404 Error**
+- Ensure your server serves the service worker at `/pn-sw.js`
+- Check that `baseUrl` in SDK init matches your server URL
+
+**Permission Denied**
+- HTTPS is required in production
+- User must grant notification permission
+- Some browsers block notifications on HTTP (except localhost)
+
+**Subscription Not Appearing**
+- Check browser network tab for API call failures
+- Verify API key is correct
+- Check server logs for database connection issues
+
+**Notifications Not Received**
+- Verify VAPID keys are properly configured
+- Check that subscription is active in dashboard
+- Browser must be open to receive notifications (except mobile)
+
+### Production Deployment
+
+#### Using PM2
 ```bash
-docker build -t web-push-service .
-docker run -d --name web-push -p 3000:3000 \
-  -e VAPID_SUBJECT=mailto:admin@example.com \
-  -e API_KEY=your-secret-key \
-  -v $(pwd)/config:/app/config \
-  -v $(pwd)/data:/app/data \
-  web-push-service
+npm install -g pm2
+cd backend
+pm2 start src/server.js --name "push-notifications"
+pm2 startup
+pm2 save
 ```
 
-Or with Compose:
-
+#### Using Docker
 ```bash
-docker compose up -d
+docker build -t push-notification-system .
+docker run -d -p 4000:4000 \
+  -e DB_HOST=your-db-host \
+  -e DB_PASSWORD=your-db-password \
+  push-notification-system
 ```
 
-#### Bare-metal / PM2
-```bash
-npm ci --only=production
-API_KEY=your-secret-key VAPID_SUBJECT=mailto:admin@example.com PORT=3000 node server.js
+#### Nginx Configuration
+```nginx
+server {
+    listen 443 ssl;
+    server_name push.yoursite.com;
+    
+    location / {
+        proxy_pass http://localhost:4000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+    
+    # SSL configuration
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/private.key;
+}
 ```
-
-#### Cloud platforms
-- Any Node-compatible host (Render, Railway, Fly.io, Heroku-alikes) works. Add env vars and mount persistent volumes for `config/` and `data/`.
-
-### How sites integrate (production)
-1) Host the service worker on the site origin as `/sw.js` (copy from `public/sw.js`, or merge handlers into existing SW).
-2) Load the SDK from your push server, then initialize once at page load:
-
-```html
-<script src="https://push.example.com/sdk.js"></script>
-<script>
-  PushClient.init({ serverUrl: 'https://push.example.com', siteId: 'your-site-id' });
-  // Consider gating behind a user gesture before calling init()
-  // e.g., after a "Enable notifications" button click
-</script>
-```
-
-3) When you want to send a notification to all subscribers of a site:
-
-```bash
-curl -X POST https://push.example.com/api/notify \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer YOUR_API_KEY' \
-  -d '{
-        "siteId": "your-site-id",
-        "title": "Sale starts now",
-        "body": "Up to 40% off",
-        "icon": "https://your.site/icon.png",
-        "url": "https://your.site/sale"
-      }'
-```
-
-4) Multi-tenant support: use a distinct `siteId` per website/app. The server keeps separate subscription arrays per `siteId`.
-
-### Production notes
-- Must be served over HTTPS (except on localhost).
-- Keep `config/` and `data/` on persistent storage.
-- Rotate `API_KEY` periodically; treat it like a password.
-- Handle unsubscriptions automatically: the server removes `410/404` endpoints after failed sends.
-
-### Notes
-- To support multiple sites, use different `siteId` values. All subscriptions are kept in `data/subscriptions.json`.
-- In production, run behind HTTPS (e.g., Nginx/Traefik). For local testing, `http://localhost` is allowed.
-- If you already have a service worker, merge the push handlers from `public/sw.js` into your existing one.
 
 ### License
 MIT

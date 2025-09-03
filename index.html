@@ -39,7 +39,8 @@
         // Initialize with just your API key
         PN.init({
           apiKey: API_KEY,
-          baseUrl: SERVER_URL
+          baseUrl: SERVER_URL,
+          serviceWorkerUrl: '/pn-sw.js'  // Use local service worker
         }).then(() => {
           console.log('✅ Push notifications ready!');
           console.log('📊 PN object:', PN);
@@ -142,7 +143,8 @@
         if (window.PN) {
             PN.init({
                 apiKey: API_KEY,
-                baseUrl: SERVER_URL
+                baseUrl: SERVER_URL,
+                serviceWorkerUrl: '/pn-sw.js'  // Use local service worker
             }).then(() => {
                 console.log('✅ Re-initialization successful');
                 updateStatus();

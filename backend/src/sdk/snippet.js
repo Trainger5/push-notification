@@ -30,7 +30,7 @@
       }
       const cfgRes = await fetch(`${this.configEndpoint}?apiKey=${encodeURIComponent(this.apiKey)}`);
       const cfg = await cfgRes.json();
-      this.vapidPublicKey = cfg.vapidPublicKey || null;
+      this.vapidPublicKey = cfg.vapidPublicKey || cfg.vapid_public_key || null;
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         console.warn('Push not supported in this browser');
         return;

@@ -163,7 +163,22 @@ router.post(
         }
       });
     }
-    const notificationRecord = await notifications.insert({ customer_id: customer.id, payload: req.body, sentAt: new Date(), success: ok, failed: fail });
+    const notificationRecord = await notifications.insert({ 
+      customer_id: customer.id, 
+      title: req.body.title,
+      body: req.body.body,
+      url: req.body.url || null,
+      icon_url: req.body.icon || null,
+      image_url: req.body.image || null,
+      payload: req.body, 
+      sentAt: new Date(), 
+      success: ok, 
+      failed: fail,
+      status: 'sent',
+      sent_count: ok,
+      failed_count: fail,
+      target_type: 'all'
+    });
     
     // Trigger webhook event
     await triggerWebhookEvent(customer.id, 'notification.sent', {

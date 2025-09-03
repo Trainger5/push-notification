@@ -22,6 +22,7 @@ const up = async () => {
       silent BOOLEAN DEFAULT FALSE,
       actions JSON NULL,
       custom_data JSON NULL,
+      payload JSON NULL,
       target_type ENUM('all', 'segment', 'individual') DEFAULT 'all',
       target_count INT DEFAULT 0,
       sent_count INT DEFAULT 0,

@@ -163,7 +163,7 @@ router.post(
         }
       });
     }
-    const notificationRecord = await notifications.insert({ customer_id: customer.id, payload: req.body, sentAt: new Date().toISOString(), success: ok, failed: fail });
+    const notificationRecord = await notifications.insert({ customer_id: customer.id, payload: req.body, sentAt: new Date(), success: ok, failed: fail });
     
     // Trigger webhook event
     await triggerWebhookEvent(customer.id, 'notification.sent', {

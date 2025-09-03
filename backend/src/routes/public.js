@@ -108,8 +108,8 @@ router.post(
       tags: [], // For manual tagging
       segments: [], // Auto-assigned segments
       engagement_score: 0, // Based on opens/clicks
-      last_active: new Date().toISOString(),
-      subscribed_at: new Date().toISOString()
+      last_active: new Date(),
+      subscribed_at: new Date()
     };
     
     const doc = await subscriptions.insert(subscriptionDoc);

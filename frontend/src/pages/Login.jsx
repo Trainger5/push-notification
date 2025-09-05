@@ -76,8 +76,8 @@ export default function Login() {
 
   const handleDemoLogin = () => {
     setForm({
-      email: 'demo@example.com',
-      password: 'demo123'
+      email: 'demo@customer.com',
+      password: 'password123'
     })
     setErrors({})
   }

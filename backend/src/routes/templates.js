@@ -50,21 +50,21 @@ router.post(
         customer_id: customer.id,
         name: req.body.name,
         description: req.body.description || '',
+        category: req.body.category || 'general',
         title: req.body.title,
         body: req.body.body,
-        url: req.body.url,
-        icon: req.body.icon,
-        badge: req.body.badge,
-        image: req.body.image,
-        tag: req.body.tag,
-        category: req.body.category || 'general',
-        variables: req.body.variables || [], // Array of variable names like ['userName', 'productName']
-        actions: req.body.actions || [],
-        usageCount: 0,
-        isActive: true,
+        url: req.body.url || null,
+        icon_url: req.body.icon || null,
+        badge_url: req.body.badge || null,
+        image_url: req.body.image || null,
+        tag: req.body.tag || null,
+        actions: req.body.actions ? JSON.stringify(req.body.actions) : null,
+        custom_data: JSON.stringify({ variables: req.body.variables || [] }),
+        usage_count: 0,
+        status: 'active',
+        created_by: req.user.user_id,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        created_by: req.user.user_id
+        updated_at: new Date().toISOString()
       };
 
       const newTemplate = await notificationTemplates.insert(template);
@@ -100,10 +100,17 @@ router.get('/list', async (req, res) => {
     }
     
     if (active !== undefined) {
-      query.isActive = active === 'true';
+      query.status = active === 'true' ? 'active' : 'inactive';
     }
 
     let templates = await notificationTemplates.find(query, { sort: { updated_at: -1 } });
+
+    // Normalize JSON fields for UI convenience
+    templates = templates.map(t => ({
+      ...t,
+      actions: t.actions ? JSON.parse(t.actions) : [],
+      variables: t.custom_data ? (JSON.parse(t.custom_data).variables || []) : []
+    }));
 
     // Apply search filter if provided
     if (search) {
@@ -149,7 +156,13 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    res.json(template);
+    // Parse JSON fields for convenience
+    const parsed = {
+      ...template,
+      actions: template.actions ? JSON.parse(template.actions) : [],
+      variables: template.custom_data ? (JSON.parse(template.custom_data).variables || []) : []
+    };
+    res.json(parsed);
   } catch (error) {
     console.error('Get template error:', error);
     res.status(500).json({ error: 'Failed to retrieve template' });
@@ -207,10 +220,21 @@ router.put(
         }
       }
 
-      const updates = {
-        ...req.body,
-        updated_at: new Date().toISOString()
-      };
+      // Normalize update fields to match DB schema
+      const updates = { updated_at: new Date().toISOString() };
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.description !== undefined) updates.description = req.body.description;
+      if (req.body.title !== undefined) updates.title = req.body.title;
+      if (req.body.body !== undefined) updates.body = req.body.body;
+      if (req.body.url !== undefined) updates.url = req.body.url || null;
+      if (req.body.icon !== undefined) updates.icon_url = req.body.icon || null;
+      if (req.body.badge !== undefined) updates.badge_url = req.body.badge || null;
+      if (req.body.image !== undefined) updates.image_url = req.body.image || null;
+      if (req.body.tag !== undefined) updates.tag = req.body.tag || null;
+      if (req.body.category !== undefined) updates.category = req.body.category;
+      if (req.body.actions !== undefined) updates.actions = req.body.actions ? JSON.stringify(req.body.actions) : null;
+      if (req.body.variables !== undefined) updates.custom_data = JSON.stringify({ variables: req.body.variables || [] });
+      if (req.body.isActive !== undefined) updates.status = req.body.isActive ? 'active' : 'inactive';
 
       await notificationTemplates.update(
         { id: req.params.id },
@@ -220,7 +244,11 @@ router.put(
       const updatedTemplate = await notificationTemplates.findOne({ id: req.params.id });
 
       res.json({
-        template: updatedTemplate,
+        template: {
+          ...updatedTemplate,
+          actions: updatedTemplate.actions ? JSON.parse(updatedTemplate.actions) : [],
+          variables: updatedTemplate.custom_data ? (JSON.parse(updatedTemplate.custom_data).variables || []) : []
+        },
         message: 'Template updated successfully'
       });
     } catch (error) {
@@ -281,7 +309,7 @@ router.post(
       const template = await notificationTemplates.findOne({
         id: req.params.id,
         customer_id: customer.id,
-        isActive: true
+        status: 'active'
       });
 
       if (!template) {
@@ -295,8 +323,9 @@ router.post(
       let processedUrl = template.url;
 
       // Replace variables in template (simple string replacement)
-      if (template.variables && template.variables.length > 0) {
-        template.variables.forEach(varName => {
+      const variablesList = template.custom_data ? (JSON.parse(template.custom_data).variables || []) : [];
+      if (variablesList && variablesList.length > 0) {
+        variablesList.forEach(varName => {
           const value = variables[varName] || `{{${varName}}}`;
           const regex = new RegExp(`{{${varName}}}`, 'g');
           processedTitle = processedTitle.replace(regex, value);
@@ -312,13 +341,11 @@ router.post(
         title: processedTitle,
         body: processedBody,
         url: processedUrl,
-        icon: template.icon,
-        badge: template.badge,
-        image: template.image,
+        icon: template.icon_url,
+        badge: template.badge_url,
+        image: template.image_url,
         tag: template.tag,
-        actions: template.actions,
-        templateId: template.id,
-        templateName: template.name
+        actions: template.actions ? JSON.parse(template.actions) : []
       };
 
       // If scheduled, use scheduler
@@ -327,7 +354,7 @@ router.post(
         const scheduler = getScheduler();
         
         const scheduledNotification = await scheduler.scheduleNotification({
-          customer_id: customer.id,
+          customerId: customer.id,
           ...notificationData,
           scheduledFor: new Date(req.body.scheduledFor).toISOString(),
           timezone: req.body.timezone || 'UTC',
@@ -337,7 +364,7 @@ router.post(
         // Increment usage count
         await notificationTemplates.update(
           { id: template.id },
-          { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date().toISOString() } }
+          { $inc: { usage_count: 1 }, $set: { last_used: new Date().toISOString() } }
         );
 
         res.json({
@@ -362,7 +389,7 @@ router.post(
 
         // Configure web-push
         webpush.setVapidDetails(
-          settings.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
+          settings.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
           settings.vapid_public_key || process.env.VAPID_PUBLIC_KEY,
           settings.vapid_private_key || process.env.VAPID_PRIVATE_KEY
         );
@@ -371,8 +398,8 @@ router.post(
           title: processedTitle,
           body: processedBody,
           url: processedUrl,
-          icon: notificationData.icon || settings.iconUrl,
-          badge: notificationData.badge || settings.badgeUrl,
+          icon: notificationData.icon || settings.default_icon_url,
+          badge: notificationData.badge || settings.default_badge_url,
           image: notificationData.image,
           tag: notificationData.tag,
           data: { templateId: template.id, templateName: template.name }
@@ -388,12 +415,16 @@ router.post(
 
         for (const sub of subs) {
           try {
-            const pushSubscription = {
-              endpoint: sub.subscription.endpoint,
-              keys: {
-                p256dh: sub.subscription.keys.p256dh,
-                auth: sub.subscription.keys.auth
-              }
+            // Support both flattened DB columns and older JSON structure
+            const subscriptionData = sub.subscription
+              ? (typeof sub.subscription === 'string' ? JSON.parse(sub.subscription) : sub.subscription)
+              : null;
+            const pushSubscription = subscriptionData ? {
+              endpoint: subscriptionData.endpoint,
+              keys: { p256dh: subscriptionData.keys.p256dh, auth: subscriptionData.keys.auth }
+            } : {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh_key || sub.p256dh, auth: sub.auth_key || sub.auth }
             };
 
             await webpush.sendNotification(pushSubscription, JSON.stringify(payload));
@@ -411,21 +442,21 @@ router.post(
         // Save notification record
         await notifications.insert({
           customer_id: customer.id,
+          template_id: template.id,
           title: processedTitle,
           body: processedBody,
           url: processedUrl,
+          payload: JSON.stringify({ variables }),
+          sentAt: new Date().toISOString(),
           success: sent,
           failed: failed,
-          templateId: template.id,
-          templateName: template.name,
-          variables: variables,
-          created_at: new Date().toISOString()
+          status: 'sent'
         });
 
         // Increment usage count
         await notificationTemplates.update(
           { id: template.id },
-          { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date().toISOString() } }
+          { $inc: { usage_count: 1 }, $set: { last_used: new Date().toISOString() } }
         );
 
         res.json({

@@ -52,7 +52,7 @@ router.post(
 
       const scheduler = getScheduler();
       const notificationData = {
-        customer_id: customer.id,
+        customerId: customer.id,
         title: req.body.title,
         body: req.body.body,
         url: req.body.url,
@@ -71,7 +71,7 @@ router.post(
       
       res.status(201).json({
         id: scheduledNotification.id,
-        scheduledFor: scheduledNotification.scheduledFor,
+        scheduledFor: scheduledNotification.scheduled_for || scheduledNotification.scheduledFor,
         status: scheduledNotification.status,
         message: 'Notification scheduled successfully'
       });
@@ -240,7 +240,7 @@ router.get('/stats/overview', async (req, res) => {
     const totalScheduled = await scheduledNotifications.count({ customer_id: customer_id });
     const pendingScheduled = await scheduledNotifications.count({ 
       customer_id: customer_id, 
-      status: 'scheduled',
+      status: 'active',
       scheduled_for: { $gt: now.toISOString() }
     });
     const sentScheduled = await scheduledNotifications.count({ 
@@ -260,7 +260,7 @@ router.get('/stats/overview', async (req, res) => {
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const upcomingNotifications = await scheduledNotifications.find({
       customer_id: customer_id,
-      status: 'scheduled',
+      status: 'active',
       scheduled_for: { 
         $gte: now.toISOString(),
         $lte: sevenDaysFromNow.toISOString()

@@ -246,14 +246,25 @@ export default function StandaloneDocs() {
                     </div>
 
                     <div>
-                      <h3 className="text-xl font-semibold mb-4">3. Send Notifications from Your Server</h3>
-                      <p className="mb-4">Use your API key to send notifications via API:</p>
+                      <h3 className="text-xl font-semibold mb-2">3. Send Notifications via API</h3>
+                      <p className="mb-4">Authenticate with JWT (obtained from the login API or dashboard) and call the customer notify endpoint.</p>
+                      <h4 className="font-semibold mb-2">3.1 Get a JWT Token</h4>
                       <CodeBlock>
-{`// Send notification using API key
+{`// Get JWT token
+const loginRes = await fetch('http://localhost:4000/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'demo@customer.com', password: 'password123' })
+});
+const { token } = await loginRes.json();`}
+                      </CodeBlock>
+                      <h4 className="font-semibold mb-2">3.2 Send a Notification</h4>
+                      <CodeBlock>
+{`// Send notification using JWT token
 const response = await fetch('http://localhost:4000/api/customer/notify', {
   method: 'POST',
   headers: {
-    'Authorization': 'Bearer ${customerData?.customer?.api_key || 'YOUR_API_KEY_HERE'}', // ${customerData?.customer?.api_key ? '✅ Your actual API key' : 'Replace with your API key'}
+    'Authorization': 'Bearer ' + token,
     'Content-Type': 'application/json'
   },
   body: JSON.stringify({
@@ -263,17 +274,17 @@ const response = await fetch('http://localhost:4000/api/customer/notify', {
     icon: 'https://your-website.com/icon.png' // Optional icon
   })
 });
-
 const result = await response.json();
 console.log('Notification sent:', result);`}
                       </CodeBlock>
+                      <p className="text-sm text-gray-600">You can also use the Dashboard to send notifications without writing code.</p>
                       {customerData?.customer?.api_key ? (
                         <Alert className="bg-green-50 border-green-200 text-green-800">
-                          🎉 <strong>Your code is ready!</strong> Your actual API key is already included in the examples above. Just copy and paste!
+                          🎉 <strong>Tip:</strong> Use the Dashboard → Send Notification for zero‑code sending; or authenticate via JWT as shown above for API access.
                         </Alert>
                       ) : (
                         <Alert className="bg-blue-50 border-blue-200 text-blue-800">
-                          💡 <strong>That's all you need!</strong> The SDK automatically handles user permission requests, VAPID keys, service worker registration, and subscription management. {token ? '' : 'Login to see your personalized code with your API key.'}
+                          💡 <strong>That’s all you need!</strong> The SDK automatically handles permission, VAPID keys, SW registration, and subscription management. {token ? '' : 'Login to see personalized examples.'}
                         </Alert>
                       )}
                     </div>

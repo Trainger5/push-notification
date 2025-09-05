@@ -346,7 +346,7 @@ router.post('/:testId/start', async (req, res) => {
     const settings = await pushSettings.findOne({ customer_id: customer.id });
     const vapidPublicKey = settings?.vapid_public_key || process.env.VAPID_PUBLIC_KEY;
     const vapidPrivateKey = settings?.vapid_private_key || process.env.VAPID_PRIVATE_KEY;
-    const vapidSubject = settings?.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+    const vapidSubject = settings?.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
 
     if (!vapidPublicKey || !vapidPrivateKey) {
       return res.status(400).json({ error: 'Missing VAPID keys. Please configure push settings first.' });
@@ -386,12 +386,20 @@ router.post('/:testId/start', async (req, res) => {
 
       for (const subscription of assignedSubs) {
         try {
-          const subscriptionData = JSON.parse(subscription.subscription);
-          const pushSubscription = {
+          const subscriptionData = subscription.subscription
+            ? (typeof subscription.subscription === 'string' ? JSON.parse(subscription.subscription) : subscription.subscription)
+            : null;
+          const pushSubscription = subscriptionData ? {
             endpoint: subscriptionData.endpoint,
             keys: {
               p256dh: subscriptionData.keys.p256dh,
               auth: subscriptionData.keys.auth
+            }
+          } : {
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: subscription.p256dh_key || subscription.p256dh,
+              auth: subscription.auth_key || subscription.auth
             }
           };
 

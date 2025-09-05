@@ -57,7 +57,7 @@ class CampaignExecutor {
 
   async processExecution(execution) {
     try {
-      const { campaigns, campaignExecutions, subscriptions, pushSettings } = getDatastores();
+      const { campaigns } = getDatastores();
       
       // Get the campaign
       const campaign = await campaigns.findOne({ id: execution.campaign_id });
@@ -106,7 +106,7 @@ class CampaignExecutor {
       }
 
     } catch (error) {
-      console.error(`Error processing execution ${execution._id}:`, error);
+      console.error(`Error processing execution ${execution.id}:`, error);
       await this.failExecution(execution, error.message);
     }
   }
@@ -213,11 +213,11 @@ class CampaignExecutor {
       const conditionMet = await this.evaluateCondition(step.condition, execution, campaign);
       
       if (conditionMet) {
-        console.log(`Condition step passed for user ${execution.userId}`);
+        console.log(`Condition step passed for subscription ${execution.subscription_id}`);
         return { success: true };
       } else {
         // Exit campaign if condition not met
-        console.log(`Condition step failed for user ${execution.userId}, exiting campaign`);
+        console.log(`Condition step failed for subscription ${execution.subscription_id}, exiting campaign`);
         return { success: false, error: 'Condition not met, exiting campaign' };
       }
     } catch (error) {
@@ -231,7 +231,7 @@ class CampaignExecutor {
       
       // Update user segment membership based on step configuration
       // This is a simplified implementation
-      console.log(`Segment update step for user ${execution.userId}`);
+      console.log(`Segment update step for subscription ${execution.subscription_id}`);
       
       return { success: true };
     } catch (error) {
@@ -247,13 +247,13 @@ class CampaignExecutor {
       }
 
       const webhookPayload = {
-        campaignId: execution.campaignId,
-        executionId: execution._id,
-        userId: execution.userId,
+        campaignId: execution.campaign_id,
+        executionId: execution.id,
+        subscriptionId: execution.subscription_id,
         stepId: step.id,
         stepName: step.name,
         timestamp: new Date().toISOString(),
-        data: execution.triggerData
+        data: this.parseTriggerData(execution)
       };
 
       // In a real implementation, you'd make an HTTP request to the webhook URL
@@ -270,40 +270,39 @@ class CampaignExecutor {
       const { campaignExecutions, campaigns } = getDatastores();
       
       // Add completed step to history
-      const stepHistory = execution.stepHistory || [];
+      const stepHistory = this.getStepHistory(execution);
       stepHistory.push({
-        stepId: completedStep.id,
-        stepType: completedStep.type,
+        step_id: completedStep.id,
+        step_type: completedStep.type,
         status: 'completed',
-        completedAt: new Date().toISOString(),
-        duration: null // Could calculate duration if needed
+        completed_at: new Date().toISOString(),
+        duration: null
       });
 
       // Move to next step
-      const nextStepIndex = execution.currentStepIndex + 1;
-      const campaign = await campaigns.findOne({ _id: execution.campaignId });
+      const nextStepIndex = (execution.current_step_index || 0) + 1;
+      const campaign = await campaigns.findOne({ id: execution.campaign_id });
       
-      if (nextStepIndex >= campaign.steps.length) {
+      const steps = Array.isArray(campaign.steps) ? campaign.steps : JSON.parse(campaign.steps || '[]');
+      if (nextStepIndex >= steps.length) {
         // Campaign completed
         await campaignExecutions.update(
-          { _id: execution._id },
-          {
-            $set: {
+          { id: execution.id },
+          { $set: {
               status: 'completed',
-              stepHistory,
-              updatedAt: new Date().toISOString(),
-              completedAt: new Date().toISOString()
-            }
-          }
+              step_history: JSON.stringify(stepHistory),
+              updated_at: new Date(),
+              completed_at: new Date()
+            } }
         );
-        console.log(`Campaign execution completed for user ${execution.userId}`);
+        console.log(`Campaign execution completed for subscription ${execution.subscription_id}`);
       } else {
         // Move to next step
         const updateData = {
-          currentStepIndex: nextStepIndex,
-          stepHistory,
-          updatedAt: new Date().toISOString(),
-          nextExecutionAt: nextExecutionAt || new Date().toISOString()
+          current_step_index: nextStepIndex,
+          step_history: JSON.stringify(stepHistory),
+          updated_at: new Date(),
+          next_execution_at: nextExecutionAt || new Date().toISOString()
         };
 
         // If this was a wait step, set status to waiting
@@ -312,7 +311,7 @@ class CampaignExecutor {
         }
 
         await campaignExecutions.update(
-          { _id: execution._id },
+          { id: execution.id },
           { $set: updateData }
         );
       }
@@ -327,17 +326,15 @@ class CampaignExecutor {
       const { campaignExecutions } = getDatastores();
       
       await campaignExecutions.update(
-        { _id: execution._id },
-        {
-          $set: {
+        { id: execution.id },
+        { $set: {
             status: 'completed',
-            updatedAt: new Date().toISOString(),
-            completedAt: new Date().toISOString()
-          }
-        }
+            updated_at: new Date(),
+            completed_at: new Date()
+          } }
       );
       
-      console.log(`Campaign execution completed for user ${execution.userId}`);
+      console.log(`Campaign execution completed for subscription ${execution.subscription_id}`);
     } catch (error) {
       console.error('Error completing execution:', error);
     }
@@ -348,18 +345,16 @@ class CampaignExecutor {
       const { campaignExecutions } = getDatastores();
       
       await campaignExecutions.update(
-        { _id: execution._id },
-        {
-          $set: {
+        { id: execution.id },
+        { $set: {
             status: 'failed',
-            error: errorMessage,
-            updatedAt: new Date().toISOString(),
-            failedAt: new Date().toISOString()
-          }
-        }
+            error_message: errorMessage,
+            updated_at: new Date(),
+            failed_at: new Date()
+          } }
       );
       
-      console.log(`Campaign execution failed for user ${execution.userId}: ${errorMessage}`);
+      console.log(`Campaign execution failed for subscription ${execution.subscription_id}: ${errorMessage}`);
     } catch (error) {
       console.error('Error failing execution:', error);
     }
@@ -373,18 +368,39 @@ class CampaignExecutor {
     let processed = text;
     
     // Replace execution-specific variables
-    processed = processed.replace(/{{userId}}/g, execution.userId);
-    processed = processed.replace(/{{campaignId}}/g, execution.campaignId);
+    processed = processed.replace(/{{subscriptionId}}/g, String(execution.subscription_id || ''));
+    processed = processed.replace(/{{campaignId}}/g, String(execution.campaign_id || ''));
     
     // Replace trigger data variables
-    if (execution.triggerData) {
-      Object.keys(execution.triggerData).forEach(key => {
+    const trigger = this.parseTriggerData(execution);
+    if (trigger) {
+      Object.keys(trigger).forEach(key => {
         const regex = new RegExp(`{{${key}}}`, 'g');
-        processed = processed.replace(regex, execution.triggerData[key]);
+        processed = processed.replace(regex, String(trigger[key]));
       });
     }
     
     return processed;
+  }
+
+  getStepHistory(execution) {
+    try {
+      if (Array.isArray(execution.step_history)) return execution.step_history;
+      if (execution.step_history) return JSON.parse(execution.step_history);
+    } catch (_) {}
+    return [];
+  }
+
+  parseTriggerData(execution) {
+    try {
+      if (execution.trigger_data && typeof execution.trigger_data === 'string') {
+        return JSON.parse(execution.trigger_data);
+      }
+      if (execution.trigger_data && typeof execution.trigger_data === 'object') {
+        return execution.trigger_data;
+      }
+    } catch (_) {}
+    return null;
   }
 
   async evaluateCondition(condition, execution, campaign) {

@@ -102,11 +102,11 @@ router.get('/analytics/overview', async (req, res) => {
     const totalSubscribers = await subscriptions.count({ customer_id: customer_id });
     const newSubscribers7d = await subscriptions.count({ 
       customer_id: customer_id, 
-      created_at: { $gte: sevenDaysAgo }
+      subscribed_at: { $gte: sevenDaysAgo }
     });
     const newSubscribers30d = await subscriptions.count({ 
       customer_id: customer_id, 
-      created_at: { $gte: thirtyDaysAgo }
+      subscribed_at: { $gte: thirtyDaysAgo }
     });
 
     // Get notification stats
@@ -368,5 +368,4 @@ router.get('/analytics/activity', async (req, res) => {
 });
 
 module.exports = router;
-
 

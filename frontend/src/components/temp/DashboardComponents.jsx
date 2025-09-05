@@ -44,7 +44,12 @@ export function DashboardOverview({ setCurrentTab }) {
         const activityRes = await fetch(`${apiBase}/api/customer/notifications?limit=5`, { headers })
         if (activityRes.ok) {
           const activityData = await activityRes.json()
-          setRecentActivity(Array.isArray(activityData) ? activityData : [])
+          const normalized = Array.isArray(activityData) ? activityData.map(n => ({
+            ...n,
+            _id: n._id || n.id,
+            createdAt: n.createdAt || n.sentAt || n.sent_at || n.created_at
+          })) : []
+          setRecentActivity(normalized)
         }
       } catch (activityError) {
         console.log('Recent activity not available:', activityError.message)
@@ -797,7 +802,7 @@ export function SettingsPage() {
   const [settings, setSettings] = useState({
     vapidPublicKey: '',
     vapidPrivateKey: '',
-    vapidSubject: '',
+  vapid_subject: '',
     title: '',
     iconUrl: '',
     badgeUrl: '',
@@ -873,8 +878,8 @@ export function SettingsPage() {
       if (response.ok) {
         setSettings(prev => ({
           ...prev,
-          vapidPublicKey: data.publicKey,
-          vapidPrivateKey: data.privateKey
+          vapid_public_key: data.publicKey,
+          vapid_private_key: data.privateKey
         }))
         setResult({ success: true, message: 'VAPID keys generated successfully!' })
       } else {
@@ -937,8 +942,8 @@ export function SettingsPage() {
               
               <Input
                 label="VAPID Subject"
-                value={settings.vapidSubject}
-                onChange={(e) => setSettings({...settings, vapidSubject: e.target.value})}
+                value={settings.vapid_subject}
+                onChange={(e) => setSettings({...settings, vapid_subject: e.target.value})}
                 placeholder="mailto:admin@yoursite.com"
               />
             </CardBody>

@@ -9,17 +9,47 @@ class MySQLDatastore {
     this.primaryKey = primaryKey;
   }
 
+  // Normalize row to include legacy-friendly aliases
+  normalizeRow(row) {
+    if (!row || typeof row !== 'object') return row;
+    const out = { ...row };
+    // ID alias
+    if (out.id && !out._id) out._id = out.id;
+    // Common timestamp aliases
+    if (out.created_at && !out.createdAt) out.createdAt = out.created_at;
+    if (out.updated_at && !out.updatedAt) out.updatedAt = out.updated_at;
+    if (out.sent_at && !out.sentAt) out.sentAt = out.sent_at;
+    if (out.subscribed_at && !out.subscribedAt) out.subscribedAt = out.subscribed_at;
+    if (out.last_active && !out.lastActive) out.lastActive = out.last_active;
+    // Template fields
+    if (out.usage_count !== undefined && out.usageCount === undefined) out.usageCount = out.usage_count;
+    if (out.last_used && !out.lastUsed) out.lastUsed = out.last_used;
+    // Push settings friendly aliases
+    if (out.vapid_public_key && !out.vapidPublicKey) out.vapidPublicKey = out.vapid_public_key;
+    if (out.vapid_private_key && !out.vapidPrivateKey) out.vapidPrivateKey = out.vapid_private_key;
+    if (out.vapid_subject && !out.vapidSubject) out.vapidSubject = out.vapid_subject;
+    if (out.default_icon_url && !out.iconUrl) out.iconUrl = out.default_icon_url;
+    if (out.default_badge_url && !out.badgeUrl) out.badgeUrl = out.default_badge_url;
+    if (out.default_url && !out.defaultUrl) out.defaultUrl = out.default_url;
+    if (out.default_title && !out.title) out.title = out.default_title;
+    // Notifications counts aliases
+    if (out.success_count !== undefined && out.success === undefined) out.success = out.success_count;
+    if (out.failed_count !== undefined && out.failed === undefined) out.failed = out.failed_count;
+    return out;
+  }
+
   // Find one document
   async findOne(conditions = {}) {
     const { sql, params } = this.buildSelectQuery(conditions, 1);
     const results = await query(sql, params);
-    return results.length > 0 ? results[0] : null;
+    return results.length > 0 ? this.normalizeRow(results[0]) : null;
   }
 
   // Find multiple documents
   async find(conditions = {}, options = {}) {
     const { sql, params } = this.buildSelectQuery(conditions, options.limit, options.skip, options.sort);
-    return await query(sql, params);
+    const rows = await query(sql, params);
+    return rows.map((r) => this.normalizeRow(r));
   }
 
   // Count documents
@@ -43,7 +73,7 @@ class MySQLDatastore {
     const sql = `INSERT INTO ${this.tableName} (${columns.join(', ')}) VALUES (${placeholders})`;
     await query(sql, values);
     
-    return document;
+    return this.normalizeRow(document);
   }
 
   // Update documents
@@ -52,13 +82,26 @@ class MySQLDatastore {
     const params = [];
 
     // Handle different update operators
+    // $set operator
     if (updateData.$set) {
       Object.entries(updateData.$set).forEach(([key, value]) => {
         updateFields.push(`${key} = ?`);
         params.push(value);
       });
-    } else {
-      // Direct update
+    }
+
+    // $inc operator
+    if (updateData.$inc) {
+      Object.entries(updateData.$inc).forEach(([key, value]) => {
+        // Ensure numeric increment
+        const incValue = Number(value) || 0;
+        updateFields.push(`${key} = ${key} + ?`);
+        params.push(incValue);
+      });
+    }
+
+    // Direct update (when no operators are provided)
+    if (!updateData.$set && !updateData.$inc) {
       Object.entries(updateData).forEach(([key, value]) => {
         if (key !== this.primaryKey) { // Don't update primary key
           updateFields.push(`${key} = ?`);

@@ -301,8 +301,8 @@ router.post('/notify', async (req, res) => {
           const subscriptionObj = {
             endpoint: subscription.endpoint,
             keys: {
-              p256dh: subscription.p256dh,
-              auth: subscription.auth
+              p256dh: subscription.p256dh_key || subscription.p256dh,
+              auth: subscription.auth_key || subscription.auth
             }
           };
 
@@ -327,7 +327,7 @@ router.post('/notify', async (req, res) => {
 
     // Log admin notification
     await query(`
-      INSERT INTO notifications (id, customer_id, title, body, url, icon, status, sent_count, created_at, updated_at)
+      INSERT INTO notifications (id, customer_id, title, body, url, icon_url, status, sent_count, created_at, updated_at)
       VALUES (UUID(), NULL, ?, ?, ?, ?, 'sent', ?, NOW(), NOW())
     `, [
       `[ADMIN] ${title}`,
@@ -563,5 +563,3 @@ router.patch('/customers/:id/status', async (req, res) => {
 });
 
 module.exports = router;
-
-

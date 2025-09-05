@@ -1,60 +1,54 @@
-## Push Notification System with Customer Dashboard
+## Push Notification Platform (Backend + Dashboard + SDK)
 
-A complete push notification service with multi-tenant support, customer dashboard, admin panel, and comprehensive analytics.
+Production‑ready web push notifications with multi‑tenant support, customer/admin dashboards, campaigns, templates, segments, webhooks, and a zero‑config SDK.
 
-### Features
-- 🔐 **Multi-tenant architecture** with customer isolation
-- 📊 **Admin dashboard** for system overview and management
-- 👤 **Customer portal** for self-service notification management
-- 🎯 **Advanced targeting** by segments, geography, device type
-- 📈 **Analytics & metrics** with delivery tracking
-- 🔗 **Webhook integration** for real-time events
-- 🎨 **Template system** for reusable notifications
-- ⏰ **Campaign scheduling** with automated delivery
-- 🧪 **A/B testing** for notification optimization
+### Highlights
+- 🔐 Multi‑tenant architecture (customers isolated)
+- 📊 Admin + customer dashboards (SPA)
+- 🎯 Templates, segments, scheduled sends, campaigns
+- 📈 Analytics + event metrics (open/click/close)
+- 🔗 Webhooks for real‑time integrations
+- 🧩 Lightweight SDK: just `apiKey` + `baseUrl`
 
 ### Quick Start
 
-#### 1. Backend Setup
-
+1) Backend
 ```bash
 cd backend
 npm install
-npm run setup  # Initialize database and create admin user
-npm start      # Server runs on http://localhost:4000
+npm run setup      # creates DB, runs migrations, seeds admin+demo+VAPID
+npm start          # http://localhost:4000
 ```
 
-#### 2. Frontend Dashboard Setup
-
+2) Frontend (Dashboard)
 ```bash
 cd frontend
 npm install
-npm run build  # Build the admin/customer dashboard
+npm run dev        # http://localhost:5173
 ```
 
-#### 3. Basic Integration
+Login (seeded users):
+- Admin: admin@example.com / admin123
+- Customer: demo@customer.com / password123
 
-Add this script to any website to enable push notifications:
-
+### SDK Integration
+Add to your site (no manual service worker needed):
 ```html
-<script src="http://your-server.com/sdk.js"></script>
 <script>
-  const API_KEY = 'your-api-key-here';
-  const SERVER_URL = 'http://your-server.com';
-  
-  // Load and initialize SDK
+  const API_KEY = 'YOUR_API_KEY';         // from Dashboard → Settings
+  const SERVER_URL = 'http://localhost:4000';
+
   function loadNotificationSDK() {
-    PN.init({
-      apiKey: API_KEY,
-      baseUrl: SERVER_URL
-    }).then(() => {
-      console.log('✅ Push notifications ready!');
-    }).catch(err => {
-      console.error('Failed to initialize:', err);
-    });
+    const s = document.createElement('script');
+    s.src = SERVER_URL + '/sdk.js';
+    s.onload = () => {
+      PN.init({ apiKey: API_KEY, baseUrl: SERVER_URL })
+        .then(() => console.log('✅ Push ready'))
+        .catch(err => console.error('Init failed:', err));
+    };
+    document.head.appendChild(s);
   }
-  
-  // Load on page ready
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', loadNotificationSDK);
   } else {
@@ -62,174 +56,91 @@ Add this script to any website to enable push notifications:
   }
 </script>
 ```
+The SDK will:
+- Request permission
+- Register `/pn-sw.js` from your backend
+- Create + POST the subscription to the server using your `apiKey`
 
-The SDK automatically:
-- Requests notification permission
-- Registers service worker from your server
-- Creates push subscription
-- Sends subscription to your backend
+### Send Notifications
 
-#### 4. Sending Notifications
-
-Via Admin Dashboard:
-- Visit `http://your-server.com/admin` 
-- Login with admin credentials
-- Use the notification interface to send to all or targeted subscribers
-
-Via API:
+- Dashboard: use Send/Segments/Templates/Scheduler tabs (NewDashboard)
+- API (JWT auth):
 ```bash
-curl -X POST http://your-server.com/api/admin/notify \
-  -H "Content-Type: application/json" \
+# 1) Login to get a token
+curl -s http://localhost:4000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@customer.com","password":"password123"}'
+
+# 2) Send
+curl -s -X POST http://localhost:4000/api/customer/notify \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
-  -d '{
-    "title": "Test Notification",
-    "body": "This is a test message",
-    "targetType": "all"
-  }'
+  -H "Content-Type: application/json" \
+  -d '{"title":"Hello","body":"Your first push!","url":"https://example.com"}'
 ```
 
-### System Requirements
+Scheduling:
+```bash
+curl -s -X POST http://localhost:4000/api/scheduled/schedule \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Sale!","body":"Starts soon","scheduledFor":"2025-12-31T12:00:00Z"}'
+```
 
-- **Node.js** 18+ 
-- **MySQL/MariaDB** 8.0+
-- **HTTPS** in production (required for push notifications)
+Templates:
+```bash
+# Create
+POST /api/templates/create  { name, title, body, ... }
+# Send
+POST /api/templates/:id/send  { variables?, scheduledFor?, timezone? }
+```
 
-### Environment Configuration
+Segments:
+```bash
+# Create
+POST /api/segments/create  { name, criteria: {...} }
+# Notify
+POST /api/segments/:id/notify  { title, body, ... }
+```
 
-Create `.env` file in backend directory:
+Campaigns:
+- Create: `POST /api/campaigns/create`
+- Start/Pause/Delete: `/api/campaigns/:campaignId/{start|pause|delete}`
+- Triggered flows: `POST /api/campaigns/trigger` with `{ eventType, user_id, eventData }`
+- Executor runs automatically every minute
 
+Webhooks:
+- Create/Test/List/Stats under `/api/webhooks/*`
+
+### Environment
+Create `backend/.env`:
 ```env
-NODE_ENV=production
 PORT=4000
 DB_HOST=localhost
 DB_PORT=3306
-DB_NAME=pushnotify
-DB_USER=pushuser
+DB_NAME=push_notification_system
+DB_USER=root
 DB_PASSWORD=your_password
 JWT_SECRET=your_jwt_secret_here
 VAPID_SUBJECT=mailto:admin@yoursite.com
 ```
+Notes:
+- VAPID keys are auto‑generated for the demo customer during setup.
+- Use HTTPS in production (required by browsers for push).
 
-### Database Setup
+### Dev Tips
+- Backend: logs requests and errors; scheduler + campaign executor start automatically.
+- Frontend: runs on `5173` (Vite) and proxies `/api`, `/sdk.js`, `/pn-sw.js` → backend `4000`.
 
-The system automatically creates the database schema on first run. Ensure your MySQL user has CREATE database permissions.
-
-### Key API Endpoints
-
-#### Public (SDK Integration)
-- `GET /api/config?apiKey=KEY` - Get VAPID public key and settings
-- `POST /api/subscribe` - Save push subscription
-- `POST /api/unsubscribe` - Remove push subscription
-- `GET /sdk.js` - Client SDK
-- `GET /pn-sw.js` - Service worker
-
-#### Admin (Requires Authentication)
-- `POST /api/admin/notify` - Send notifications to subscribers
-- `GET /api/admin/overview` - System statistics
-- `GET /api/admin/subscribers` - List all subscribers
-- `GET /api/admin/analytics` - Usage analytics
-
-#### Customer (Requires Authentication)  
-- `POST /api/customer/notify` - Send notifications (customer scope)
-- `GET /api/customer/me` - Customer dashboard data
-- `POST /api/customer/settings` - Update push settings
-
-### Testing Your Integration
-
-1. **Create a test HTML file** with the integration script
-2. **Serve it locally** (or upload to your site)
-3. **Open browser dev tools** to monitor the subscription process
-4. **Grant notification permission** when prompted
-5. **Check the admin dashboard** to see your subscription
-6. **Send a test notification** from the dashboard
-
-### Advanced Features
-
-#### Segmentation
-Target users by:
-- Geographic location (country, city)
-- Device type (mobile, desktop, tablet) 
-- Browser type (Chrome, Firefox, Safari)
-- Custom tags and segments
-
-#### Campaign Scheduling
-- Schedule notifications for specific dates/times
-- Recurring campaigns (daily, weekly, monthly)
-- Timezone-aware delivery
-
-#### A/B Testing
-- Test different notification content
-- Compare delivery and engagement rates
-- Automatic winner selection
-
-#### Webhooks
-- Real-time event notifications
-- Subscription created/deleted events
-- Delivery status updates
-- Custom webhook endpoints
+### Production
+- Run backend with PM2 or systemd.
+- Build the frontend (`npm run build` in `frontend`) and host as static files.
+- Nginx example: proxy `/api`, `/sdk.js`, `/pn-sw.js` to backend; serve the SPA for `/`.
 
 ### Troubleshooting
-
-#### Common Issues
-
-**Service Worker 404 Error**
-- Ensure your server serves the service worker at `/pn-sw.js`
-- Check that `baseUrl` in SDK init matches your server URL
-
-**Permission Denied**
-- HTTPS is required in production
-- User must grant notification permission
-- Some browsers block notifications on HTTP (except localhost)
-
-**Subscription Not Appearing**
-- Check browser network tab for API call failures
-- Verify API key is correct
-- Check server logs for database connection issues
-
-**Notifications Not Received**
-- Verify VAPID keys are properly configured
-- Check that subscription is active in dashboard
-- Browser must be open to receive notifications (except mobile)
-
-### Production Deployment
-
-#### Using PM2
-```bash
-npm install -g pm2
-cd backend
-pm2 start src/server.js --name "push-notifications"
-pm2 startup
-pm2 save
-```
-
-#### Using Docker
-```bash
-docker build -t push-notification-system .
-docker run -d -p 4000:4000 \
-  -e DB_HOST=your-db-host \
-  -e DB_PASSWORD=your-db-password \
-  push-notification-system
-```
-
-#### Nginx Configuration
-```nginx
-server {
-    listen 443 ssl;
-    server_name push.yoursite.com;
-    
-    location / {
-        proxy_pass http://localhost:4000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-    
-    # SSL configuration
-    ssl_certificate /path/to/cert.pem;
-    ssl_certificate_key /path/to/private.key;
-}
-```
+- Ensure `baseUrl` in SDK init matches your backend origin.
+- If no prompts: check HTTPS and permission settings.
+- If sends succeed but no delivery: verify subscriptions exist and VAPID keys are present in Dashboard → Settings.
 
 ### License
 MIT
-
 

@@ -41,7 +41,7 @@ router.post(
   '/settings',
   body('vapid_public_key').optional().isString(),
   body('vapid_private_key').optional().isString(),
-  body('vapidSubject').optional().isString(),
+  body('vapid_subject').optional().isString(),
   body('title').optional().isString(),
   body('iconUrl').optional({ nullable: true }).isString(),
   body('badgeUrl').optional({ nullable: true }).isString(),
@@ -53,7 +53,18 @@ router.post(
     const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     const existing = await pushSettings.findOne({ customer_id: customer.id });
-    const doc = { ...existing, ...req.body, customer_id: customer.id, updated_at: new Date().toISOString() };
+
+    // Normalize incoming keys to match DB schema
+    const body = { ...req.body };
+    if (body.vapidSubject) body.vapid_subject = body.vapidSubject;
+    if (body.vapidPublicKey) body.vapid_public_key = body.vapidPublicKey;
+    if (body.vapidPrivateKey) body.vapid_private_key = body.vapidPrivateKey;
+    if (body.title) body.default_title = body.title;
+    if (body.iconUrl) body.default_icon_url = body.iconUrl;
+    if (body.badgeUrl) body.default_badge_url = body.badgeUrl;
+    if (body.defaultUrl) body.default_url = body.defaultUrl;
+
+    const doc = { ...existing, ...body, customer_id: customer.id, updated_at: new Date().toISOString() };
     if (existing) {
       await pushSettings.update({ id: existing.id }, doc, { upsert: true });
       res.json(doc);
@@ -96,7 +107,7 @@ router.post(
     const settings = await pushSettings.findOne({ customer_id: customer.id });
     const vapidPublicKey = settings?.vapid_public_key || process.env.VAPID_PUBLIC_KEY;
     const vapidPrivateKey = settings?.vapid_private_key || process.env.VAPID_PRIVATE_KEY;
-    const vapidSubject = settings?.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+    const vapidSubject = settings?.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
     if (!vapidPublicKey || !vapidPrivateKey) return res.status(400).json({ error: 'Missing VAPID keys' });
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
@@ -181,7 +192,7 @@ router.post(
       url: req.body.url || null,
       icon_url: req.body.icon || null,
       image_url: req.body.image || null,
-      payload: req.body, 
+      payload: JSON.stringify(req.body), 
       sentAt: new Date(), 
       success: ok, 
       failed: fail,
@@ -250,8 +261,8 @@ router.get('/subscribers', async (req, res) => {
   
   // Return detailed subscriber information including location, device, and tenant
   res.json(subs.map((s) => ({ 
-    id: s._id, 
-    endpoint: s.subscription?.endpoint,
+    id: s.id, 
+    endpoint: s.endpoint,
     country: s.country,
     city: s.city,
     region: s.region,
@@ -262,12 +273,10 @@ router.get('/subscribers', async (req, res) => {
     tenant: customer.name, // Use customer name as tenant identifier
     tags: s.tags || [],
     segments: s.segments || [],
-    engagementScore: s.engagementScore || 0,
-    lastActive: s.lastActive,
+    engagementScore: s.engagement_score || 0,
+    lastActive: s.last_active,
     created_at: s.subscribed_at
   })));
 });
 
 module.exports = router;
-
-

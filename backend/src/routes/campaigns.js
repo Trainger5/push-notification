@@ -522,10 +522,8 @@ async function updateCampaignStats(campaignId, field) {
     await campaigns.update(
       { id: campaignId },
       { 
-        $set: { 
-          [field]: { $inc: 1 },
-          updated_at: new Date() 
-        } 
+        $inc: { [field]: 1 },
+        $set: { updated_at: new Date() }
       }
     );
   } catch (error) {

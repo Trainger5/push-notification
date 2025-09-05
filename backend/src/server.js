@@ -82,14 +82,7 @@ app.get('/pn-sw.js', (_req, res) => {
   res.send(fs.readFileSync(path.join(__dirname, 'sdk', 'service-worker.js'), 'utf-8'));
 });
 
-// Serve static admin/customer UI
-app.use(express.static(path.join(__dirname, '..', 'public')));
-
-// Pretty UI demo page provided by user
-app.get('/notifypro', (_req, res) => {
-  res.type('text/html');
-  res.send(fs.readFileSync(path.join(__dirname, '..', 'public', 'notifypro.html'), 'utf-8'));
-});
+// Static UI removed; SPA frontend runs separately
 
 // Routes
 app.get('/api/health', (req, res) => {
@@ -129,9 +122,7 @@ const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Push Notification Service running on http://localhost:${PORT}`);
   
-  // Start campaign executor
+  // Start campaign executor (aligned with MySQL schema)
   const campaignExecutor = getCampaignExecutor();
   campaignExecutor.start();
 });
-
-

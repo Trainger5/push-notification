@@ -422,8 +422,8 @@ router.post(
           title: req.body.title,
           body: req.body.body,
           url: req.body.url,
-          icon: req.body.icon || settings.icon_url,
-          badge: req.body.badge || settings.badge_url,
+          icon: req.body.icon || settings.default_icon_url,
+          badge: req.body.badge || settings.default_badge_url,
           image: req.body.image,
           tag: req.body.tag,
           data: { segmentId: segment.id, segmentName: segment.name }
@@ -436,12 +436,20 @@ router.post(
 
         for (const sub of segmentSubscribers) {
           try {
-            const subscriptionData = JSON.parse(sub.subscription);
-            const pushSubscription = {
+            const subscriptionData = sub.subscription
+              ? (typeof sub.subscription === 'string' ? JSON.parse(sub.subscription) : sub.subscription)
+              : null;
+            const pushSubscription = subscriptionData ? {
               endpoint: subscriptionData.endpoint,
               keys: {
                 p256dh: subscriptionData.keys.p256dh,
                 auth: subscriptionData.keys.auth
+              }
+            } : {
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh_key || sub.p256dh,
+                auth: sub.auth_key || sub.auth
               }
             };
 
@@ -451,7 +459,7 @@ router.post(
           } catch (error) {
             failed++;
             results.push({ 
-              endpoint: sub.subscription?.endpoint, 
+              endpoint: (subscriptionData && subscriptionData.endpoint) || sub.endpoint, 
               status: 'failed', 
               error: error.message 
             });

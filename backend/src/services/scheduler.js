@@ -44,7 +44,7 @@ class NotificationScheduler {
     };
     
     const doc = await scheduledNotifications.insert(scheduledNotification);
-    console.log(`Notification scheduled for ${scheduledNotification.scheduled_for}:`, doc._id);
+    console.log(`Notification scheduled for ${scheduledNotification.scheduled_for}:`, doc.id || doc._id);
     
     return doc;
   }
@@ -70,9 +70,9 @@ class NotificationScheduler {
             { $set: { status: 'sent', sent_at: new Date() } }
           );
           
-          console.log(`Scheduled notification sent: ${notification._id}`);
+          console.log(`Scheduled notification sent: ${notification.id || notification._id}`);
         } catch (error) {
-          console.error(`Failed to send scheduled notification ${notification._id}:`, error);
+          console.error(`Failed to send scheduled notification ${notification.id || notification._id}:`, error);
           
           // Update status to failed
           await scheduledNotifications.update(
@@ -114,9 +114,9 @@ class NotificationScheduler {
 
     // Configure web-push
     webpush.setVapidDetails(
-      settings.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
-      settings.vapidPublicKey || process.env.VAPID_PUBLIC_KEY,
-      settings.vapidPrivateKey || process.env.VAPID_PRIVATE_KEY
+      settings.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
+      settings.vapid_public_key || process.env.VAPID_PUBLIC_KEY,
+      settings.vapid_private_key || process.env.VAPID_PRIVATE_KEY
     );
 
     // Parse notification data
@@ -147,12 +147,20 @@ class NotificationScheduler {
 
     for (const sub of subs) {
       try {
-        const subscriptionData = typeof sub.subscription === 'string' ? JSON.parse(sub.subscription) : sub.subscription;
-        const pushSubscription = {
+        const subscriptionData = sub.subscription
+          ? (typeof sub.subscription === 'string' ? JSON.parse(sub.subscription) : sub.subscription)
+          : null;
+        const pushSubscription = subscriptionData ? {
           endpoint: subscriptionData.endpoint,
           keys: {
             p256dh: subscriptionData.keys.p256dh,
             auth: subscriptionData.keys.auth
+          }
+        } : {
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh_key || sub.p256dh,
+            auth: sub.auth_key || sub.auth
           }
         };
 

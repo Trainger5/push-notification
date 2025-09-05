@@ -1310,7 +1310,13 @@ export function SubscriberManagement() {
                 <thead style={{ backgroundColor: 'var(--gray-50)' }}>
                   <tr>
                     <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: 500, color: 'var(--gray-700)' }}>
-                      Subscriber
+                      Tenant
+                    </th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: 500, color: 'var(--gray-700)' }}>
+                      Country
+                    </th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: 500, color: 'var(--gray-700)' }}>
+                      Browser
                     </th>
                     <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: 500, color: 'var(--gray-700)' }}>
                       Device
@@ -1325,23 +1331,42 @@ export function SubscriberManagement() {
                 </thead>
                 <tbody>
                   {filteredSubscribers.length > 0 ? filteredSubscribers.map((subscriber, index) => (
-                    <tr key={subscriber._id || index} style={{ borderTop: '1px solid var(--gray-200)' }}>
+                    <tr key={subscriber._id || subscriber.id || index} style={{ borderTop: '1px solid var(--gray-200)' }}>
                       <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: 'var(--gray-900)' }}>
-                        <div>
-                          <div style={{ fontWeight: 500 }}>subscriber_{index + 1}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', fontFamily: 'monospace' }}>
-                            {subscriber.endpoint?.substring(0, 40)}...
-                          </div>
+                        <div style={{ fontWeight: 500 }}>
+                          {subscriber.tenant || 'Unknown Tenant'}
                         </div>
                       </td>
                       <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: 'var(--gray-600)' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
-                          {subscriber.userAgent?.includes('Mobile') ? (
+                          <Globe style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+                          {subscriber.country || 'Unknown'}
+                          {subscriber.city && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginLeft: '0.25rem' }}>
+                              , {subscriber.city}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: 'var(--gray-600)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <Globe style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+                          {subscriber.browser || 'Unknown'}
+                          {subscriber.os && (
+                            <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginLeft: '0.25rem' }}>
+                              on {subscriber.os}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: 'var(--gray-600)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          {subscriber.device === 'Mobile' ? (
                             <Smartphone style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
                           ) : (
                             <Monitor style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
                           )}
-                          {subscriber.userAgent?.includes('Mobile') ? 'Mobile' : 'Desktop'}
+                          {subscriber.device || 'Unknown'}
                         </div>
                       </td>
                       <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: 'var(--gray-600)' }}>
@@ -1353,7 +1378,7 @@ export function SubscriberManagement() {
                     </tr>
                   )) : (
                     <tr style={{ borderTop: '1px solid var(--gray-200)' }}>
-                      <td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--gray-500)' }}>
+                      <td colSpan="6" style={{ padding: '2rem', textAlign: 'center', color: 'var(--gray-500)' }}>
                         {searchTerm ? 'No subscribers found matching your search' : 'No subscribers yet'}
                       </td>
                     </tr>

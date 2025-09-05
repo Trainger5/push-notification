@@ -231,7 +231,7 @@ Or for testing: Create a customer account in Admin Dashboard`}
 <script>
   // Configuration
   const API_KEY = 'YOUR_API_KEY_HERE'; // Your customer API key
-  const SERVER_URL = 'http://13.126.228.42'; // Your backend server
+  const SERVER_URL = 'http://13.126.228.42'; // Your production backend server
   
   let pushSDK = null;
   

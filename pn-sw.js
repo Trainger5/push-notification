@@ -1,5 +1,26 @@
-// Push notification service worker for localhost testing
-// This proxies to the main server at http://13.126.228.42
+// Enhanced push notification handler with rich media support
+// Dynamically determine the base API URL
+const getBaseApiUrl = () => {
+  // Try to get from registration scope or use current origin
+  if (self.registration && self.registration.scope) {
+    try {
+      const scopeUrl = new URL(self.registration.scope);
+      return scopeUrl.origin;
+    } catch (e) {
+      // Fallback to self.location if available
+    }
+  }
+  
+  // Fallback - try to determine from current location
+  if (self.location && self.location.origin) {
+    return self.location.origin;
+  }
+  
+  // Final fallback - assume same origin as service worker
+  return '';
+};
+
+const API_BASE_URL = getBaseApiUrl();
 
 self.addEventListener('push', function (event) {
   let payload = {};
@@ -23,91 +44,142 @@ self.addEventListener('push', function (event) {
   const title = payload.title || 'Notification';
   const options = {
     body: payload.body || '',
-    icon: payload.icon || null,
-    badge: payload.badge || null,
-    image: payload.image || null,
-    tag: payload.tag || 'default',
-    data: {
-      url: payload.url || null,
-      clickAction: payload.clickAction || 'open_url',
-      notificationId: payload.notificationId || null,
-      customData: payload.data || null,
-      serverUrl: 'http://13.126.228.42' // Track the server for analytics
+    icon: payload.icon || payload.iconUrl || undefined,
+    badge: payload.badge || payload.badgeUrl || undefined,
+    image: payload.image || undefined, // Large image for rich notifications
+    data: { 
+      url: payload.url || '/', 
+      track: payload.track || null,
+      customData: payload.data || {},
+      timestamp: Date.now()
     },
-    requireInteraction: payload.requireInteraction || false,
-    silent: payload.silent || false,
-    actions: payload.actions || []
+    tag: payload.tag || undefined, // Group similar notifications
+    renotify: payload.renotify || false,
+    requireInteraction: payload.requireInteraction || false, // Persistent notification
+    timestamp: payload.timestamp ? new Date(payload.timestamp).getTime() : Date.now(),
+    dir: payload.dir || 'auto',
+    lang: payload.lang || 'en-US',
+    vibrate: payload.vibrate || [200, 100, 200], // Vibration pattern
+    sound: payload.sound || undefined
   };
 
-  // Show notification
+  // Add action buttons if provided
+  if (payload.actions && Array.isArray(payload.actions) && payload.actions.length > 0) {
+    options.actions = payload.actions.map(action => ({
+      action: action.action,
+      title: action.title,
+      icon: action.icon || undefined
+    })).slice(0, 2); // Limit to 2 actions for compatibility
+  }
+
+  // Track notification show event
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    (async () => {
+      // Track notification display
+      const openUrl = payload.track && payload.track.openUrl ? 
+        API_BASE_URL + payload.track.openUrl : null;
+      if (openUrl) {
+        try { 
+          await fetch(openUrl, { method: 'POST' }); 
+        } catch (e) {
+          console.error('Failed to track notification open:', e);
+        }
+      }
+
+      // Show the notification
+      return self.registration.showNotification(title, options);
+    })()
   );
 });
 
-// Handle notification click events
+// Enhanced notification click handler with action support
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-
+  
   const data = event.notification.data || {};
-  const url = data.url;
-  const clickAction = data.clickAction || 'open_url';
-  const serverUrl = data.serverUrl || 'http://13.126.228.42';
+  const action = event.action; // Which action button was clicked (if any)
+  const customData = data.customData || {};
+  
+  let url = data.url || '/';
+  let trackingType = 'click';
 
-  // Send analytics to the server
-  if (data.notificationId) {
-    fetch(`${serverUrl}/api/metrics/click`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        notificationId: data.notificationId,
-        clickedAt: new Date().toISOString()
-      })
-    }).catch(() => {}); // Silent fail for analytics
+  // Handle action button clicks
+  if (action) {
+    const actionConfig = event.notification.actions.find(a => a.action === action);
+    if (actionConfig) {
+      // Action-specific URL if defined in custom data
+      url = customData[`${action}_url`] || customData.actionUrls?.[action] || url;
+      trackingType = `action_${action}`;
+    }
   }
 
-  // Handle different click actions
-  switch (clickAction) {
-    case 'open_url':
-      if (url) {
-        event.waitUntil(clients.openWindow(url));
+  event.waitUntil(
+    (async () => {
+      // Track the click/action event
+      const clickUrl = data.track && data.track.clickUrl ? 
+        API_BASE_URL + data.track.clickUrl + `&action=${encodeURIComponent(action || 'default')}` : null;
+      
+      if (clickUrl) {
+        try { 
+          await fetch(clickUrl, { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              action: action || 'click',
+              timestamp: Date.now(),
+              customData: customData 
+            })
+          }); 
+        } catch (e) {
+          console.error('Failed to track notification click:', e);
+        }
       }
-      break;
-    case 'focus_last':
-      event.waitUntil(
-        clients.matchAll().then(function (clientList) {
-          if (clientList.length > 0) {
-            return clientList[0].focus();
+
+      // Handle the navigation
+      try {
+        const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+        
+        // Try to focus existing tab with the same origin
+        for (const client of clientList) {
+          const clientUrl = new URL(client.url);
+          const targetUrl = new URL(url, self.location.origin);
+          
+          if (clientUrl.origin === targetUrl.origin) {
+            // Navigate existing tab and focus it
+            await client.navigate(url);
+            return client.focus();
           }
-          return clients.openWindow('/');
-        })
-      );
-      break;
-    case 'close':
-      // Just close, no action needed
-      break;
-    default:
-      if (url) {
-        event.waitUntil(clients.openWindow(url));
+        }
+        
+        // No existing tab found, open new window
+        if (clients.openWindow) {
+          return clients.openWindow(url);
+        }
+      } catch (e) {
+        console.error('Failed to handle notification click navigation:', e);
+        // Fallback - try to open window anyway
+        if (clients.openWindow) {
+          return clients.openWindow(url);
+        }
       }
-  }
+    })()
+  );
 });
 
-// Handle notification close events
+// Handle notification close events (user dismissed without clicking)
 self.addEventListener('notificationclose', function (event) {
   const data = event.notification.data || {};
-  const serverUrl = data.serverUrl || 'http://13.126.228.42';
   
-  // Send analytics to the server
-  if (data.notificationId) {
-    fetch(`${serverUrl}/api/metrics/dismiss`, {
+  // Track notification dismissal
+  if (data.track && data.track.dismissUrl) {
+    fetch(API_BASE_URL + data.track.dismissUrl, { 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        notificationId: data.notificationId,
-        dismissedAt: new Date().toISOString()
+      body: JSON.stringify({ 
+        action: 'dismiss',
+        timestamp: Date.now()
       })
-    }).catch(() => {}); // Silent fail for analytics
+    }).catch(e => console.error('Failed to track notification dismiss:', e));
   }
 });
 
@@ -120,9 +192,8 @@ self.addEventListener('sync', function (event) {
 
 async function syncNotifications() {
   try {
-    const serverUrl = 'http://13.126.228.42';
     // Fetch any pending notifications from the server
-    const response = await fetch(`${serverUrl}/api/notifications/pending`);
+    const response = await fetch(`${API_BASE_URL}/api/notifications/pending`);
     const notifications = await response.json();
     
     for (const notification of notifications) {

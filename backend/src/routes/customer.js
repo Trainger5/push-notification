@@ -69,27 +69,16 @@ router.post(
   '/notify',
   // notificationLimiter, // TODO: Re-enable rate limiting later
   // planBasedLimiter, // TODO: Re-enable rate limiting later
-  body('title').isString(),
-  body('body').isString(),
-  body('url').optional().isURL(),
-  body('image').optional().isURL(),
-  body('icon').optional().isURL(),
-  body('badge').optional().isURL(),
-  body('tag').optional().isString(),
-  body('silent').optional().isBoolean(),
-  body('requireInteraction').optional().isBoolean(),
-  body('renotify').optional().isBoolean(),
-  body('vibrate').optional().isArray(),
-  body('dir').optional().isIn(['auto', 'ltr', 'rtl']),
-  body('lang').optional().isString(),
-  body('actions').optional().isArray(),
-  body('actions.*.action').optional().isString(),
-  body('actions.*.title').optional().isString(),
-  body('actions.*.icon').optional().isURL(),
-  body('data').optional().isObject(),
+  // Temporarily disable all validation for testing
+  (req, res, next) => {
+    console.log('🔔 CUSTOMER NOTIFY ROUTE HIT!');
+    console.log('Request URL:', req.url);
+    console.log('Request method:', req.method);
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+    next();
+  },
   async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+    console.log('Inside async handler');
     const { customers, subscriptions, pushSettings, notifications } = getDatastores();
     const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });

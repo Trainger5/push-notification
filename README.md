@@ -21,7 +21,7 @@ A complete push notification service with multi-tenant support, customer dashboa
 cd backend
 npm install
 npm run setup  # Initialize database and create admin user
-npm start      # Server runs on http://localhost:4000
+npm start      # Server runs on http://13.126.228.42
 ```
 
 #### 2. Frontend Dashboard Setup
@@ -37,10 +37,10 @@ npm run build  # Build the admin/customer dashboard
 Add this script to any website to enable push notifications:
 
 ```html
-<script src="http://your-server.com/sdk.js"></script>
+<script src="http://13.126.228.42/sdk.js"></script>
 <script>
   const API_KEY = 'your-api-key-here';
-  const SERVER_URL = 'http://your-server.com';
+  const SERVER_URL = 'http://13.126.228.42';
   
   // Load and initialize SDK
   function loadNotificationSDK() {
@@ -72,13 +72,13 @@ The SDK automatically:
 #### 4. Sending Notifications
 
 Via Admin Dashboard:
-- Visit `http://your-server.com/admin` 
+- Visit `http://13.126.228.42/admin` 
 - Login with admin credentials
 - Use the notification interface to send to all or targeted subscribers
 
 Via API:
 ```bash
-curl -X POST http://your-server.com/api/admin/notify \
+curl -X POST http://13.126.228.42/api/admin/notify \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{

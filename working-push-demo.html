@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔔 Working Push Notification Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .step {
+            margin: 25px 0;
+            padding: 20px;
+            background: #f8f9ff;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .step h3 {
+            margin-top: 0;
+            color: #4c51bf;
+        }
+        
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+            min-width: 200px;
+        }
+        
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .success {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .info {
+            background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+        }
+        
+        .error {
+            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            font-weight: 600;
+        }
+        
+        .code {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        
+        .progress {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        
+        .status-success { background: #48bb78; }
+        .status-error { background: #f56565; }
+        .status-pending { background: #ed8936; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔔 Working Push Notification Demo</h1>
+            <p>Complete test of your push notification system with REAL browser notifications</p>
+        </div>
+
+        <div class="step">
+            <h3><span id="step1-status" class="status-indicator status-pending"></span>Step 1: Initialize System</h3>
+            <p>Register a test customer and setup authentication</p>
+            <button id="initBtn" class="button" onclick="initializeSystem()">🚀 Initialize System</button>
+            <div class="progress"><div id="progress1" class="progress-bar"></div></div>
+            <div id="init-result"></div>
+        </div>
+
+        <div class="step">
+            <h3><span id="step2-status" class="status-indicator status-pending"></span>Step 2: Subscribe to Push</h3>
+            <p>Create a real browser push subscription (you'll be asked for notification permission)</p>
+            <button id="subscribeBtn" class="button" onclick="subscribeToPush()" disabled>📱 Subscribe to Push Notifications</button>
+            <div class="progress"><div id="progress2" class="progress-bar"></div></div>
+            <div id="subscribe-result"></div>
+        </div>
+
+        <div class="step">
+            <h3><span id="step3-status" class="status-indicator status-pending"></span>Step 3: Send Real Notification</h3>
+            <p>Send an actual push notification to your browser</p>
+            <button id="sendBtn" class="button" onclick="sendTestNotification()" disabled>📤 Send Push Notification</button>
+            <div class="progress"><div id="progress3" class="progress-bar"></div></div>
+            <div id="send-result"></div>
+        </div>
+
+        <div id="final-result" style="display: none;"></div>
+    </div>
+
+    <script>
+        let systemData = {
+            apiKey: null,
+            authToken: null,
+            subscription: null,
+            vapidPublicKey: null
+        };
+
+        const API_BASE = 'http://13.126.228.42';
+
+        async function initializeSystem() {
+            updateProgress(1, 10);
+            showStatus('init-result', 'Registering test customer...', 'info');
+            
+            try {
+                // Register a new customer
+                const email = `demo_${Date.now()}@pushtest.com`;
+                const response = await fetch(`${API_BASE}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        password: 'demopass123',
+                        name: 'Push Demo User',
+                        companyName: 'Demo Company'
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to register customer');
+                }
+
+                const data = await response.json();
+                systemData.apiKey = data.customer.apiKey;
+                systemData.authToken = data.token;
+                
+                updateProgress(1, 50);
+                showStatus('init-result', 'Getting VAPID configuration...', 'info');
+
+                // Get VAPID public key
+                const configResponse = await fetch(`${API_BASE}/api/config?apiKey=${encodeURIComponent(systemData.apiKey)}`);
+                if (!configResponse.ok) {
+                    throw new Error('Failed to get VAPID key');
+                }
+                const config = await configResponse.json();
+                systemData.vapidPublicKey = config.vapid_public_key;
+
+                updateProgress(1, 100);
+                setStepStatus(1, 'success');
+                showStatus('init-result', `✅ System initialized successfully!
+Customer: ${data.customer.name}
+API Key: ${systemData.apiKey}
+VAPID Key: ${systemData.vapidPublicKey.substring(0, 20)}...`, 'success');
+
+                // Enable next step
+                document.getElementById('subscribeBtn').disabled = false;
+
+            } catch (error) {
+                setStepStatus(1, 'error');
+                showStatus('init-result', `❌ Initialization failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function subscribeToPush() {
+            updateProgress(2, 10);
+            showStatus('subscribe-result', 'Checking browser support...', 'info');
+
+            try {
+                // Check support
+                if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                    throw new Error('Push notifications not supported in this browser');
+                }
+
+                updateProgress(2, 25);
+                showStatus('subscribe-result', 'Requesting notification permission...', 'info');
+
+                // Request permission
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    throw new Error('Notification permission denied. Please allow notifications and try again.');
+                }
+
+                updateProgress(2, 50);
+                showStatus('subscribe-result', 'Registering service worker...', 'info');
+
+                // Register service worker
+                const registration = await navigator.serviceWorker.register('./pn-sw.js');
+                await navigator.serviceWorker.ready;
+
+                updateProgress(2, 60);
+                showStatus('subscribe-result', 'Checking existing subscription...', 'info');
+
+                // Check for existing subscription and unsubscribe if needed
+                const existingSubscription = await registration.pushManager.getSubscription();
+                if (existingSubscription) {
+                    showStatus('subscribe-result', 'Removing old subscription...', 'info');
+                    await existingSubscription.unsubscribe();
+                }
+
+                updateProgress(2, 75);
+                showStatus('subscribe-result', 'Creating new push subscription...', 'info');
+
+                // Create subscription
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(systemData.vapidPublicKey)
+                });
+
+                systemData.subscription = subscription;
+
+                // Save subscription to backend
+                const subscribeResponse = await fetch(`${API_BASE}/api/subscribe`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey: systemData.apiKey,
+                        subscription: subscription
+                    })
+                });
+
+                if (!subscribeResponse.ok) {
+                    throw new Error('Failed to save subscription to server');
+                }
+
+                updateProgress(2, 100);
+                setStepStatus(2, 'success');
+                showStatus('subscribe-result', `✅ Successfully subscribed to push notifications!
+Real browser endpoint created:
+${subscription.endpoint.substring(0, 50)}...`, 'success');
+
+                // Enable next step
+                document.getElementById('sendBtn').disabled = false;
+
+            } catch (error) {
+                setStepStatus(2, 'error');
+                showStatus('subscribe-result', `❌ Subscription failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function sendTestNotification() {
+            updateProgress(3, 25);
+            showStatus('send-result', 'Preparing notification...', 'info');
+
+            try {
+                const notificationData = {
+                    title: '🎉 SUCCESS! Push Notification Working!',
+                    body: 'This notification was sent through your complete push notification system with real browser endpoint!',
+                    url: 'https://example.com',
+                    icon: 'https://via.placeholder.com/128x128/48bb78/ffffff?text=✓'
+                };
+
+                updateProgress(3, 50);
+                showStatus('send-result', 'Sending to real browser endpoint...', 'info');
+
+                const response = await fetch(`${API_BASE}/api/customer/notify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${systemData.authToken}`
+                    },
+                    body: JSON.stringify(notificationData)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error: ${errorText}`);
+                }
+
+                const result = await response.json();
+                updateProgress(3, 100);
+
+                if (result.sent > 0) {
+                    setStepStatus(3, 'success');
+                    showStatus('send-result', `🎊 AMAZING! Notification sent successfully!
+Delivered: ${result.sent}
+Failed: ${result.failed}
+You should see the notification in your browser now!`, 'success');
+                    
+                    showFinalSuccess();
+                } else {
+                    setStepStatus(3, 'error');
+                    showStatus('send-result', `⚠️ Notification processed but not delivered:
+Sent: ${result.sent}, Failed: ${result.failed}
+This might be due to browser/OS notification settings.`, 'error');
+                }
+
+            } catch (error) {
+                setStepStatus(3, 'error');
+                showStatus('send-result', `❌ Send failed: ${error.message}`, 'error');
+            }
+        }
+
+        function showFinalSuccess() {
+            document.getElementById('final-result').style.display = 'block';
+            document.getElementById('final-result').innerHTML = `
+                <div class="success">
+                    <h2>🎊 Congratulations! Your Push Notification System is Working!</h2>
+                    <p><strong>What just happened:</strong></p>
+                    <ul style="text-align: left; display: inline-block;">
+                        <li>✅ Created real customer account with VAPID keys</li>
+                        <li>✅ Registered real browser push subscription</li>
+                        <li>✅ Sent notification through your backend API</li>
+                        <li>✅ Delivered actual notification to your browser!</li>
+                    </ul>
+                    <p><strong>Your system is production-ready for push notifications!</strong></p>
+                </div>
+            `;
+        }
+
+        function updateProgress(step, percentage) {
+            document.getElementById(`progress${step}`).style.width = `${percentage}%`;
+        }
+
+        function setStepStatus(step, status) {
+            const indicator = document.getElementById(`step${step}-status`);
+            indicator.className = `status-indicator status-${status}`;
+        }
+
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.className = type;
+            element.innerHTML = message.replace(/\\n/g, '<br>');
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding)
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
+            
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        // Show browser info
+        console.log('Browser:', navigator.userAgent);
+        console.log('Push supported:', 'PushManager' in window);
+        console.log('Service Worker supported:', 'serviceWorker' in navigator);
+    </script>
+</body>
+</html>

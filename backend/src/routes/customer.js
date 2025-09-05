@@ -246,7 +246,7 @@ router.get('/subscribers', async (req, res) => {
   const { customers, subscriptions } = getDatastores();
   const customer = await customers.findOne({ user_id: req.user.user_id });
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
-  const subs = await subscriptions.find({ customer_id: customer.id }, { sort: { created_at: -1 } });
+  const subs = await subscriptions.find({ customer_id: customer.id }, { sort: { subscribed_at: -1 } });
   
   // Return detailed subscriber information including location, device, and tenant
   res.json(subs.map((s) => ({ 
@@ -264,7 +264,7 @@ router.get('/subscribers', async (req, res) => {
     segments: s.segments || [],
     engagementScore: s.engagementScore || 0,
     lastActive: s.lastActive,
-    created_at: s.created_at
+    created_at: s.subscribed_at
   })));
 });
 

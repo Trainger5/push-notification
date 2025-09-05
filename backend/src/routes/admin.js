@@ -71,7 +71,7 @@ router.get('/overview', async (req, res) => {
         c.plan,
         COUNT(ps.id) as subscriber_count
       FROM customers c
-      LEFT JOIN push_subscriptions ps ON c.id = ps.customer_id AND ps.active = 1
+      LEFT JOIN push_subscriptions ps ON c.id = ps.customer_id AND ps.status = 'active'
       WHERE c.status = 'active'
       GROUP BY c.id
       ORDER BY subscriber_count DESC
@@ -128,7 +128,7 @@ router.get('/users', async (req, res) => {
         COUNT(ps.id) as subscriber_count
       FROM users u
       LEFT JOIN customers c ON u.id = c.user_id
-      LEFT JOIN push_subscriptions ps ON c.id = ps.customer_id AND ps.active = 1
+      LEFT JOIN push_subscriptions ps ON c.id = ps.customer_id AND ps.status = 'active'
       ${whereClause}
       GROUP BY u.id
       ORDER BY u.created_at DESC
@@ -181,7 +181,7 @@ router.get('/customers', async (req, res) => {
         COUNT(n.id) as notification_count
       FROM customers c
       LEFT JOIN users u ON c.user_id = u.id
-      LEFT JOIN push_subscriptions ps ON c.id = ps.customer_id AND ps.active = 1
+      LEFT JOIN push_subscriptions ps ON c.id = ps.customer_id AND ps.status = 'active'
       LEFT JOIN notifications n ON c.id = n.customer_id AND n.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
       ${whereClause}
       GROUP BY c.id
@@ -226,7 +226,7 @@ router.post('/notify', async (req, res) => {
           SELECT ps.*, c.name as customer_name
           FROM push_subscriptions ps
           JOIN customers c ON ps.customer_id = c.id
-          WHERE ps.active = 1 AND c.status = 'active'
+          WHERE ps.status = 'active' AND c.status = 'active'
         `);
         description = 'All subscribers';
         break;
@@ -236,7 +236,7 @@ router.post('/notify', async (req, res) => {
           SELECT ps.*, c.name as customer_name
           FROM push_subscriptions ps
           JOIN customers c ON ps.customer_id = c.id
-          WHERE ps.active = 1 AND c.status = 'active' AND c.id = ?
+          WHERE ps.status = 'active' AND c.status = 'active' AND c.id = ?
         `, [targetValue]);
         description = `Customer: ${targetValue}`;
         break;
@@ -246,7 +246,7 @@ router.post('/notify', async (req, res) => {
           SELECT ps.*, c.name as customer_name
           FROM push_subscriptions ps
           JOIN customers c ON ps.customer_id = c.id
-          WHERE ps.active = 1 AND c.status = 'active' AND c.country = ?
+          WHERE ps.status = 'active' AND c.status = 'active' AND c.country = ?
         `, [targetValue]);
         description = `Country: ${targetValue}`;
         break;
@@ -260,7 +260,7 @@ router.post('/notify', async (req, res) => {
           SELECT ps.*, c.name as customer_name
           FROM push_subscriptions ps
           JOIN customers c ON ps.customer_id = c.id
-          WHERE ps.active = 1 AND c.status = 'active' AND ps.id IN (${placeholders})
+          WHERE ps.status = 'active' AND c.status = 'active' AND ps.id IN (${placeholders})
         `, subscriberIds);
         description = `${subscriberIds.length} selected subscribers`;
         break;
@@ -455,11 +455,11 @@ router.get('/activity', async (req, res) => {
       SELECT 
         'subscription_created' as type,
         CONCAT('New subscription from ', COALESCE(c.name, 'Unknown')) as description,
-        ps.created_at as timestamp,
+        ps.subscribed_at as timestamp,
         JSON_OBJECT('customer_name', c.name, 'endpoint', SUBSTRING(ps.endpoint, 1, 50)) as metadata
       FROM push_subscriptions ps
       LEFT JOIN customers c ON ps.customer_id = c.id
-      WHERE ps.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      WHERE ps.subscribed_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
       
       ORDER BY timestamp DESC
       LIMIT ?

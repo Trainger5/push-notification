@@ -1230,8 +1230,9 @@ export function SubscriberManagement() {
         const response = await fetch(`${apiBase}/api/customer/subscribers`, { headers: requestHeaders })
         if (response.ok) {
           const data = await response.json()
-          setSubscribers(data.subscriptions || [])
-          setTotalSubscribers(data.total || data.subscriptions?.length || 0)
+          console.log('✅ SubscriberManagement received data:', data)
+          setSubscribers(Array.isArray(data) ? data : (data.subscriptions || []))
+          setTotalSubscribers(Array.isArray(data) ? data.length : (data.total || data.subscriptions?.length || 0))
         }
       } catch (error) {
         console.error('Error loading subscribers:', error)
@@ -1243,8 +1244,13 @@ export function SubscriberManagement() {
   }, [])
 
   const filteredSubscribers = subscribers.filter(sub => 
-    sub.endpoint?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sub.userAgent?.toLowerCase().includes(searchTerm.toLowerCase())
+    (sub.endpoint?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (sub.userAgent?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (sub.tenant?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (sub.country?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (sub.browser?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (sub.os?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (sub.device?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   )
 
   return (
@@ -1339,7 +1345,7 @@ export function SubscriberManagement() {
                         </div>
                       </td>
                       <td style={{ padding: '0.75rem', fontSize: '0.875rem', color: 'var(--gray-600)' }}>
-                        {subscriber.createdAt ? new Date(subscriber.createdAt).toLocaleDateString() : 'Unknown'}
+                        {(subscriber.created_at || subscriber.createdAt) ? new Date(subscriber.created_at || subscriber.createdAt).toLocaleDateString() : 'Unknown'}
                       </td>
                       <td style={{ padding: '0.75rem' }}>
                         <Badge variant="success">Active</Badge>

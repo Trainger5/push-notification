@@ -144,7 +144,17 @@ router.post(
     }
 
     const results = await Promise.allSettled(
-      subs.map((s) => webpush.sendNotification(s.subscription, payload))
+      subs.map((s) => {
+        // Handle both NeDB and MySQL data structures
+        const subscription = s.subscription || {
+          endpoint: s.endpoint,
+          keys: {
+            p256dh: s.p256dh_key || s.p256dh,
+            auth: s.auth_key || s.auth
+          }
+        };
+        return webpush.sendNotification(subscription, payload);
+      })
     );
 
     const ok = results.filter((r) => r.status === 'fulfilled').length;
@@ -154,7 +164,8 @@ router.post(
       results.forEach((r, i) => {
         if (r.status === 'rejected') {
           const err = r.reason || {};
-          const endpoint = subs[i] && subs[i].subscription ? subs[i].subscription.endpoint : null;
+          const sub = subs[i];
+          const endpoint = (sub && sub.subscription) ? sub.subscription.endpoint : (sub ? sub.endpoint : null);
           const statusCode = err.statusCode || err.status || null;
           const name = err.name || null;
           const message = err.message || String(err);

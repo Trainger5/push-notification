@@ -24,7 +24,7 @@ router.get('/overview', async (req, res) => {
     const [customerCount] = await query('SELECT COUNT(*) as count FROM customers WHERE status = ?', ['active']);
     
     // Get subscriber count from push_subscriptions
-    const [subscriberCount] = await query('SELECT COUNT(*) as count FROM push_subscriptions WHERE active = 1');
+    const [subscriberCount] = await query('SELECT COUNT(*) as count FROM push_subscriptions WHERE status = "active"');
     
     // Get notification count from last 30 days
     const [notificationCount] = await query(`
@@ -480,7 +480,7 @@ router.get('/subscribers', async (req, res) => {
     const offset = (page - 1) * limit;
     const search = req.query.search || '';
 
-    let whereClause = 'WHERE ps.active = 1';
+    let whereClause = 'WHERE ps.status = "active"';
     let params = [];
     
     if (search) {
@@ -492,18 +492,18 @@ router.get('/subscribers', async (req, res) => {
       SELECT 
         ps.id,
         ps.endpoint,
-        ps.p256dh,
-        ps.auth,
-        ps.created_at,
+        ps.p256dh_key as p256dh,
+        ps.auth_key as auth,
+        ps.subscribed_at as created_at,
         c.id as customer_id,
         c.name as customer_name,
         c.country,
         ps.user_agent,
-        ps.platform
+        ps.device as platform
       FROM push_subscriptions ps
       JOIN customers c ON ps.customer_id = c.id
       ${whereClause}
-      ORDER BY ps.created_at DESC
+      ORDER BY ps.subscribed_at DESC
       LIMIT ? OFFSET ?
     `, [...params, limit, offset]);
 

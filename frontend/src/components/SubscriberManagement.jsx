@@ -132,6 +132,8 @@ export default function SubscriberManagement() {
         os: osCount
       })
       
+      console.log('✅ Fetched subscribers data:', data)
+      console.log('✅ Data length:', data.length)
       setSubscribers(data)
       setFilteredSubscribers(data)
       setError(null)
@@ -372,8 +374,8 @@ export default function SubscriberManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSubscribers.map((sub) => (
-                    <tr key={sub.id} style={{borderBottom: '1px solid #E2E8F0'}}>
+                  {filteredSubscribers.map((sub, index) => (
+                    <tr key={sub.id || `subscriber-${index}-${sub.created_at}`} style={{borderBottom: '1px solid #E2E8F0'}}>
                       <td style={{padding: '12px 8px', verticalAlign: 'top'}}>
                         <VStack align="start" spacing={1}>
                           <CountryBadge country={sub.country} city={sub.city} />
@@ -442,7 +444,9 @@ export default function SubscriberManagement() {
               </table>
               {filteredSubscribers.length === 0 && (
                 <Flex justify="center" align="center" h="100px">
-                  <Text color="gray.500">No subscribers found</Text>
+                  <Text color="gray.500">
+                    No subscribers found (Total: {subscribers.length}, Filtered: {filteredSubscribers.length})
+                  </Text>
                 </Flex>
               )}
             </div>

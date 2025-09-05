@@ -104,8 +104,8 @@ export default function SubscriberManagement() {
   const fetchSubscribers = async () => {
     try {
       setLoading(true)
-      const getApiUrl = (endpoint) => 'http://localhost:4000' + endpoint;
-      const response = await fetch(getApiUrl('/api/customer/subscribers'), { headers })
+      const apiBase = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://localhost:4000'
+      const response = await fetch(`${apiBase}/api/customer/subscribers`, { headers })
       if (!response.ok) throw new Error('Failed to fetch subscribers')
       const data = await response.json()
       
@@ -176,9 +176,9 @@ export default function SubscriberManagement() {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'createdAt':
-          return new Date(b.createdAt) - new Date(a.createdAt)
+          return new Date(b.created_at) - new Date(a.created_at)
         case 'lastActive':
-          return new Date(b.lastActive || b.createdAt) - new Date(a.lastActive || a.createdAt)
+          return new Date(b.lastActive || b.created_at) - new Date(a.lastActive || a.created_at)
         case 'engagement':
           return (b.engagementScore || 0) - (a.engagementScore || 0)
         case 'country':
@@ -430,9 +430,9 @@ export default function SubscriberManagement() {
                         </div>
                       </td>
                       <td style={{padding: '12px 8px', verticalAlign: 'top'}}>
-                        <div title={formatDate(sub.createdAt)}>
+                        <div title={formatDate(sub.created_at)}>
                           <Text fontSize="sm" color="gray.600">
-                            {format(parseISO(sub.createdAt), 'MMM d, yyyy')}
+                            {format(parseISO(sub.created_at), 'MMM d, yyyy')}
                           </Text>
                         </div>
                       </td>

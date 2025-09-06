@@ -17,7 +17,7 @@ router.get('/me', async (req, res) => {
   try {
     // Get customer
     const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -85,7 +85,7 @@ router.put('/settings',
 
       // Get customer
       const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-      const customer = customers[0];
+      const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -153,7 +153,7 @@ router.post('/notify',
 
       // Get customer
       const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-      const customer = customers[0];
+      const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -260,7 +260,7 @@ router.post('/vapid/generate', async (req, res) => {
   try {
     // Get customer
     const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -308,7 +308,7 @@ router.get('/notifications', async (req, res) => {
   try {
     // Get customer
     const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -333,7 +333,7 @@ router.get('/subscribers', async (req, res) => {
   try {
     // Get customer
     const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }

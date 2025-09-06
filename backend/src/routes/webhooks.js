@@ -26,7 +26,7 @@ router.post('/create',
 
       // Get customer
       const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-      const customer = customers[0];
+      const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -76,7 +76,7 @@ router.get('/list', async (req, res) => {
   try {
     // Get customer
     const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -112,7 +112,7 @@ router.delete('/:id', async (req, res) => {
   try {
     // Get customer
     const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -122,7 +122,7 @@ router.delete('/:id', async (req, res) => {
       [req.params.id, customer.id]
     );
 
-    if (webhooks.length === 0) {
+    if (!webhooks || webhooks.length === 0) {
       return res.status(404).json({ error: 'Webhook not found' });
     }
 

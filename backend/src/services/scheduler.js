@@ -31,7 +31,7 @@ class SchedulerService {
   async processScheduledNotifications() {
     try {
       // Get all pending scheduled notifications that are ready to send
-      const [notifications] = await query(`
+      const result = await query(`
         SELECT sn.*, c.name as customer_name 
         FROM scheduled_notifications sn
         JOIN customers c ON sn.customer_id = c.id
@@ -40,6 +40,8 @@ class SchedulerService {
         ORDER BY sn.scheduled_at ASC
         LIMIT 10
       `);
+      
+      const notifications = Array.isArray(result) ? result : (result && result[0] ? result[0] : []);
 
       for (const notification of notifications) {
         await this.executeScheduledNotification(notification);
@@ -61,12 +63,13 @@ class SchedulerService {
       );
 
       // Get customer push settings
-      const [settings] = await query(
+      const settingsResult = await query(
         'SELECT * FROM push_settings WHERE customer_id = ?',
         [scheduledNotification.customer_id]
       );
+      const settings = Array.isArray(settingsResult) ? settingsResult : (settingsResult && settingsResult[0] ? settingsResult[0] : []);
 
-      if (!settings || !settings[0]) {
+      if (!settings || settings.length === 0) {
         console.error('No push settings found for customer:', scheduledNotification.customer_id);
         await this.markNotificationFailed(scheduledNotification.id, 'No push settings');
         return;
@@ -77,18 +80,18 @@ class SchedulerService {
       
       if (scheduledNotification.segment_id) {
         // Get subscriptions for specific segment (would need segment logic here)
-        const [segmentSubs] = await query(
+        const segmentResult = await query(
           'SELECT ps.* FROM push_subscriptions ps WHERE ps.customer_id = ? AND ps.status = "active"',
           [scheduledNotification.customer_id]
         );
-        subscriptions = segmentSubs;
+        subscriptions = Array.isArray(segmentResult) ? segmentResult : (segmentResult && segmentResult[0] ? segmentResult[0] : []);
       } else {
         // Get all active subscriptions for customer
-        const [allSubs] = await query(
+        const allSubsResult = await query(
           'SELECT * FROM push_subscriptions WHERE customer_id = ? AND status = "active"',
           [scheduledNotification.customer_id]
         );
-        subscriptions = allSubs;
+        subscriptions = Array.isArray(allSubsResult) ? allSubsResult : (allSubsResult && allSubsResult[0] ? allSubsResult[0] : []);
       }
 
       if (subscriptions.length === 0) {
@@ -196,7 +199,8 @@ class SchedulerService {
       
       sqlQuery += ' ORDER BY scheduled_at DESC';
       
-      const [notifications] = await query(sqlQuery, params);
+      const result = await query(sqlQuery, params);
+      const notifications = Array.isArray(result) ? result : (result && result[0] ? result[0] : []);
       return notifications;
     } catch (error) {
       console.error('Get scheduled notifications error:', error);

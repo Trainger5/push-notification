@@ -25,7 +25,7 @@ router.post('/create',
 
       // Get customer
       const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-      const customer = customers[0];
+      const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -75,7 +75,7 @@ router.get('/list', async (req, res) => {
 
     // Get customer
     const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -115,7 +115,7 @@ router.post('/:id/start', async (req, res) => {
   try {
     // Get customer
     const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -125,7 +125,7 @@ router.post('/:id/start', async (req, res) => {
       [req.params.id, customer.id]
     );
 
-    if (campaigns.length === 0) {
+    if (!campaigns || campaigns.length === 0) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
@@ -152,7 +152,7 @@ router.get('/:id/stats', async (req, res) => {
   try {
     // Get customer
     const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -162,7 +162,7 @@ router.get('/:id/stats', async (req, res) => {
       [req.params.id, customer.id]
     );
 
-    if (campaigns.length === 0) {
+    if (!campaigns || campaigns.length === 0) {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 

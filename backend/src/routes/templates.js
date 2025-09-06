@@ -32,7 +32,7 @@ router.post(
 
       // Get customer
       const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-      const customer = customers[0];
+      const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -43,7 +43,7 @@ router.post(
         [customer.id, req.body.name]
       );
       
-      if (existingTemplates.length > 0) {
+      if (existingTemplates && existingTemplates.length > 0) {
         return res.status(409).json({ error: 'Template with this name already exists' });
       }
 
@@ -211,7 +211,7 @@ router.put(
 
       // Get customer
       const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
-      const customer = customers[0];
+      const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
@@ -234,7 +234,7 @@ router.put(
           [customer.id, req.body.name, req.params.id]
         );
         
-        if (existingTemplates.length > 0) {
+        if (existingTemplates && existingTemplates.length > 0) {
           return res.status(409).json({ error: 'Template with this name already exists' });
         }
       }
@@ -300,7 +300,7 @@ router.delete('/:id', async (req, res) => {
       [req.params.id, customer.id]
     );
 
-    if (templates.length === 0) {
+    if (!templates || templates.length === 0) {
       return res.status(404).json({ error: 'Template not found' });
     }
 

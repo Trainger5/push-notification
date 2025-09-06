@@ -20,7 +20,7 @@ router.get('/config', async (req, res) => {
     
     // Find customer by API key
     const [customers] = await query('SELECT * FROM customers WHERE api_key = ? AND status = "active"', [apiKey]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
 
     // Get or create push settings
@@ -68,7 +68,7 @@ router.post('/subscribe',
       
       // Find customer by API key
       const [customers] = await query('SELECT * FROM customers WHERE api_key = ? AND status = "active"', [apiKey]);
-      const customer = customers[0];
+      const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Invalid API key' });
       }
@@ -175,7 +175,7 @@ router.post('/unsubscribe',
       
       // Find customer by API key
       const [customers] = await query('SELECT * FROM customers WHERE api_key = ? AND status = "active"', [apiKey]);
-      const customer = customers[0];
+      const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Invalid API key' });
       }
@@ -215,7 +215,7 @@ router.get('/subscribers/count/:apiKey', async (req, res) => {
     
     // Find customer by API key
     const [customers] = await query('SELECT * FROM customers WHERE api_key = ? AND status = "active"', [apiKey]);
-    const customer = customers[0];
+    const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Invalid API key' });
     }
@@ -248,7 +248,7 @@ router.post('/test-notification',
       
       // Find customer by API key
       const [customers] = await query('SELECT * FROM customers WHERE api_key = ? AND status = "active"', [apiKey]);
-      const customer = customers[0];
+      const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Invalid API key' });
       }

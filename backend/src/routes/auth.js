@@ -13,12 +13,13 @@ const router = express.Router();
 // Test database connectivity
 router.get('/test-db', async (req, res) => {
   try {
-    const [users] = await query('SELECT email, role FROM users');
-    console.log('DB Test - Found users:', users.length);
+    const result = await query('SELECT email, role FROM users');
+    const users = Array.isArray(result) ? result : (result && result[0] ? result[0] : []);
+    console.log('DB Test - Found users:', users ? users.length : 0);
     res.json({ 
       message: 'Database test', 
-      userCount: users.length,
-      users: users.map(u => ({ email: u.email, role: u.role }))
+      userCount: users ? users.length : 0,
+      users: users && Array.isArray(users) ? users.map(u => ({ email: u.email, role: u.role })) : []
     });
   } catch (error) {
     console.error('DB Test Error:', error);
@@ -50,7 +51,7 @@ router.post('/login', async (req, res) => {
     
     // Find user
     const [users] = await query('SELECT * FROM users WHERE email = ?', [email.toLowerCase()]);
-    const user = users[0];
+    const user = users && users.length > 0 ? users[0] : null;
     
     if (!user) {
       console.log('❌ User not found');
@@ -118,7 +119,7 @@ router.post('/register',
       
       // Check if user exists
       const [existingUsers] = await query('SELECT id FROM users WHERE email = ?', [email]);
-      if (existingUsers.length > 0) {
+      if (existingUsers && existingUsers.length > 0) {
         console.log('❌ User already exists');
         return res.status(409).json({ error: 'User already exists' });
       }
@@ -217,7 +218,7 @@ router.post('/forgot-password',
       const [users] = await query('SELECT id FROM users WHERE email = ?', [email]);
       
       // Always return success for security (don't reveal if email exists)
-      if (users.length === 0) {
+      if (!users || users.length === 0) {
         return res.json({ message: 'If the email exists, a password reset link has been sent' });
       }
 
@@ -261,7 +262,7 @@ router.post('/reset-password',
         [token, new Date()]
       );
 
-      if (users.length === 0) {
+      if (!users || users.length === 0) {
         return res.status(400).json({ error: 'Invalid or expired reset token' });
       }
 
@@ -299,7 +300,7 @@ router.post('/verify-email',
       // Find user with verification token
       const [users] = await query('SELECT id FROM users WHERE verification_token = ?', [token]);
 
-      if (users.length === 0) {
+      if (!users || users.length === 0) {
         return res.status(400).json({ error: 'Invalid verification token' });
       }
 

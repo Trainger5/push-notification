@@ -16,32 +16,33 @@ router.use(requireAuth, requireRole('customer'));
 router.get('/me', async (req, res) => {
   try {
     // Get customer
-    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customers = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
     const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
     // Get push settings
-    const [settings] = await query('SELECT * FROM push_settings WHERE customer_id = ?', [customer.id]);
-    const pushSettings = settings[0];
+    const settings = await query('SELECT * FROM push_settings WHERE customer_id = ?', [customer.id]);
+    const pushSettings = settings && settings.length > 0 ? settings[0] : null;
 
     // Get subscriber count
-    const [subCount] = await query('SELECT COUNT(*) as count FROM push_subscriptions WHERE customer_id = ?', [customer.id]);
-    const count = subCount[0].count;
+    const subCount = await query('SELECT COUNT(*) as count FROM push_subscriptions WHERE customer_id = ?', [customer.id]);
+    const count = subCount && subCount.length > 0 ? subCount[0].count : 0;
 
     // Get notification stats
-    const [notifications] = await query('SELECT sent_count, failed_count FROM notifications WHERE customer_id = ?', [customer.id]);
-    const successTotal = notifications.reduce((acc, n) => acc + (Number(n.sent_count) || 0), 0);
-    const failTotal = notifications.reduce((acc, n) => acc + (Number(n.failed_count) || 0), 0);
-    const totalSends = notifications.length;
+    const notifications = await query('SELECT sent_count, failed_count FROM notifications WHERE customer_id = ?', [customer.id]);
+    const notificationList = Array.isArray(notifications) ? notifications : [];
+    const successTotal = notificationList.reduce((acc, n) => acc + (Number(n.sent_count) || 0), 0);
+    const failTotal = notificationList.reduce((acc, n) => acc + (Number(n.failed_count) || 0), 0);
+    const totalSends = notificationList.length;
 
     // Get metrics
-    const [openMetrics] = await query('SELECT COUNT(*) as count FROM metrics WHERE customer_id = ? AND event_type = "opened"', [customer.id]);
-    const [clickMetrics] = await query('SELECT COUNT(*) as count FROM metrics WHERE customer_id = ? AND event_type = "clicked"', [customer.id]);
+    const openMetrics = await query('SELECT COUNT(*) as count FROM metrics WHERE customer_id = ? AND event_type = "opened"', [customer.id]);
+    const clickMetrics = await query('SELECT COUNT(*) as count FROM metrics WHERE customer_id = ? AND event_type = "clicked"', [customer.id]);
     
-    const opens = openMetrics[0].count;
-    const clicks = clickMetrics[0].count;
+    const opens = openMetrics && openMetrics.length > 0 ? openMetrics[0].count : 0;
+    const clicks = clickMetrics && clickMetrics.length > 0 ? clickMetrics[0].count : 0;
     const delivered = successTotal || 0;
     const openRate = delivered > 0 ? Math.round((opens / delivered) * 100) : 0;
     const clickRate = delivered > 0 ? Math.round((clicks / delivered) * 100) : 0;
@@ -84,14 +85,14 @@ router.put('/settings',
       }
 
       // Get customer
-      const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+      const customers = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
       const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       // Check if settings exist
-      const [existing] = await query('SELECT * FROM push_settings WHERE customer_id = ?', [customer.id]);
+      const existing = await query('SELECT * FROM push_settings WHERE customer_id = ?', [customer.id]);
       
       const updateData = {
         ...req.body,
@@ -152,20 +153,20 @@ router.post('/notify',
       }
 
       // Get customer
-      const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+      const customers = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
       const customer = customers && customers.length > 0 ? customers[0] : null;
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       // Get push settings
-      const [settings] = await query('SELECT * FROM push_settings WHERE customer_id = ?', [customer.id]);
+      const settings = await query('SELECT * FROM push_settings WHERE customer_id = ?', [customer.id]);
       if (!settings || !settings[0]) {
         return res.status(400).json({ error: 'Push notifications not configured. Please set up VAPID keys first.' });
       }
 
       // Get active subscriptions
-      const [subscriptions] = await query(
+      const subscriptions = await query(
         'SELECT * FROM push_subscriptions WHERE customer_id = ? AND status = "active"',
         [customer.id]
       );
@@ -259,7 +260,7 @@ router.post('/notify',
 router.post('/vapid/generate', async (req, res) => {
   try {
     // Get customer
-    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customers = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
     const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
@@ -307,13 +308,13 @@ router.post('/vapid/generate', async (req, res) => {
 router.get('/notifications', async (req, res) => {
   try {
     // Get customer
-    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customers = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
     const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const [notifications] = await query(`
+    const notifications = await query(`
       SELECT * FROM notifications 
       WHERE customer_id = ? 
       ORDER BY created_at DESC 
@@ -332,13 +333,13 @@ router.get('/notifications', async (req, res) => {
 router.get('/subscribers', async (req, res) => {
   try {
     // Get customer
-    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customers = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
     const customer = customers && customers.length > 0 ? customers[0] : null;
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const [subscriptions] = await query(`
+    const subscriptions = await query(`
       SELECT ps.*, c.name as customer_name
       FROM push_subscriptions ps
       JOIN customers c ON ps.customer_id = c.id

@@ -1,29 +1,25 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { getDatastores } = require('../storage/datastores');
+const { v4: uuidv4 } = require('uuid');
+const { query } = require('../config/database');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { getScheduler } = require('../services/scheduler');
+const { SchedulerService } = require('../services/scheduler');
 const { notificationLimiter } = require('../middleware/rateLimiter');
 
 const router = express.Router();
+const schedulerService = new SchedulerService();
 
 router.use(requireAuth, requireRole('customer'));
 
-// Schedule a notification
-router.post(
-  '/schedule',
-  // notificationLimiter, // TODO: Re-enable rate limiting later
-  body('title').isString().notEmpty(),
-  body('body').isString().notEmpty(),
-  body('scheduledFor').isISO8601().toDate(),
+// Create a scheduled notification
+router.post('/create',
+  notificationLimiter,
+  body('title').isString().notEmpty().isLength({ min: 1, max: 100 }),
+  body('body').isString().notEmpty().isLength({ min: 1, max: 500 }),
+  body('scheduled_at').isISO8601(),
+  body('template_id').optional().isUUID(),
+  body('segment_id').optional().isUUID(),
   body('url').optional().isURL(),
-  body('icon').optional().isURL(),
-  body('badge').optional().isURL(),
-  body('image').optional().isURL(),
-  body('tag').optional().isString(),
-  body('timezone').optional().isString(),
-  body('data').optional().isObject(),
-  body('actions').optional().isArray(),
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -31,53 +27,50 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { customers } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.user_id });
+      // Get customer
+      const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+      const customer = customers[0];
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
-      // Check if scheduled time is in the future
-      const scheduledTime = new Date(req.body.scheduledFor);
-      const now = new Date();
-      if (scheduledTime <= now) {
-        return res.status(400).json({ error: 'Scheduled time must be in the future' });
-      }
-
-      // Check if scheduled time is not too far in the future (optional limit)
-      const maxFutureTime = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year
-      if (scheduledTime > maxFutureTime) {
-        return res.status(400).json({ error: 'Cannot schedule notifications more than 1 year in advance' });
-      }
-
-      const scheduler = getScheduler();
-      const notificationData = {
+      const scheduledNotificationId = uuidv4();
+      const scheduledNotification = {
+        id: scheduledNotificationId,
         customer_id: customer.id,
         title: req.body.title,
         body: req.body.body,
-        url: req.body.url,
-        icon: req.body.icon,
-        badge: req.body.badge,
-        image: req.body.image,
-        tag: req.body.tag,
-        data: req.body.data,
-        actions: req.body.actions,
-        scheduledFor: scheduledTime.toISOString(),
-        timezone: req.body.timezone || 'UTC',
-        created_by: req.user.user_id
+        url: req.body.url || null,
+        icon: req.body.icon || null,
+        template_id: req.body.template_id || null,
+        segment_id: req.body.segment_id || null,
+        scheduled_at: new Date(req.body.scheduled_at),
+        status: 'pending',
+        created_by: req.user.user_id,
+        created_at: new Date(),
+        updated_at: new Date()
       };
 
-      const scheduledNotification = await scheduler.scheduleNotification(notificationData);
-      
+      await query(`
+        INSERT INTO scheduled_notifications 
+        (id, customer_id, title, body, url, icon, template_id, segment_id, scheduled_at, status, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        scheduledNotification.id, scheduledNotification.customer_id, scheduledNotification.title,
+        scheduledNotification.body, scheduledNotification.url, scheduledNotification.icon,
+        scheduledNotification.template_id, scheduledNotification.segment_id, scheduledNotification.scheduled_at,
+        scheduledNotification.status, scheduledNotification.created_by, scheduledNotification.created_at,
+        scheduledNotification.updated_at
+      ]);
+
       res.status(201).json({
-        id: scheduledNotification.id,
-        scheduledFor: scheduledNotification.scheduledFor,
-        status: scheduledNotification.status,
-        message: 'Notification scheduled successfully'
+        message: 'Notification scheduled successfully',
+        scheduled_notification: scheduledNotification
       });
+
     } catch (error) {
       console.error('Schedule notification error:', error);
-      res.status(500).json({ error: 'Failed to schedule notification' });
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
@@ -85,65 +78,130 @@ router.post(
 // Get all scheduled notifications for customer
 router.get('/list', async (req, res) => {
   try {
-    const { customers } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    const { status } = req.query;
+
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const scheduler = getScheduler();
-    const status = req.query.status; // optional filter
-    const scheduledNotifications = await scheduler.getScheduledNotifications(customer.id, status);
-    
+    let sqlQuery = `
+      SELECT sn.*, c.name as customer_name
+      FROM scheduled_notifications sn
+      JOIN customers c ON sn.customer_id = c.id
+      WHERE sn.customer_id = ?
+    `;
+    let params = [customer.id];
+
+    if (status) {
+      sqlQuery += ' AND sn.status = ?';
+      params.push(status);
+    }
+
+    sqlQuery += ' ORDER BY sn.scheduled_at DESC';
+
+    const [scheduledNotifications] = await query(sqlQuery, params);
+
     res.json({
-      notifications: scheduledNotifications,
+      scheduled_notifications: scheduledNotifications,
       total: scheduledNotifications.length
     });
+
   } catch (error) {
-    console.error('Get scheduled notifications error:', error);
-    res.status(500).json({ error: 'Failed to retrieve scheduled notifications' });
+    console.error('Scheduled notifications list error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get specific scheduled notification
-router.get('/:id', async (req, res) => {
+// Get scheduled notification stats
+router.get('/stats', async (req, res) => {
   try {
-    const { customers, scheduledNotifications } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const notification = await scheduledNotifications.findOne({
-      id: req.params.id,
-      customer_id: customer.id
+    const customer_id = customer.id;
+
+    // Get various stats in parallel
+    const [
+      [totalScheduled],
+      [pendingCount], 
+      [sentCount],
+      [failedCount],
+      [upcomingNotifications]
+    ] = await Promise.all([
+      query('SELECT COUNT(*) as count FROM scheduled_notifications WHERE customer_id = ?', [customer_id]),
+      query('SELECT COUNT(*) as count FROM scheduled_notifications WHERE customer_id = ? AND status = "pending"', [customer_id]),
+      query('SELECT COUNT(*) as count FROM scheduled_notifications WHERE customer_id = ? AND status = "sent"', [customer_id]),
+      query('SELECT COUNT(*) as count FROM scheduled_notifications WHERE customer_id = ? AND status = "failed"', [customer_id]),
+      query('SELECT COUNT(*) as count FROM scheduled_notifications WHERE customer_id = ? AND status = "pending" AND scheduled_at > NOW()', [customer_id])
+    ]);
+
+    res.json({
+      total_scheduled: totalScheduled[0].count,
+      pending: pendingCount[0].count,
+      sent: sentCount[0].count,
+      failed: failedCount[0].count,
+      upcoming: upcomingNotifications[0].count
     });
 
-    if (!notification) {
+  } catch (error) {
+    console.error('Scheduled notification stats error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Cancel a scheduled notification
+router.delete('/:id', async (req, res) => {
+  try {
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    // Check if notification exists and is pending
+    const [notifications] = await query(
+      'SELECT * FROM scheduled_notifications WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
+
+    if (notifications.length === 0) {
       return res.status(404).json({ error: 'Scheduled notification not found' });
     }
 
-    res.json(notification);
+    const notification = notifications[0];
+
+    if (notification.status !== 'pending') {
+      return res.status(400).json({ error: 'Can only cancel pending notifications' });
+    }
+
+    // Update status to cancelled
+    await query(
+      'UPDATE scheduled_notifications SET status = "cancelled", updated_at = ? WHERE id = ? AND customer_id = ?',
+      [new Date(), req.params.id, customer.id]
+    );
+
+    res.json({ message: 'Scheduled notification cancelled successfully' });
+
   } catch (error) {
-    console.error('Get scheduled notification error:', error);
-    res.status(500).json({ error: 'Failed to retrieve scheduled notification' });
+    console.error('Cancel scheduled notification error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Update scheduled notification (only if not yet sent)
-router.put(
-  '/:id',
-  body('title').optional().isString().notEmpty(),
-  body('body').optional().isString().notEmpty(),
-  body('scheduledFor').optional().isISO8601().toDate(),
+// Update a scheduled notification
+router.put('/:id',
+  body('title').optional().isString().notEmpty().isLength({ min: 1, max: 100 }),
+  body('body').optional().isString().notEmpty().isLength({ min: 1, max: 500 }),
+  body('scheduled_at').optional().isISO8601(),
   body('url').optional().isURL(),
-  body('icon').optional().isURL(),
-  body('badge').optional().isURL(),
-  body('image').optional().isURL(),
-  body('tag').optional().isString(),
-  body('timezone').optional().isString(),
-  body('data').optional().isObject(),
-  body('actions').optional().isArray(),
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -151,136 +209,59 @@ router.put(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { customers } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.user_id });
+      // Get customer
+      const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+      const customer = customers[0];
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
-      // If scheduledFor is being updated, validate it
-      if (req.body.scheduledFor) {
-        const scheduledTime = new Date(req.body.scheduledFor);
-        const now = new Date();
-        if (scheduledTime <= now) {
-          return res.status(400).json({ error: 'Scheduled time must be in the future' });
-        }
-      }
-
-      const scheduler = getScheduler();
-      const updates = { ...req.body };
-      if (updates.scheduledFor) {
-        updates.scheduledFor = new Date(updates.scheduledFor).toISOString();
-      }
-
-      const updatedNotification = await scheduler.updateScheduledNotification(
-        req.params.id,
-        customer.id,
-        updates
+      // Check if notification exists and is pending
+      const [notifications] = await query(
+        'SELECT * FROM scheduled_notifications WHERE id = ? AND customer_id = ?',
+        [req.params.id, customer.id]
       );
 
-      res.json({
-        notification: updatedNotification,
-        message: 'Scheduled notification updated successfully'
-      });
+      if (notifications.length === 0) {
+        return res.status(404).json({ error: 'Scheduled notification not found' });
+      }
+
+      const notification = notifications[0];
+
+      if (notification.status !== 'pending') {
+        return res.status(400).json({ error: 'Can only update pending notifications' });
+      }
+
+      // Build update query
+      const updates = [];
+      const params = [];
+
+      if (req.body.title !== undefined) { updates.push('title = ?'); params.push(req.body.title); }
+      if (req.body.body !== undefined) { updates.push('body = ?'); params.push(req.body.body); }
+      if (req.body.url !== undefined) { updates.push('url = ?'); params.push(req.body.url); }
+      if (req.body.icon !== undefined) { updates.push('icon = ?'); params.push(req.body.icon); }
+      if (req.body.scheduled_at !== undefined) { 
+        updates.push('scheduled_at = ?'); 
+        params.push(new Date(req.body.scheduled_at)); 
+      }
+
+      updates.push('updated_at = ?');
+      params.push(new Date());
+      params.push(req.params.id, customer.id);
+
+      await query(`
+        UPDATE scheduled_notifications 
+        SET ${updates.join(', ')} 
+        WHERE id = ? AND customer_id = ?
+      `, params);
+
+      res.json({ message: 'Scheduled notification updated successfully' });
+
     } catch (error) {
       console.error('Update scheduled notification error:', error);
-      if (error.message.includes('not found') || error.message.includes('cannot be updated')) {
-        res.status(404).json({ error: error.message });
-      } else {
-        res.status(500).json({ error: 'Failed to update scheduled notification' });
-      }
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
-
-// Cancel scheduled notification
-router.delete('/:id', async (req, res) => {
-  try {
-    const { customers } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
-    if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
-    }
-
-    const scheduler = getScheduler();
-    const cancelledNotification = await scheduler.cancelScheduledNotification(
-      req.params.id,
-      customer.id
-    );
-
-    res.json({
-      id: cancelledNotification.id,
-      status: 'cancelled',
-      message: 'Scheduled notification cancelled successfully'
-    });
-  } catch (error) {
-    console.error('Cancel scheduled notification error:', error);
-    if (error.message.includes('not found')) {
-      res.status(404).json({ error: error.message });
-    } else {
-      res.status(500).json({ error: 'Failed to cancel scheduled notification' });
-    }
-  }
-});
-
-// Get scheduling statistics
-router.get('/stats/overview', async (req, res) => {
-  try {
-    const { customers, scheduledNotifications } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
-    if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
-    }
-
-    const customer_id = customer.id;
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    // Get scheduling statistics
-    const totalScheduled = await scheduledNotifications.count({ customer_id: customer_id });
-    const pendingScheduled = await scheduledNotifications.count({ 
-      customer_id: customer_id, 
-      status: 'scheduled',
-      scheduled_for: { $gt: now.toISOString() }
-    });
-    const sentScheduled = await scheduledNotifications.count({ 
-      customer_id: customer_id, 
-      status: 'sent'
-    });
-    const failedScheduled = await scheduledNotifications.count({ 
-      customer_id: customer_id, 
-      status: 'failed'
-    });
-    const recentScheduled = await scheduledNotifications.count({
-      customer_id: customer_id,
-      created_at: { $gte: thirtyDaysAgo.toISOString() }
-    });
-
-    // Get upcoming notifications (next 7 days)
-    const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const upcomingNotifications = await scheduledNotifications.find({
-      customer_id: customer_id,
-      status: 'scheduled',
-      scheduled_for: { 
-        $gte: now.toISOString(),
-        $lte: sevenDaysFromNow.toISOString()
-      }
-    }, { sort: { scheduled_for: 1 }, limit: 5 });
-
-    res.json({
-      stats: {
-        total: totalScheduled,
-        pending: pendingScheduled,
-        sent: sentScheduled,
-        failed: failedScheduled,
-        recent30Days: recentScheduled
-      },
-      upcoming: upcomingNotifications
-    });
-  } catch (error) {
-    console.error('Get scheduling stats error:', error);
-    res.status(500).json({ error: 'Failed to retrieve scheduling statistics' });
-  }
-});
 
 module.exports = router;

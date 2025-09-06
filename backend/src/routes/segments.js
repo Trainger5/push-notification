@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
-const { getDatastores } = require('../storage/datastores');
+const { v4: uuidv4 } = require('uuid');
+const { query } = require('../config/database');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -22,152 +23,153 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { customers, userSegments } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.user_id });
+      // Get customer
+      const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+      const customer = customers[0];
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       // Check if segment name already exists for this customer
-      const existingSegment = await userSegments.findOne({
-        customer_id: customer.id,
-        name: req.body.name
-      });
+      const [existingSegments] = await query(
+        'SELECT id FROM user_segments WHERE customer_id = ? AND name = ?',
+        [customer.id, req.body.name]
+      );
       
-      if (existingSegment) {
+      if (existingSegments.length > 0) {
         return res.status(409).json({ error: 'Segment with this name already exists' });
       }
 
       // Calculate initial segment size
       const matchedUsersCount = await calculateSegmentSize(customer.id, req.body.criteria);
 
+      const segmentId = uuidv4();
       const segment = {
+        id: segmentId,
         customer_id: customer.id,
         name: req.body.name,
         description: req.body.description || '',
         type: 'custom',
         conditions: JSON.stringify(req.body.criteria),
         subscriber_count: matchedUsersCount,
+        color: req.body.color || '#3B82F6',
         is_active: req.body.isActive !== false,
-        color: req.body.color || '#3182CE',
-        engagement_score: 0, // Will be calculated later
-        growth_rate: 0, // Will be calculated over time
-        last_calculated: new Date(),
+        created_by: req.user.user_id,
         created_at: new Date(),
-        updated_at: new Date(),
-        created_by: req.user.user_id
+        updated_at: new Date()
       };
 
-      const newSegment = await userSegments.insert(segment);
-      
-      res.status(201).json({
-        segment: newSegment,
-        message: 'Segment created successfully'
+      await query(`
+        INSERT INTO user_segments 
+        (id, customer_id, name, description, type, conditions, subscriber_count, color, is_active, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        segment.id, segment.customer_id, segment.name, segment.description,
+        segment.type, segment.conditions, segment.subscriber_count, 
+        segment.color, segment.is_active, segment.created_by,
+        segment.created_at, segment.updated_at
+      ]);
+
+      // Parse conditions for response
+      const responseSegment = {
+        ...segment,
+        conditions: JSON.parse(segment.conditions)
+      };
+
+      res.status(201).json({ 
+        message: 'Segment created successfully', 
+        segment: responseSegment 
       });
+
     } catch (error) {
-      console.error('Create segment error:', error);
-      res.status(500).json({ error: 'Failed to create segment' });
+      console.error('Segment creation error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
 
-// Real-time segment size calculation
-router.post('/calculate', async (req, res) => {
-  try {
-    const { customers } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
-    if (!customer) {
-      return res.status(404).json({ error: 'Customer not found' });
-    }
-
-    const { criteria } = req.body;
-    const matchedUsersCount = await calculateSegmentSize(customer.id, criteria);
-    
-    res.json({ 
-      count: matchedUsersCount,
-      estimatedReach: matchedUsersCount,
-      criteria: analyzeCriteria(criteria)
-    });
-  } catch (error) {
-    console.error('Segment calculation error:', error);
-    res.status(500).json({ error: 'Failed to calculate segment size' });
-  }
-});
-
-// Get all segments for customer
+// Get all segments for the customer
 router.get('/list', async (req, res) => {
   try {
-    const { customers, userSegments } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    const { search, active } = req.query;
+
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const segments = await userSegments.find(
-      { customer_id: customer.id }, 
-      { sort: { updated_at: -1 } }
-    );
+    let sqlQuery = 'SELECT * FROM user_segments WHERE customer_id = ?';
+    let params = [customer.id];
     
-    // Update subscriber counts for all segments
-    for (const segment of segments) {
-      const conditions = JSON.parse(segment.conditions);
-      const count = await calculateSegmentSize(customer.id, conditions);
-      if (count !== segment.subscriber_count) {
-        await userSegments.update(
-          { id: segment.id }, 
-          { $set: { subscriber_count: count, updated_at: new Date() } }
-        );
-        segment.subscriber_count = count;
-      }
+    if (active !== undefined) {
+      sqlQuery += ' AND is_active = ?';
+      params.push(active === 'true');
     }
 
+    if (search) {
+      sqlQuery += ' AND (name LIKE ? OR description LIKE ?)';
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm);
+    }
+
+    sqlQuery += ' ORDER BY updated_at DESC';
+
+    const [segments] = await query(sqlQuery, params);
+
+    // Parse JSON conditions
+    const processedSegments = segments.map(segment => ({
+      ...segment,
+      conditions: segment.conditions ? JSON.parse(segment.conditions) : {}
+    }));
+
     res.json({
-      segments,
+      segments: processedSegments,
       total: segments.length
     });
+
   } catch (error) {
-    console.error('Get segments error:', error);
-    res.status(500).json({ error: 'Failed to retrieve segments' });
+    console.error('Segments list error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get specific segment
+// Get a specific segment
 router.get('/:id', async (req, res) => {
   try {
-    const { customers, userSegments } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const segment = await userSegments.findOne({
-      id: req.params.id,
-      customer_id: customer.id
-    });
+    const [segments] = await query(
+      'SELECT * FROM user_segments WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
 
+    const segment = segments[0];
     if (!segment) {
       return res.status(404).json({ error: 'Segment not found' });
     }
 
-    // Update subscriber count
-    const conditions = JSON.parse(segment.conditions);
-    const count = await calculateSegmentSize(customer.id, conditions);
-    if (count !== segment.subscriber_count) {
-      await userSegments.update(
-        { id: segment.id }, 
-        { $set: { subscriber_count: count, updated_at: new Date() } }
-      );
-      segment.subscriber_count = count;
-    }
+    // Parse JSON conditions
+    const processedSegment = {
+      ...segment,
+      conditions: segment.conditions ? JSON.parse(segment.conditions) : {}
+    };
 
-    res.json(segment);
+    res.json({ segment: processedSegment });
+
   } catch (error) {
-    console.error('Get segment error:', error);
-    res.status(500).json({ error: 'Failed to retrieve segment' });
+    console.error('Segment get error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Update segment
+// Update a segment
 router.put(
   '/:id',
   body('name').optional().isString().notEmpty().isLength({ min: 1, max: 100 }),
@@ -182,421 +184,310 @@ router.put(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { customers, userSegments } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.user_id });
+      // Get customer
+      const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+      const customer = customers[0];
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
-      const segment = await userSegments.findOne({
-        id: req.params.id,
-        customer_id: customer.id
-      });
+      // Check if segment exists
+      const [segments] = await query(
+        'SELECT * FROM user_segments WHERE id = ? AND customer_id = ?',
+        [req.params.id, customer.id]
+      );
 
+      const segment = segments[0];
       if (!segment) {
         return res.status(404).json({ error: 'Segment not found' });
       }
 
-      // If name is being changed, check for conflicts
+      // Check name uniqueness if name is being updated
       if (req.body.name && req.body.name !== segment.name) {
-        const existingSegment = await userSegments.findOne({
-          customer_id: customer.id,
-          name: req.body.name,
-          id: { $ne: req.params.id }
-        });
+        const [existingSegments] = await query(
+          'SELECT id FROM user_segments WHERE customer_id = ? AND name = ? AND id != ?',
+          [customer.id, req.body.name, req.params.id]
+        );
         
-        if (existingSegment) {
+        if (existingSegments.length > 0) {
           return res.status(409).json({ error: 'Segment with this name already exists' });
         }
       }
 
-      const updateData = {};
+      // Build update query
+      const updates = [];
+      const params = [];
       
-      if (req.body.name) updateData.name = req.body.name;
-      if (req.body.description !== undefined) updateData.description = req.body.description;
-      if (req.body.color) updateData.color = req.body.color;
-      if (req.body.isActive !== undefined) updateData.is_active = req.body.isActive;
+      if (req.body.name !== undefined) { updates.push('name = ?'); params.push(req.body.name); }
+      if (req.body.description !== undefined) { updates.push('description = ?'); params.push(req.body.description); }
+      if (req.body.color !== undefined) { updates.push('color = ?'); params.push(req.body.color); }
+      if (req.body.isActive !== undefined) { updates.push('is_active = ?'); params.push(req.body.isActive); }
       
-      // If criteria changed, recalculate subscriber count
-      if (req.body.criteria) {
-        updateData.conditions = JSON.stringify(req.body.criteria);
-        const count = await calculateSegmentSize(customer.id, req.body.criteria);
-        updateData.subscriber_count = count;
+      if (req.body.criteria !== undefined) {
+        updates.push('conditions = ?');
+        params.push(JSON.stringify(req.body.criteria));
+        
+        // Recalculate segment size if criteria changed
+        const newCount = await calculateSegmentSize(customer.id, req.body.criteria);
+        updates.push('subscriber_count = ?');
+        params.push(newCount);
       }
+
+      updates.push('updated_at = ?');
+      params.push(new Date());
       
-      updateData.updated_at = new Date();
+      params.push(req.params.id, customer.id);
 
-      await userSegments.update(
-        { id: req.params.id },
-        { $set: updateData }
-      );
+      await query(`
+        UPDATE user_segments 
+        SET ${updates.join(', ')} 
+        WHERE id = ? AND customer_id = ?
+      `, params);
 
-      const updatedSegment = await userSegments.findOne({ id: req.params.id });
+      res.json({ message: 'Segment updated successfully' });
 
-      res.json({
-        segment: updatedSegment,
-        message: 'Segment updated successfully'
-      });
     } catch (error) {
-      console.error('Update segment error:', error);
-      res.status(500).json({ error: 'Failed to update segment' });
+      console.error('Segment update error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
 
-// Delete segment
+// Delete a segment
 router.delete('/:id', async (req, res) => {
   try {
-    const { customers, userSegments } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const segment = await userSegments.findOne({
-      id: req.params.id,
-      customer_id: customer.id
-    });
+    // Check if segment exists
+    const [segments] = await query(
+      'SELECT id FROM user_segments WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
 
-    if (!segment) {
+    if (segments.length === 0) {
       return res.status(404).json({ error: 'Segment not found' });
     }
 
-    await userSegments.remove({ id: req.params.id });
+    await query(
+      'DELETE FROM user_segments WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
 
-    res.json({
-      message: 'Segment deleted successfully'
-    });
+    res.json({ message: 'Segment deleted successfully' });
+
   } catch (error) {
-    console.error('Delete segment error:', error);
-    res.status(500).json({ error: 'Failed to delete segment' });
+    console.error('Segment delete error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get subscribers in a segment
+// Get segment subscribers
 router.get('/:id/subscribers', async (req, res) => {
   try {
-    const { customers, userSegments, subscriptions } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const segment = await userSegments.findOne({
-      id: req.params.id,
-      customer_id: customer.id
-    });
+    // Get segment
+    const [segments] = await query(
+      'SELECT * FROM user_segments WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
 
+    const segment = segments[0];
     if (!segment) {
       return res.status(404).json({ error: 'Segment not found' });
     }
 
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
-    const skip = (page - 1) * limit;
-
+    // Parse conditions and build query
     const conditions = JSON.parse(segment.conditions);
-    const query = buildSegmentQuery(customer.id, conditions);
+    const subscriberQuery = buildSegmentQuery(customer.id, conditions);
     
-    // Get total count
-    const totalCount = await subscriptions.count(query);
-    
-    // Get paginated subscribers
-    const subscribers = await subscriptions.find(query, { 
-      limit: limit, 
-      skip: skip 
-    });
+    const [subscribers] = await query(`
+      SELECT ps.*, c.name as customer_name
+      FROM push_subscriptions ps
+      JOIN customers c ON ps.customer_id = c.id
+      WHERE ${subscriberQuery.where}
+      ORDER BY ps.subscribed_at DESC
+      LIMIT 1000
+    `, subscriberQuery.params);
 
     res.json({
-      subscribers: subscribers.map(sub => ({
-        id: sub.id,
-        country: sub.country,
-        city: sub.city,
-        browser: sub.browser,
-        os: sub.os,
-        device: sub.device,
-        tags: sub.tags ? JSON.parse(sub.tags) : [],
-        engagement_score: sub.engagement_score || 0,
-        last_active: sub.last_active,
-        created_at: sub.created_at
-      })),
-      total: totalCount,
-      page,
-      totalPages: Math.ceil(totalCount / limit)
+      segment: {
+        ...segment,
+        conditions: JSON.parse(segment.conditions)
+      },
+      subscribers,
+      total: subscribers.length
     });
+
   } catch (error) {
-    console.error('Get segment subscribers error:', error);
-    res.status(500).json({ error: 'Failed to retrieve segment subscribers' });
+    console.error('Segment subscribers error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Send notification to segment
-router.post(
-  '/:id/notify',
-  body('title').isString().notEmpty(),
-  body('body').isString().notEmpty(),
-  body('url').optional().isURL(),
-  body('icon').optional().isURL(),
-  body('badge').optional().isURL(),
-  body('image').optional().isURL(),
-  body('tag').optional().isString(),
-  body('scheduledFor').optional().isISO8601().toDate(),
-  body('timezone').optional().isString(),
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
+router.post('/:id/notify', async (req, res) => {
+  try {
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
 
-      const { customers, userSegments, subscriptions, pushSettings, notifications } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.user_id });
-      if (!customer) {
-        return res.status(404).json({ error: 'Customer not found' });
-      }
+    // Get segment
+    const [segments] = await query(
+      'SELECT * FROM user_segments WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
 
-      const segment = await userSegments.findOne({
-        id: req.params.id,
-        customer_id: customer.id,
-        is_active: true
-      });
+    const segment = segments[0];
+    if (!segment) {
+      return res.status(404).json({ error: 'Segment not found' });
+    }
 
-      if (!segment) {
-        return res.status(404).json({ error: 'Segment not found or inactive' });
-      }
+    // Get push settings
+    const [settings] = await query('SELECT * FROM push_settings WHERE customer_id = ?', [customer.id]);
+    if (!settings || !settings[0]) {
+      return res.status(400).json({ error: 'Push notifications not configured' });
+    }
 
-      // Get subscribers in this segment
-      const conditions = JSON.parse(segment.conditions);
-      const query = buildSegmentQuery(customer.id, conditions);
-      const segmentSubscribers = await subscriptions.find(query);
+    // Parse conditions and get subscribers
+    const conditions = JSON.parse(segment.conditions);
+    const subscriberQuery = buildSegmentQuery(customer.id, conditions);
+    
+    const [subscriptions] = await query(`
+      SELECT ps.*
+      FROM push_subscriptions ps
+      JOIN customers c ON ps.customer_id = c.id
+      WHERE ${subscriberQuery.where} AND ps.status = 'active'
+    `, subscriberQuery.params);
 
-      if (segmentSubscribers.length === 0) {
-        return res.status(400).json({ error: 'No subscribers found in this segment' });
-      }
+    if (subscriptions.length === 0) {
+      return res.json({ sent: 0, failed: 0, message: 'No active subscriptions found in segment' });
+    }
 
-      // If scheduled, use scheduler
-      if (req.body.scheduledFor) {
-        const { getScheduler } = require('../services/scheduler');
-        const scheduler = getScheduler();
-        
-        // Create a special notification record for segments
-        const scheduledNotification = await scheduler.scheduleNotification({
-          customer_id: customer.id,
-          title: req.body.title,
-          body: req.body.body,
-          url: req.body.url,
-          icon: req.body.icon,
-          badge: req.body.badge,
-          image: req.body.image,
-          tag: req.body.tag,
-          scheduledFor: new Date(req.body.scheduledFor).toISOString(),
-          timezone: req.body.timezone || 'UTC',
-          segmentId: segment.id,
-          segmentName: segment.name,
-          created_by: req.user.user_id
-        });
+    const webpush = require('web-push');
+    webpush.setVapidDetails(
+      settings[0].vapid_subject,
+      settings[0].vapid_public_key,
+      settings[0].vapid_private_key
+    );
 
-        res.json({
-          scheduled: true,
-          scheduledNotificationId: scheduledNotification.id,
-          segmentSize: segmentSubscribers.length,
-          message: `Notification scheduled for ${segment.name} segment (${segmentSubscribers.length} subscribers)`
-        });
-      } else {
-        // Send immediately
-        const webpush = require('web-push');
-        
-        const settings = await pushSettings.findOne({ customer_id: customer.id });
-        if (!settings) {
-          return res.status(400).json({ error: 'Push settings not found' });
-        }
+    const payload = {
+      title: req.body.title,
+      body: req.body.body,
+      url: req.body.url || '/',
+      icon: req.body.icon || '/icon.png',
+      tag: req.body.tag || 'segment'
+    };
 
-        // Configure web-push
-        webpush.setVapidDetails(
-          settings.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
-          settings.vapid_public_key || process.env.VAPID_PUBLIC_KEY,
-          settings.vapid_private_key || process.env.VAPID_PRIVATE_KEY
-        );
+    let sent = 0;
+    let failed = 0;
 
-        const payload = {
-          title: req.body.title,
-          body: req.body.body,
-          url: req.body.url,
-          icon: req.body.icon || settings.icon_url,
-          badge: req.body.badge || settings.badge_url,
-          image: req.body.image,
-          tag: req.body.tag,
-          data: { segmentId: segment.id, segmentName: segment.name }
-        };
-
-        // Send to segment subscribers
-        let sent = 0;
-        let failed = 0;
-        const results = [];
-
-        for (const sub of segmentSubscribers) {
-          try {
-            const subscriptionData = JSON.parse(sub.subscription);
-            const pushSubscription = {
-              endpoint: subscriptionData.endpoint,
-              keys: {
-                p256dh: subscriptionData.keys.p256dh,
-                auth: subscriptionData.keys.auth
-              }
-            };
-
-            await webpush.sendNotification(pushSubscription, JSON.stringify(payload));
-            sent++;
-            results.push({ endpoint: subscriptionData.endpoint, status: 'sent' });
-          } catch (error) {
-            failed++;
-            results.push({ 
-              endpoint: sub.subscription?.endpoint, 
-              status: 'failed', 
-              error: error.message 
-            });
-            
-            // Remove invalid subscriptions
-            if (error.statusCode === 410 || error.statusCode === 404) {
-              await subscriptions.remove({ id: sub.id });
-            }
+    // Send notifications
+    await Promise.all(subscriptions.map(async (subscription) => {
+      try {
+        await webpush.sendNotification({
+          endpoint: subscription.endpoint,
+          keys: {
+            p256dh: subscription.p256dh_key,
+            auth: subscription.auth_key
           }
-        }
-
-        // Save notification record
-        await notifications.insert({
-          customer_id: customer.id,
-          title: req.body.title,
-          body: req.body.body,
-          url: req.body.url,
-          success_count: sent,
-          failure_count: failed,
-          segment_id: segment.id,
-          segment_name: segment.name,
-          targeted_subscribers: segmentSubscribers.length,
-          created_at: new Date(),
-          delivery_results: JSON.stringify(results)
-        });
-
-        res.json({
-          sent,
-          failed,
-          segmentName: segment.name,
-          targetedSubscribers: segmentSubscribers.length,
-          message: `Notification sent to ${segment.name} segment`
-        });
+        }, JSON.stringify(payload));
+        sent++;
+      } catch (error) {
+        console.error('Failed to send notification:', error);
+        failed++;
       }
-    } catch (error) {
-      console.error('Send segment notification error:', error);
-      res.status(500).json({ error: 'Failed to send notification to segment' });
-    }
-  }
-);
+    }));
 
-// Helper functions
+    // Record notification
+    const notificationId = uuidv4();
+    await query(`
+      INSERT INTO notifications 
+      (id, customer_id, segment_id, title, body, url, icon, status, sent_count, failed_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'sent', ?, ?, ?, ?)
+    `, [
+      notificationId, customer.id, segment.id, payload.title, payload.body,
+      payload.url, payload.icon, sent, failed, new Date(), new Date()
+    ]);
+
+    res.json({ 
+      sent, 
+      failed, 
+      message: `Segment notification sent successfully to ${sent} subscribers` 
+    });
+
+  } catch (error) {
+    console.error('Segment notify error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Calculate segment size
 async function calculateSegmentSize(customer_id, criteria) {
-  const { subscriptions } = getDatastores();
-  const query = buildSegmentQuery(customer_id, criteria);
-  return await subscriptions.count(query);
+  try {
+    const segmentQuery = buildSegmentQuery(customer_id, criteria);
+    const [result] = await query(`
+      SELECT COUNT(*) as count 
+      FROM push_subscriptions ps 
+      JOIN customers c ON ps.customer_id = c.id 
+      WHERE ${segmentQuery.where}
+    `, segmentQuery.params);
+    return result[0].count;
+  } catch (error) {
+    console.error('Error calculating segment size:', error);
+    return 0;
+  }
 }
 
+// Build segment query based on criteria
 function buildSegmentQuery(customer_id, criteria) {
-  const query = { customer_id: customer_id };
+  let where = 'ps.customer_id = ?';
+  let params = [customer_id];
 
-  if (criteria.countries && criteria.countries.length > 0) {
-    query.country = { $in: criteria.countries };
+  if (criteria.country && criteria.country.length > 0) {
+    where += ` AND c.country IN (${criteria.country.map(() => '?').join(',')})`;
+    params.push(...criteria.country);
   }
 
-  if (criteria.cities && criteria.cities.length > 0) {
-    query.city = { $in: criteria.cities };
+  if (criteria.browser && criteria.browser.length > 0) {
+    const browserConditions = criteria.browser.map(browser => {
+      return `ps.user_agent LIKE ?`;
+    }).join(' OR ');
+    where += ` AND (${browserConditions})`;
+    params.push(...criteria.browser.map(browser => `%${browser}%`));
   }
 
-  if (criteria.browsers && criteria.browsers.length > 0) {
-    query.browser = { $in: criteria.browsers };
+  if (criteria.subscriptionAge) {
+    const days = parseInt(criteria.subscriptionAge);
+    where += ' AND ps.subscribed_at >= DATE_SUB(NOW(), INTERVAL ? DAY)';
+    params.push(days);
   }
 
-  if (criteria.os && criteria.os.length > 0) {
-    query.os = { $in: criteria.os };
+  if (criteria.lastActivity) {
+    const days = parseInt(criteria.lastActivity);
+    where += ' AND ps.last_seen >= DATE_SUB(NOW(), INTERVAL ? DAY)';
+    params.push(days);
   }
 
-  if (criteria.devices && criteria.devices.length > 0) {
-    query.device = { $in: criteria.devices };
+  if (criteria.deviceType && criteria.deviceType.length > 0) {
+    where += ` AND ps.device IN (${criteria.deviceType.map(() => '?').join(',')})`;
+    params.push(...criteria.deviceType);
   }
 
-  if (criteria.engagementScore) {
-    if (criteria.engagementScore.min !== undefined) {
-      query.engagement_score = query.engagement_score || {};
-      query.engagement_score.$gte = criteria.engagementScore.min;
-    }
-    if (criteria.engagementScore.max !== undefined) {
-      query.engagement_score = query.engagement_score || {};
-      query.engagement_score.$lte = criteria.engagementScore.max;
-    }
-  }
-
-  if (criteria.dateRange) {
-    if (criteria.dateRange.start) {
-      query.created_at = query.created_at || {};
-      query.created_at.$gte = criteria.dateRange.start;
-    }
-    if (criteria.dateRange.end) {
-      query.created_at = query.created_at || {};
-      query.created_at.$lte = criteria.dateRange.end;
-    }
-  }
-
-  return query;
-}
-
-// Analyze criteria to provide UI insights
-function analyzeCriteria(criteria) {
-  const counts = {
-    location: 0,
-    device: 0,
-    behavior: 0,
-    time: 0,
-    advanced: 0
-  };
-
-  // Count location filters
-  if (criteria.countries?.length) counts.location++;
-  if (criteria.cities?.length) counts.location++;
-  if (criteria.regions?.length) counts.location++;
-  if (criteria.timezone) counts.location++;
-
-  // Count device filters
-  if (criteria.browsers?.length) counts.device++;
-  if (criteria.os?.length) counts.device++;
-  if (criteria.devices?.length) counts.device++;
-
-  // Count behavior filters
-  if (criteria.engagementScore && (criteria.engagementScore.min > 0 || criteria.engagementScore.max < 100)) {
-    counts.behavior++;
-  }
-  if (criteria.lastSeen) counts.behavior++;
-  if (criteria.notificationOpens && (criteria.notificationOpens.min > 0 || criteria.notificationOpens.max < 1000)) {
-    counts.behavior++;
-  }
-  if (criteria.notificationClicks && (criteria.notificationClicks.min > 0 || criteria.notificationClicks.max < 1000)) {
-    counts.behavior++;
-  }
-  if (criteria.subscriptionDate && (criteria.subscriptionDate.start || criteria.subscriptionDate.end)) {
-    counts.behavior++;
-  }
-
-  // Count time filters
-  if (criteria.activeHours && (criteria.activeHours.start !== 9 || criteria.activeHours.end !== 17)) {
-    counts.time++;
-  }
-  if (criteria.weekdays && criteria.weekdays.length < 7) counts.time++;
-
-  // Count advanced filters
-  if (criteria.customTags?.length) counts.advanced++;
-  if (criteria.abTestParticipant) counts.advanced++;
-  if (criteria.highValueUser) counts.advanced++;
-  if (criteria.recentlyActive) counts.advanced++;
-
-  return counts;
+  return { where, params };
 }
 
 module.exports = router;

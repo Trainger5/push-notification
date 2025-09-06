@@ -1,5 +1,6 @@
 const express = require('express');
-const { getDatastores } = require('../storage/datastores');
+const { v4: uuidv4 } = require('uuid');
+const { query } = require('../config/database');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -9,364 +10,323 @@ const router = express.Router();
 
 router.post('/open', async (req, res) => {
   try {
-    const { metrics } = getDatastores();
     const cid = req.query && req.query.cid ? String(req.query.cid) : null;
     const abTestId = req.query && req.query.abtestId ? String(req.query.abtestId) : null;
     const variantId = req.query && req.query.variantId ? String(req.query.variantId) : null;
+    const campaignId = req.query && req.query.campaignId ? String(req.query.campaignId) : null;
     
-    const metricData = { 
-      event_type: 'opened', 
-      customer_id: cid, 
-      timestamp: new Date() 
-    };
-    
-    if (abTestId) metricData.ab_test_id = abTestId;
-    if (variantId) metricData.event_data = { variant_id: variantId };
-    
-    await metrics.insert(metricData);
-  } catch (_) {}
+    if (cid) {
+      const metricId = uuidv4();
+      const eventData = variantId ? JSON.stringify({ variant_id: variantId }) : null;
+      
+      await query(`
+        INSERT INTO metrics (id, customer_id, event_type, ab_test_id, campaign_id, event_data, created_at)
+        VALUES (?, ?, 'opened', ?, ?, ?, ?)
+      `, [metricId, cid, abTestId, campaignId, eventData, new Date()]);
+    }
+  } catch (error) {
+    console.error('Metrics open error:', error);
+  }
   res.status(204).end();
 });
 
 router.post('/click', async (req, res) => {
   try {
-    const { metrics } = getDatastores();
     const cid = req.query && req.query.cid ? String(req.query.cid) : null;
     const abTestId = req.query && req.query.abtestId ? String(req.query.abtestId) : null;
     const variantId = req.query && req.query.variantId ? String(req.query.variantId) : null;
-    const action = req.query && req.query.action ? String(req.query.action) : 'default';
+    const campaignId = req.query && req.query.campaignId ? String(req.query.campaignId) : null;
     
-    const metricData = { 
-      event_type: 'clicked', 
-      customer_id: cid, 
-      timestamp: new Date(),
-      event_data: { action: action }
-    };
-    
-    if (abTestId) metricData.ab_test_id = abTestId;
-    if (variantId) metricData.event_data = { ...metricData.event_data, variant_id: variantId };
-    
-    // Parse request body for additional data
-    if (req.body && typeof req.body === 'object') {
-      if (req.body.customData) metricData.event_data = { ...metricData.event_data, custom_data: req.body.customData };
-      if (req.body.timestamp) metricData.event_data = { ...metricData.event_data, client_timestamp: req.body.timestamp };
+    if (cid) {
+      const metricId = uuidv4();
+      const eventData = variantId ? JSON.stringify({ variant_id: variantId }) : null;
+      
+      await query(`
+        INSERT INTO metrics (id, customer_id, event_type, ab_test_id, campaign_id, event_data, created_at)
+        VALUES (?, ?, 'clicked', ?, ?, ?, ?)
+      `, [metricId, cid, abTestId, campaignId, eventData, new Date()]);
     }
-    
-    await metrics.insert(metricData);
-  } catch (_) {}
+  } catch (error) {
+    console.error('Metrics click error:', error);
+  }
   res.status(204).end();
 });
 
-router.post('/dismiss', async (req, res) => {
+router.post('/conversion', async (req, res) => {
   try {
-    const { metrics } = getDatastores();
     const cid = req.query && req.query.cid ? String(req.query.cid) : null;
     const abTestId = req.query && req.query.abtestId ? String(req.query.abtestId) : null;
     const variantId = req.query && req.query.variantId ? String(req.query.variantId) : null;
+    const campaignId = req.query && req.query.campaignId ? String(req.query.campaignId) : null;
+    const conversionValue = req.body && req.body.value ? parseFloat(req.body.value) : null;
     
-    const metricData = { 
-      event_type: 'closed', 
-      customer_id: cid, 
-      timestamp: new Date() 
-    };
-    
-    if (abTestId) metricData.ab_test_id = abTestId;
-    if (variantId) metricData.event_data = { variant_id: variantId };
-    
-    // Parse request body for additional data
-    if (req.body && typeof req.body === 'object') {
-      if (req.body.timestamp) metricData.event_data = { ...metricData.event_data, client_timestamp: req.body.timestamp };
+    if (cid) {
+      const metricId = uuidv4();
+      const eventData = JSON.stringify({ 
+        variant_id: variantId,
+        conversion_value: conversionValue
+      });
+      
+      await query(`
+        INSERT INTO metrics (id, customer_id, event_type, ab_test_id, campaign_id, event_data, created_at)
+        VALUES (?, ?, 'conversion', ?, ?, ?, ?)
+      `, [metricId, cid, abTestId, campaignId, eventData, new Date()]);
     }
-    
-    await metrics.insert(metricData);
-  } catch (_) {}
+  } catch (error) {
+    console.error('Metrics conversion error:', error);
+  }
   res.status(204).end();
 });
 
-// Customer analytics endpoints
-router.use('/analytics', requireAuth, requireRole('customer'));
-
-// Get dashboard overview metrics
-router.get('/analytics/overview', async (req, res) => {
+// Get metrics for authenticated customer
+router.get('/dashboard', requireAuth, requireRole('customer'), async (req, res) => {
   try {
-    const { customers, subscriptions, notifications, metrics } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
-    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
 
     const customer_id = customer.id;
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const { period = '30' } = req.query;
 
-    // Get subscriber count and growth
-    const totalSubscribers = await subscriptions.count({ customer_id: customer_id });
-    const newSubscribers7d = await subscriptions.count({ 
-      customer_id: customer_id, 
-      created_at: { $gte: sevenDaysAgo }
-    });
-    const newSubscribers30d = await subscriptions.count({ 
-      customer_id: customer_id, 
-      created_at: { $gte: thirtyDaysAgo }
-    });
+    // Get basic metrics
+    const [totalSubscribers] = await query('SELECT COUNT(*) as count FROM push_subscriptions WHERE customer_id = ?', [customer_id]);
 
-    // Get notification stats
-    const totalNotifications = await notifications.count({ customer_id: customer_id });
-    const notifications7d = await notifications.count({ 
-      customer_id: customer_id, 
-      created_at: { $gte: sevenDaysAgo }
-    });
-    const notifications30d = await notifications.count({ 
-      customer_id: customer_id, 
-      created_at: { $gte: thirtyDaysAgo }
-    });
+    const [activeSubscribers] = await query(`
+      SELECT COUNT(*) as count FROM push_subscriptions 
+      WHERE customer_id = ? AND status = 'active'
+    `, [customer_id]);
+
+    const [recentSubscribers] = await query(`
+      SELECT COUNT(*) as count FROM push_subscriptions 
+      WHERE customer_id = ? AND subscribed_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    `, [customer_id, period]);
+
+    // Get notification metrics
+    const [totalNotifications] = await query('SELECT COUNT(*) as count FROM notifications WHERE customer_id = ?', [customer_id]);
+
+    const [recentNotifications] = await query(`
+      SELECT COUNT(*) as count FROM notifications 
+      WHERE customer_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    `, [customer_id, period]);
 
     // Get engagement metrics
-    const totalOpens = await metrics.count({ customer_id: customer_id, event_type: 'opened' });
-    const totalClicks = await metrics.count({ customer_id: customer_id, event_type: 'clicked' });
-    const opens7d = await metrics.count({ 
-      customer_id: customer_id, 
-      event_type: 'opened', 
-      timestamp: { $gte: sevenDaysAgo }
-    });
-    const clicks7d = await metrics.count({ 
-      customer_id: customer_id, 
-      event_type: 'clicked', 
-      timestamp: { $gte: sevenDaysAgo }
-    });
+    const [totalOpens] = await query('SELECT COUNT(*) as count FROM metrics WHERE customer_id = ? AND event_type = "opened"', [customer_id]);
+    const [totalClicks] = await query('SELECT COUNT(*) as count FROM metrics WHERE customer_id = ? AND event_type = "clicked"', [customer_id]);
 
-    // Calculate delivery stats from notifications
-    const allNotifications = await notifications.find({ customer_id: customer_id });
-    const totalSent = allNotifications.reduce((sum, n) => sum + (n.success || 0), 0);
-    const totalFailed = allNotifications.reduce((sum, n) => sum + (n.failed || 0), 0);
-    const deliveryRate = totalSent + totalFailed > 0 ? ((totalSent / (totalSent + totalFailed)) * 100).toFixed(1) : 0;
-    const openRate = totalSent > 0 ? ((totalOpens / totalSent) * 100).toFixed(1) : 0;
-    const clickRate = totalOpens > 0 ? ((totalClicks / totalOpens) * 100).toFixed(1) : 0;
+    const [recentOpens] = await query(`
+      SELECT COUNT(*) as count FROM metrics 
+      WHERE customer_id = ? AND event_type = 'opened' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    `, [customer_id, period]);
+
+    const [recentClicks] = await query(`
+      SELECT COUNT(*) as count FROM metrics 
+      WHERE customer_id = ? AND event_type = 'clicked' AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+    `, [customer_id, period]);
+
+    // Get recent notification performance
+    const [allNotifications] = await query('SELECT * FROM notifications WHERE customer_id = ?', [customer_id]);
+
+    const notificationMetrics = allNotifications.map(notification => {
+      const opens = totalOpens[0].count;
+      const clicks = totalClicks[0].count;
+      const sent = notification.sent_count || 0;
+      
+      return {
+        id: notification.id,
+        title: notification.title,
+        sent_count: sent,
+        open_count: opens,
+        click_count: clicks,
+        open_rate: sent > 0 ? Math.round((opens / sent) * 100) : 0,
+        click_rate: sent > 0 ? Math.round((clicks / sent) * 100) : 0,
+        created_at: notification.created_at
+      };
+    });
 
     res.json({
+      period: parseInt(period),
       subscribers: {
-        total: totalSubscribers,
-        new7d: newSubscribers7d,
-        new30d: newSubscribers30d
+        total: totalSubscribers[0].count,
+        active: activeSubscribers[0].count,
+        recent: recentSubscribers[0].count
       },
       notifications: {
-        total: totalNotifications,
-        sent7d: notifications7d,
-        sent30d: notifications30d
+        total: totalNotifications[0].count,
+        recent: recentNotifications[0].count
       },
       engagement: {
-        totalOpens,
-        totalClicks,
-        opens7d,
-        clicks7d,
-        deliveryRate: parseFloat(deliveryRate),
-        openRate: parseFloat(openRate),
-        clickRate: parseFloat(clickRate)
+        total_opens: totalOpens[0].count,
+        total_clicks: totalClicks[0].count,
+        recent_opens: recentOpens[0].count,
+        recent_clicks: recentClicks[0].count
       },
-      delivery: {
-        sent: totalSent,
-        failed: totalFailed,
-        rate: parseFloat(deliveryRate)
-      }
+      notification_metrics: notificationMetrics.slice(-10) // Last 10 notifications
     });
+
   } catch (error) {
-    console.error('Analytics overview error:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics' });
+    console.error('Dashboard metrics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get time-series data for charts
-router.get('/analytics/timeseries', async (req, res) => {
+// Get detailed analytics
+router.get('/analytics', requireAuth, requireRole('customer'), async (req, res) => {
   try {
-    const { customers, notifications, metrics } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
-    if (!customer) return res.status(404).json({ error: 'Customer not found' });
-
-    const customer_id = customer.id;
-    const days = parseInt(req.query.days) || 30;
-    const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-
-    // Get daily notification counts
-    const dailyNotifications = await notifications.find({ 
-      customer_id: customer_id, 
-      created_at: { $gte: startDate }
-    });
-
-    // Get daily engagement metrics
-    const dailyMetrics = await metrics.find({ 
-      customer_id: customer_id, 
-      timestamp: { $gte: startDate }
-    });
-
-    // Group by date
-    const dateMap = new Map();
-    
-    // Initialize all dates with zero values
-    for (let i = 0; i < days; i++) {
-      const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
-      const dateStr = date.toISOString().split('T')[0];
-      dateMap.set(dateStr, {
-        date: dateStr,
-        notifications: 0,
-        sent: 0,
-        failed: 0,
-        opens: 0,
-        clicks: 0
-      });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
     }
 
-    // Aggregate notifications
-    dailyNotifications.forEach(notif => {
-      const date = notif.created_at ? new Date(notif.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-      if (dateMap.has(date)) {
-        const day = dateMap.get(date);
-        day.notifications++;
-        day.sent += notif.success || 0;
-        day.failed += notif.failed || 0;
-      }
+    const customer_id = customer.id;
+    const { start_date, end_date } = req.query;
+
+    let dateFilter = '';
+    let params = [customer_id];
+
+    if (start_date && end_date) {
+      dateFilter = ' AND created_at BETWEEN ? AND ?';
+      params.push(start_date, end_date);
+    }
+
+    // Get time series data for opens and clicks
+    const [opensSeries] = await query(`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM metrics 
+      WHERE customer_id = ? AND event_type = 'opened'${dateFilter}
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+      LIMIT 30
+    `, params);
+
+    const [clicksSeries] = await query(`
+      SELECT DATE(created_at) as date, COUNT(*) as count
+      FROM metrics 
+      WHERE customer_id = ? AND event_type = 'clicked'${dateFilter}
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+      LIMIT 30
+    `, params);
+
+    res.json({
+      opens_series: opensSeries,
+      clicks_series: clicksSeries
     });
 
-    // Aggregate metrics
-    dailyMetrics.forEach(metric => {
-      const date = metric.timestamp ? new Date(metric.timestamp).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-      if (dateMap.has(date)) {
-        const day = dateMap.get(date);
-        if (metric.event_type === 'opened') day.opens++;
-        if (metric.event_type === 'clicked') day.clicks++;
-      }
-    });
-
-    const timeseries = Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
-
-    res.json(timeseries);
   } catch (error) {
-    console.error('Timeseries error:', error);
-    res.status(500).json({ error: 'Failed to fetch timeseries data' });
+    console.error('Analytics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get subscriber demographics
-router.get('/analytics/demographics', async (req, res) => {
+// Get subscriber analytics
+router.get('/subscribers', requireAuth, requireRole('customer'), async (req, res) => {
   try {
-    const { customers, subscriptions } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
-    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
 
     const customer_id = customer.id;
-    const subs = await subscriptions.find({ customer_id: customer_id });
+    const [subs] = await query('SELECT * FROM push_subscriptions WHERE customer_id = ?', [customer_id]);
 
-    // Analyze browser/platform/device/country distribution
+    // Analyze subscriber data
     const browserStats = {};
-    const platformStats = {};
-    const deviceStats = {};
     const countryStats = {};
-    const cityStats = {};
+    const deviceStats = {};
     
     subs.forEach(sub => {
-      // Browser stats (use stored data if available)
-      const browser = sub.browser || (sub.userAgent ? detectBrowser(sub.userAgent) : 'Other');
-      browserStats[browser] = (browserStats[browser] || 0) + 1;
+      // Browser analysis
+      if (sub.user_agent) {
+        const browser = sub.user_agent.includes('Chrome') ? 'Chrome' :
+                       sub.user_agent.includes('Firefox') ? 'Firefox' :
+                       sub.user_agent.includes('Safari') ? 'Safari' :
+                       sub.user_agent.includes('Edge') ? 'Edge' : 'Other';
+        browserStats[browser] = (browserStats[browser] || 0) + 1;
+      }
       
-      // Platform/OS stats
-      const platform = sub.os || (sub.userAgent ? detectPlatform(sub.userAgent) : 'Other');
-      platformStats[platform] = (platformStats[platform] || 0) + 1;
-      
-      // Device stats
-      const device = sub.device || 'Unknown';
-      deviceStats[device] = (deviceStats[device] || 0) + 1;
-      
-      // Location stats
+      // Country analysis (from customer data)
       if (sub.country) {
         countryStats[sub.country] = (countryStats[sub.country] || 0) + 1;
       }
-      if (sub.city) {
-        cityStats[sub.city] = (cityStats[sub.city] || 0) + 1;
+      
+      // Device analysis
+      if (sub.device) {
+        deviceStats[sub.device] = (deviceStats[sub.device] || 0) + 1;
       }
     });
 
-    function detectBrowser(ua) {
-      if (ua.includes('Chrome')) return 'Chrome';
-      if (ua.includes('Firefox')) return 'Firefox';
-      if (ua.includes('Safari')) return 'Safari';
-      if (ua.includes('Edge')) return 'Edge';
-      return 'Other';
-    }
-
-    function detectPlatform(ua) {
-      if (ua.includes('Windows')) return 'Windows';
-      if (ua.includes('Mac')) return 'macOS';
-      if (ua.includes('Linux')) return 'Linux';
-      if (ua.includes('Android')) return 'Android';
-      if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS';
-      return 'Other';
-    }
-
-    // Convert to array format for charts
-    const browsers = Object.entries(browserStats).map(([name, value]) => ({ name, value }));
-    const platforms = Object.entries(platformStats).map(([name, value]) => ({ name, value }));
-    const devices = Object.entries(deviceStats).map(([name, value]) => ({ name, value }));
-    const countries = Object.entries(countryStats)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name, value]) => ({ name, value }));
-    const cities = Object.entries(cityStats)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name, value]) => ({ name, value }));
+    // Growth over time
+    const [growthData] = await query(`
+      SELECT DATE(subscribed_at) as date, COUNT(*) as count
+      FROM push_subscriptions 
+      WHERE customer_id = ?
+      GROUP BY DATE(subscribed_at)
+      ORDER BY date DESC
+      LIMIT 30
+    `, [customer_id]);
 
     res.json({
-      browsers,
-      platforms,
-      devices,
-      countries,
-      cities,
-      totalSubscribers: subs.length,
-      tenant: customer.name // Include tenant info
+      total_subscribers: subs.length,
+      browser_stats: browserStats,
+      country_stats: countryStats,
+      device_stats: deviceStats,
+      growth_data: growthData
     });
+
   } catch (error) {
-    console.error('Demographics error:', error);
-    res.status(500).json({ error: 'Failed to fetch demographics' });
+    console.error('Subscriber analytics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get recent activity
-router.get('/analytics/activity', async (req, res) => {
+// Get real-time metrics
+router.get('/realtime', requireAuth, requireRole('customer'), async (req, res) => {
   try {
-    const { customers, notifications, subscriptions, metrics } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
-    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
 
     const customer_id = customer.id;
-    const limit = parseInt(req.query.limit) || 20;
 
-    // Get recent notifications
-    const recentNotifications = await notifications.find({ customer_id: customer_id }, {
-      sort: { created_at: -1 },
-      limit: limit
-    });
+    // Get recent activity (last hour)
+    const [recentNotifications] = await query(`
+      SELECT * FROM notifications 
+      WHERE customer_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+      ORDER BY created_at DESC
+    `, [customer_id]);
 
-    // Get recent subscriptions
-    const recentSubscriptions = await subscriptions.find({ customer_id: customer_id }, {
-      sort: { created_at: -1 },
-      limit: 10
-    });
+    const [recentSubscriptions] = await query(`
+      SELECT * FROM push_subscriptions 
+      WHERE customer_id = ? AND subscribed_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+      ORDER BY subscribed_at DESC
+    `, [customer_id]);
 
-    // Get recent engagement
-    const recentEngagement = await metrics.find({ customer_id: customer_id }, {
-      sort: { timestamp: -1 },
-      limit: 20
-    });
+    const [recentEngagement] = await query(`
+      SELECT * FROM metrics 
+      WHERE customer_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
+      ORDER BY created_at DESC
+    `, [customer_id]);
 
     res.json({
-      notifications: recentNotifications,
-      subscriptions: recentSubscriptions,
-      engagement: recentEngagement
+      recent_notifications: recentNotifications,
+      recent_subscriptions: recentSubscriptions,
+      recent_engagement: recentEngagement
     });
+
   } catch (error) {
-    console.error('Activity error:', error);
-    res.status(500).json({ error: 'Failed to fetch recent activity' });
+    console.error('Real-time metrics error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 module.exports = router;
-
-

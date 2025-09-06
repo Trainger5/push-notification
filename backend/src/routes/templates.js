@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { v4: uuidv4 } = require('uuid');
-const { getDatastores } = require('../storage/datastores');
+const { query } = require('../config/database');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
@@ -30,133 +30,163 @@ router.post(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { customers, notificationTemplates } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.user_id });
+      // Get customer
+      const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+      const customer = customers[0];
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
       // Check if template name already exists for this customer
-      const existingTemplate = await notificationTemplates.findOne({
-        customer_id: customer.id,
-        name: req.body.name
-      });
+      const [existingTemplates] = await query(
+        'SELECT id FROM notification_templates WHERE customer_id = ? AND name = ?',
+        [customer.id, req.body.name]
+      );
       
-      if (existingTemplate) {
+      if (existingTemplates.length > 0) {
         return res.status(409).json({ error: 'Template with this name already exists' });
       }
 
+      const templateId = uuidv4();
       const template = {
+        id: templateId,
         customer_id: customer.id,
         name: req.body.name,
-        description: req.body.description || '',
+        description: req.body.description || null,
+        category: req.body.category || 'general',
         title: req.body.title,
         body: req.body.body,
-        url: req.body.url,
-        icon: req.body.icon,
-        badge: req.body.badge,
-        image: req.body.image,
-        tag: req.body.tag,
-        category: req.body.category || 'general',
-        variables: req.body.variables || [], // Array of variable names like ['userName', 'productName']
-        actions: req.body.actions || [],
-        usageCount: 0,
-        isActive: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        created_by: req.user.user_id
+        url: req.body.url || null,
+        icon_url: req.body.icon || null,
+        badge_url: req.body.badge || null,
+        image_url: req.body.image || null,
+        tag: req.body.tag || null,
+        actions: req.body.actions ? JSON.stringify(req.body.actions) : null,
+        custom_data: req.body.variables ? JSON.stringify({ variables: req.body.variables }) : null,
+        status: 'active',
+        created_by: req.user.user_id,
+        created_at: new Date(),
+        updated_at: new Date()
       };
 
-      const newTemplate = await notificationTemplates.insert(template);
-      
-      res.status(201).json({
-        template: newTemplate,
-        message: 'Template created successfully'
-      });
+      await query(`
+        INSERT INTO notification_templates 
+        (id, customer_id, name, description, category, title, body, url, icon_url, badge_url, image_url, tag, actions, custom_data, status, created_by, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [
+        template.id, template.customer_id, template.name, template.description, 
+        template.category, template.title, template.body, template.url, 
+        template.icon_url, template.badge_url, template.image_url, template.tag,
+        template.actions, template.custom_data, template.status, template.created_by,
+        template.created_at, template.updated_at
+      ]);
+
+      res.status(201).json({ message: 'Template created successfully', template });
     } catch (error) {
-      console.error('Create template error:', error);
-      res.status(500).json({ error: 'Failed to create template' });
+      console.error('Template creation error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
 
-// Get all templates for customer
+// Get all templates for the customer
 router.get('/list', async (req, res) => {
   try {
-    const { customers, notificationTemplates } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    const { category, search, active } = req.query;
+
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const category = req.query.category;
-    const search = req.query.search;
-    const active = req.query.active;
-
-    let query = { customer_id: customer.id };
+    let sqlQuery = 'SELECT * FROM notification_templates WHERE customer_id = ?';
+    let params = [customer.id];
     
     if (category) {
-      query.category = category;
+      sqlQuery += ' AND category = ?';
+      params.push(category);
     }
     
     if (active !== undefined) {
-      query.isActive = active === 'true';
+      const status = active === 'true' ? 'active' : 'inactive';
+      sqlQuery += ' AND status = ?';
+      params.push(status);
     }
 
-    let templates = await notificationTemplates.find(query, { sort: { updated_at: -1 } });
-
-    // Apply search filter if provided
     if (search) {
-      const searchLower = search.toLowerCase();
-      templates = templates.filter(template => 
-        template.name.toLowerCase().includes(searchLower) ||
-        template.description.toLowerCase().includes(searchLower) ||
-        template.title.toLowerCase().includes(searchLower) ||
-        template.body.toLowerCase().includes(searchLower)
-      );
+      sqlQuery += ' AND (name LIKE ? OR description LIKE ? OR title LIKE ? OR body LIKE ?)';
+      const searchTerm = `%${search}%`;
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
+
+    sqlQuery += ' ORDER BY updated_at DESC';
+
+    const [templates] = await query(sqlQuery, params);
 
     // Get unique categories
-    const allTemplates = await notificationTemplates.find({ customer_id: customer.id });
-    const categories = [...new Set(allTemplates.map(t => t.category))].filter(Boolean);
+    const [categoryResults] = await query(
+      'SELECT DISTINCT category FROM notification_templates WHERE customer_id = ? AND category IS NOT NULL',
+      [customer.id]
+    );
+    const categories = categoryResults.map(row => row.category);
+
+    // Parse JSON fields
+    const processedTemplates = templates.map(template => ({
+      ...template,
+      actions: template.actions ? JSON.parse(template.actions) : null,
+      custom_data: template.custom_data ? JSON.parse(template.custom_data) : null,
+      variables: template.custom_data ? JSON.parse(template.custom_data)?.variables : null
+    }));
 
     res.json({
-      templates,
+      templates: processedTemplates,
       categories,
       total: templates.length
     });
   } catch (error) {
-    console.error('Get templates error:', error);
-    res.status(500).json({ error: 'Failed to retrieve templates' });
+    console.error('Template list error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get specific template
+// Get a specific template
 router.get('/:id', async (req, res) => {
   try {
-    const { customers, notificationTemplates } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const template = await notificationTemplates.findOne({
-      id: req.params.id,
-      customer_id: customer.id
-    });
+    const [templates] = await query(
+      'SELECT * FROM notification_templates WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
 
+    const template = templates[0];
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    res.json(template);
+    // Parse JSON fields
+    const processedTemplate = {
+      ...template,
+      actions: template.actions ? JSON.parse(template.actions) : null,
+      custom_data: template.custom_data ? JSON.parse(template.custom_data) : null,
+      variables: template.custom_data ? JSON.parse(template.custom_data)?.variables : null
+    };
+
+    res.json({ template: processedTemplate });
   } catch (error) {
-    console.error('Get template error:', error);
-    res.status(500).json({ error: 'Failed to retrieve template' });
+    console.error('Template get error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Update template
+// Update a template
 router.put(
   '/:id',
   body('name').optional().isString().notEmpty().isLength({ min: 1, max: 100 }),
@@ -171,7 +201,7 @@ router.put(
   body('category').optional().isString().isLength({ max: 50 }),
   body('variables').optional().isArray(),
   body('actions').optional().isArray(),
-  body('isActive').optional().isBoolean(),
+  body('status').optional().isIn(['active', 'inactive', 'archived']),
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -179,308 +209,232 @@ router.put(
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { customers, notificationTemplates } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.user_id });
+      // Get customer
+      const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+      const customer = customers[0];
       if (!customer) {
         return res.status(404).json({ error: 'Customer not found' });
       }
 
-      const template = await notificationTemplates.findOne({
-        id: req.params.id,
-        customer_id: customer.id
-      });
+      // Check if template exists
+      const [templates] = await query(
+        'SELECT * FROM notification_templates WHERE id = ? AND customer_id = ?',
+        [req.params.id, customer.id]
+      );
 
+      const template = templates[0];
       if (!template) {
         return res.status(404).json({ error: 'Template not found' });
       }
 
-      // If name is being changed, check for conflicts
+      // Check name uniqueness if name is being updated
       if (req.body.name && req.body.name !== template.name) {
-        const existingTemplate = await notificationTemplates.findOne({
-          customer_id: customer.id,
-          name: req.body.name,
-          id: { $ne: req.params.id }
-        });
+        const [existingTemplates] = await query(
+          'SELECT id FROM notification_templates WHERE customer_id = ? AND name = ? AND id != ?',
+          [customer.id, req.body.name, req.params.id]
+        );
         
-        if (existingTemplate) {
+        if (existingTemplates.length > 0) {
           return res.status(409).json({ error: 'Template with this name already exists' });
         }
       }
 
-      const updates = {
-        ...req.body,
-        updated_at: new Date().toISOString()
-      };
+      // Build update query
+      const updates = [];
+      const params = [];
+      
+      if (req.body.name !== undefined) { updates.push('name = ?'); params.push(req.body.name); }
+      if (req.body.description !== undefined) { updates.push('description = ?'); params.push(req.body.description); }
+      if (req.body.category !== undefined) { updates.push('category = ?'); params.push(req.body.category); }
+      if (req.body.title !== undefined) { updates.push('title = ?'); params.push(req.body.title); }
+      if (req.body.body !== undefined) { updates.push('body = ?'); params.push(req.body.body); }
+      if (req.body.url !== undefined) { updates.push('url = ?'); params.push(req.body.url); }
+      if (req.body.icon !== undefined) { updates.push('icon_url = ?'); params.push(req.body.icon); }
+      if (req.body.badge !== undefined) { updates.push('badge_url = ?'); params.push(req.body.badge); }
+      if (req.body.image !== undefined) { updates.push('image_url = ?'); params.push(req.body.image); }
+      if (req.body.tag !== undefined) { updates.push('tag = ?'); params.push(req.body.tag); }
+      if (req.body.status !== undefined) { updates.push('status = ?'); params.push(req.body.status); }
+      
+      if (req.body.actions !== undefined) { 
+        updates.push('actions = ?'); 
+        params.push(req.body.actions ? JSON.stringify(req.body.actions) : null); 
+      }
+      
+      if (req.body.variables !== undefined) { 
+        updates.push('custom_data = ?'); 
+        params.push(req.body.variables ? JSON.stringify({ variables: req.body.variables }) : null); 
+      }
 
-      await notificationTemplates.update(
-        { id: req.params.id },
-        { $set: updates }
-      );
+      updates.push('updated_at = ?');
+      params.push(new Date());
+      
+      params.push(req.params.id, customer.id);
 
-      const updatedTemplate = await notificationTemplates.findOne({ id: req.params.id });
+      await query(`
+        UPDATE notification_templates 
+        SET ${updates.join(', ')} 
+        WHERE id = ? AND customer_id = ?
+      `, params);
 
-      res.json({
-        template: updatedTemplate,
-        message: 'Template updated successfully'
-      });
+      res.json({ message: 'Template updated successfully' });
     } catch (error) {
-      console.error('Update template error:', error);
-      res.status(500).json({ error: 'Failed to update template' });
+      console.error('Template update error:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
 
-// Delete template
+// Delete a template
 router.delete('/:id', async (req, res) => {
   try {
-    const { customers, notificationTemplates } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const template = await notificationTemplates.findOne({
-      id: req.params.id,
-      customer_id: customer.id
-    });
+    // Check if template exists
+    const [templates] = await query(
+      'SELECT id FROM notification_templates WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
 
-    if (!template) {
+    if (templates.length === 0) {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    await notificationTemplates.remove({ id: req.params.id });
+    await query(
+      'DELETE FROM notification_templates WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
 
-    res.json({
-      message: 'Template deleted successfully'
-    });
+    res.json({ message: 'Template deleted successfully' });
   } catch (error) {
-    console.error('Delete template error:', error);
-    res.status(500).json({ error: 'Failed to delete template' });
+    console.error('Template delete error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Use template to send notification
-router.post(
-  '/:id/send',
-  body('variables').optional().isObject(),
-  body('scheduledFor').optional().isISO8601().toDate(),
-  body('timezone').optional().isString(),
-  async (req, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const { customers, notificationTemplates } = getDatastores();
-      const customer = await customers.findOne({ user_id: req.user.user_id });
-      if (!customer) {
-        return res.status(404).json({ error: 'Customer not found' });
-      }
-
-      const template = await notificationTemplates.findOne({
-        id: req.params.id,
-        customer_id: customer.id,
-        isActive: true
-      });
-
-      if (!template) {
-        return res.status(404).json({ error: 'Template not found or inactive' });
-      }
-
-      // Process template variables
-      const variables = req.body.variables || {};
-      let processedTitle = template.title;
-      let processedBody = template.body;
-      let processedUrl = template.url;
-
-      // Replace variables in template (simple string replacement)
-      if (template.variables && template.variables.length > 0) {
-        template.variables.forEach(varName => {
-          const value = variables[varName] || `{{${varName}}}`;
-          const regex = new RegExp(`{{${varName}}}`, 'g');
-          processedTitle = processedTitle.replace(regex, value);
-          processedBody = processedBody.replace(regex, value);
-          if (processedUrl) {
-            processedUrl = processedUrl.replace(regex, value);
-          }
-        });
-      }
-
-      // Prepare notification data
-      const notificationData = {
-        title: processedTitle,
-        body: processedBody,
-        url: processedUrl,
-        icon: template.icon,
-        badge: template.badge,
-        image: template.image,
-        tag: template.tag,
-        actions: template.actions,
-        templateId: template.id,
-        templateName: template.name
-      };
-
-      // If scheduled, use scheduler
-      if (req.body.scheduledFor) {
-        const { getScheduler } = require('../services/scheduler');
-        const scheduler = getScheduler();
-        
-        const scheduledNotification = await scheduler.scheduleNotification({
-          customer_id: customer.id,
-          ...notificationData,
-          scheduledFor: new Date(req.body.scheduledFor).toISOString(),
-          timezone: req.body.timezone || 'UTC',
-          created_by: req.user.user_id
-        });
-
-        // Increment usage count
-        await notificationTemplates.update(
-          { id: template.id },
-          { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date().toISOString() } }
-        );
-
-        res.json({
-          scheduled: true,
-          scheduledNotificationId: scheduledNotification.id,
-          message: 'Notification scheduled successfully using template'
-        });
-      } else {
-        // Send immediately using existing customer notify endpoint logic
-        const webpush = require('web-push');
-        const { subscriptions, pushSettings, notifications } = getDatastores();
-
-        const settings = await pushSettings.findOne({ customer_id: customer.id });
-        if (!settings) {
-          return res.status(400).json({ error: 'Push settings not found' });
-        }
-
-        const subs = await subscriptions.find({ customer_id: customer.id });
-        if (subs.length === 0) {
-          return res.status(400).json({ error: 'No subscribers found' });
-        }
-
-        // Configure web-push
-        webpush.setVapidDetails(
-          settings.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
-          settings.vapid_public_key || process.env.VAPID_PUBLIC_KEY,
-          settings.vapid_private_key || process.env.VAPID_PRIVATE_KEY
-        );
-
-        const payload = {
-          title: processedTitle,
-          body: processedBody,
-          url: processedUrl,
-          icon: notificationData.icon || settings.iconUrl,
-          badge: notificationData.badge || settings.badgeUrl,
-          image: notificationData.image,
-          tag: notificationData.tag,
-          data: { templateId: template.id, templateName: template.name }
-        };
-
-        if (notificationData.actions) {
-          payload.actions = notificationData.actions;
-        }
-
-        // Send to all subscribers
-        let sent = 0;
-        let failed = 0;
-
-        for (const sub of subs) {
-          try {
-            const pushSubscription = {
-              endpoint: sub.subscription.endpoint,
-              keys: {
-                p256dh: sub.subscription.keys.p256dh,
-                auth: sub.subscription.keys.auth
-              }
-            };
-
-            await webpush.sendNotification(pushSubscription, JSON.stringify(payload));
-            sent++;
-          } catch (error) {
-            failed++;
-            
-            // Remove invalid subscriptions
-            if (error.statusCode === 410 || error.statusCode === 404) {
-              await subscriptions.remove({ id: sub.id });
-            }
-          }
-        }
-
-        // Save notification record
-        await notifications.insert({
-          customer_id: customer.id,
-          title: processedTitle,
-          body: processedBody,
-          url: processedUrl,
-          success: sent,
-          failed: failed,
-          templateId: template.id,
-          templateName: template.name,
-          variables: variables,
-          created_at: new Date().toISOString()
-        });
-
-        // Increment usage count
-        await notificationTemplates.update(
-          { id: template.id },
-          { $inc: { usageCount: 1 }, $set: { lastUsedAt: new Date().toISOString() } }
-        );
-
-        res.json({
-          sent,
-          failed,
-          templateUsed: template.name,
-          message: 'Notification sent successfully using template'
-        });
-      }
-    } catch (error) {
-      console.error('Send template notification error:', error);
-      res.status(500).json({ error: 'Failed to send notification using template' });
-    }
-  }
-);
-
-// Duplicate template
-router.post('/:id/duplicate', async (req, res) => {
+// Send notification using template
+router.post('/:id/send', async (req, res) => {
   try {
-    const { customers, notificationTemplates } = getDatastores();
-    const customer = await customers.findOne({ user_id: req.user.user_id });
+    // Get customer
+    const [customers] = await query('SELECT * FROM customers WHERE user_id = ?', [req.user.user_id]);
+    const customer = customers[0];
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const template = await notificationTemplates.findOne({
-      id: req.params.id,
-      customer_id: customer.id
-    });
+    // Get template
+    const [templates] = await query(
+      'SELECT * FROM notification_templates WHERE id = ? AND customer_id = ?',
+      [req.params.id, customer.id]
+    );
 
+    const template = templates[0];
     if (!template) {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    // Create copy with modified name
-    const duplicatedTemplate = {
-      ...template,
-      name: `${template.name} (Copy)`,
-      usageCount: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      created_by: req.user.user_id
+    // Get push settings
+    const [settings] = await query('SELECT * FROM push_settings WHERE customer_id = ?', [customer.id]);
+    if (!settings || !settings[0]) {
+      return res.status(400).json({ error: 'Push notifications not configured' });
+    }
+
+    // Get active subscriptions
+    const [subscriptions] = await query(
+      'SELECT * FROM push_subscriptions WHERE customer_id = ? AND status = "active"',
+      [customer.id]
+    );
+
+    if (subscriptions.length === 0) {
+      return res.json({ sent: 0, failed: 0, message: 'No active subscriptions found' });
+    }
+
+    const webpush = require('web-push');
+    webpush.setVapidDetails(
+      settings[0].vapid_subject,
+      settings[0].vapid_public_key,
+      settings[0].vapid_private_key
+    );
+
+    // Parse template data and apply variables if provided
+    let title = template.title;
+    let body = template.body;
+    let url = template.url;
+
+    // Apply variable substitution if variables provided
+    if (req.body.variables && template.custom_data) {
+      const templateData = JSON.parse(template.custom_data);
+      if (templateData.variables) {
+        Object.keys(req.body.variables).forEach(key => {
+          const value = req.body.variables[key];
+          title = title.replace(new RegExp(`{{${key}}}`, 'g'), value);
+          body = body.replace(new RegExp(`{{${key}}}`, 'g'), value);
+          if (url) url = url.replace(new RegExp(`{{${key}}}`, 'g'), value);
+        });
+      }
+    }
+
+    const payload = {
+      title,
+      body,
+      url: url || '/',
+      icon: template.icon_url,
+      badge: template.badge_url,
+      image: template.image_url,
+      tag: template.tag,
+      actions: template.actions ? JSON.parse(template.actions) : undefined
     };
 
-    delete duplicatedTemplate.id;
+    let sent = 0;
+    let failed = 0;
 
-    const newTemplate = await notificationTemplates.insert(duplicatedTemplate);
+    // Send notifications
+    await Promise.all(subscriptions.map(async (subscription) => {
+      try {
+        await webpush.sendNotification({
+          endpoint: subscription.endpoint,
+          keys: {
+            p256dh: subscription.p256dh_key,
+            auth: subscription.auth_key
+          }
+        }, JSON.stringify(payload));
+        sent++;
+      } catch (error) {
+        console.error('Failed to send notification:', error);
+        failed++;
+      }
+    }));
 
-    res.status(201).json({
-      template: newTemplate,
-      message: 'Template duplicated successfully'
+    // Update template usage
+    await query(
+      'UPDATE notification_templates SET usage_count = usage_count + 1, last_used = ? WHERE id = ?',
+      [new Date(), template.id]
+    );
+
+    // Record notification
+    const notificationId = uuidv4();
+    await query(`
+      INSERT INTO notifications 
+      (id, customer_id, template_id, title, body, url, icon, status, sent_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'sent', ?, ?, ?)
+    `, [
+      notificationId, customer.id, template.id, title, body, url || '', 
+      template.icon_url || '', sent, new Date(), new Date()
+    ]);
+
+    res.json({ 
+      sent, 
+      failed, 
+      message: `Template notification sent successfully to ${sent} subscribers` 
     });
+
   } catch (error) {
-    console.error('Duplicate template error:', error);
-    res.status(500).json({ error: 'Failed to duplicate template' });
+    console.error('Template send error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

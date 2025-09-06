@@ -17,7 +17,7 @@ function useAuthHeaders() {
 }
 
 function useApiBase() {
-  const apiBaseRaw = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://localhost:4000'
+  const apiBaseRaw = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://13.126.228.42'
   return apiBaseRaw.toString().replace(/\/?$/, '')
 }
 
@@ -27,7 +27,7 @@ const getAuthHeaders = () => {
   return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
 }
 
-const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://localhost:4000'
+const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://13.126.228.42'
 
 // Global request tracking to prevent duplicate API calls
 const activeRequests = new Map()

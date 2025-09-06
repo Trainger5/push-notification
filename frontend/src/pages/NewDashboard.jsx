@@ -22,7 +22,7 @@ function useAuthHeaders() {
 }
 
 function useApiBase() {
-  const apiBaseRaw = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://localhost:4000'
+  const apiBaseRaw = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://13.126.228.42'
   return apiBaseRaw.toString().replace(/\/?$/, '')
 }
 

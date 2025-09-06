@@ -50,7 +50,7 @@ router.post('/login', async (req, res) => {
     console.log('📊 Looking up user in database...');
     
     // Find user
-    const [users] = await query('SELECT * FROM users WHERE email = ?', [email.toLowerCase()]);
+    const users = await query('SELECT * FROM users WHERE email = ?', [email.toLowerCase()]);
     const user = users && users.length > 0 ? users[0] : null;
     
     if (!user) {
@@ -225,7 +225,7 @@ router.post('/forgot-password',
       const { email } = req.body;
 
       // Check if user exists
-      const [users] = await query('SELECT id FROM users WHERE email = ?', [email]);
+      const users = await query('SELECT id FROM users WHERE email = ?', [email]);
       
       // Always return success for security (don't reveal if email exists)
       if (!users || users.length === 0) {
@@ -267,7 +267,7 @@ router.post('/reset-password',
       const { token, password } = req.body;
 
       // Find user with valid reset token
-      const [users] = await query(
+      const users = await query(
         'SELECT id FROM users WHERE reset_token = ? AND reset_token_expires > ?',
         [token, new Date()]
       );
@@ -308,7 +308,7 @@ router.post('/verify-email',
       const { token } = req.body;
 
       // Find user with verification token
-      const [users] = await query('SELECT id FROM users WHERE verification_token = ?', [token]);
+      const users = await query('SELECT id FROM users WHERE verification_token = ?', [token]);
 
       if (!users || users.length === 0) {
         return res.status(400).json({ error: 'Invalid verification token' });

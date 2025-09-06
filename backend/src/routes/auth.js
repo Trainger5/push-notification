@@ -13,13 +13,13 @@ const router = express.Router();
 // Test database connectivity
 router.get('/test-db', async (req, res) => {
   try {
-    const result = await query('SELECT email, role FROM users');
-    const users = Array.isArray(result) ? result : (result && result[0] ? result[0] : []);
-    console.log('DB Test - Found users:', users ? users.length : 0);
+    const users = await query('SELECT email, role FROM users');
+    const userList = Array.isArray(users) ? users : (users && users[0] ? users[0] : []);
+    console.log('DB Test - Found users:', userList.length);
     res.json({ 
       message: 'Database test', 
-      userCount: users ? users.length : 0,
-      users: users && Array.isArray(users) ? users.map(u => ({ email: u.email, role: u.role })) : []
+      userCount: userList.length,
+      users: userList.map(u => ({ email: u.email, role: u.role }))
     });
   } catch (error) {
     console.error('DB Test Error:', error);

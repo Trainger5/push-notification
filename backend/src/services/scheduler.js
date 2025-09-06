@@ -36,8 +36,8 @@ class SchedulerService {
         FROM scheduled_notifications sn
         JOIN customers c ON sn.customer_id = c.id
         WHERE sn.status = 'pending' 
-        AND sn.scheduled_at <= NOW()
-        ORDER BY sn.scheduled_at ASC
+        AND sn.scheduled_for <= NOW()
+        ORDER BY sn.scheduled_for ASC
         LIMIT 10
       `);
       

@@ -50,10 +50,10 @@ export default function Login() {
       
       // Store token and role
       localStorage.setItem('token', data.token)
-      localStorage.setItem('role', data.role)
+      localStorage.setItem('role', data.user.role)
       
       // Redirect based on role
-      if (data.role === 'admin') {
+      if (data.user.role === 'admin') {
         navigate('/admin-dashboard')
       } else {
         navigate('/app')

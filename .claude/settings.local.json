@@ -17,7 +17,8 @@
       "Bash(pkill:*)",
       "Bash(del nul)",
       "Bash(del package-lock.json)",
-      "Bash(DEBUG_PUSH=true npm start)"
+      "Bash(DEBUG_PUSH=true npm start)",
+      "Bash(mysql:*)"
     ],
     "deny": [],
     "ask": []

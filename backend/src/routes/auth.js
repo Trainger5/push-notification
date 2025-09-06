@@ -118,7 +118,8 @@ router.post('/register',
       const { email, password, name, plan = 'free' } = req.body;
       
       // Check if user exists
-      const [existingUsers] = await query('SELECT id FROM users WHERE email = ?', [email]);
+      const existingUsers = await query('SELECT id FROM users WHERE email = ?', [email]);
+      console.log('🔍 Existing users check:', { email, foundUsers: existingUsers ? existingUsers.length : 0, result: existingUsers });
       if (existingUsers && existingUsers.length > 0) {
         console.log('❌ User already exists');
         return res.status(409).json({ error: 'User already exists' });
@@ -190,6 +191,15 @@ router.post('/register',
 
     } catch (error) {
       console.error('❌ Registration error:', error);
+      
+      // Handle specific MySQL errors
+      if (error.code === 'ER_DUP_ENTRY') {
+        if (error.message.includes('email')) {
+          return res.status(409).json({ error: 'User with this email already exists' });
+        }
+        return res.status(409).json({ error: 'Duplicate entry detected' });
+      }
+      
       res.status(500).json({ error: 'Internal server error' });
     }
   }

@@ -28,14 +28,19 @@ const campaignsRoutes = require('./routes/campaigns');
 
 const app = express();
 
-// Debug ALL requests
-app.use((req, res, next) => {
-  console.log('=== REQUEST DEBUG ===');
-  console.log('Method:', req.method);
-  console.log('URL:', req.originalUrl);
-  console.log('Content-Type:', req.headers['content-type']);
-  next();
-});
+// Trust proxy for production deployment (behind reverse proxy/load balancer)
+app.set('trust proxy', true);
+
+// Debug requests only in development
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    console.log('=== REQUEST DEBUG ===');
+    console.log('Method:', req.method);
+    console.log('URL:', req.originalUrl);
+    console.log('Content-Type:', req.headers['content-type']);
+    next();
+  });
+}
 
 // Middleware
 app.use(cors());

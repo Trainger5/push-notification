@@ -361,6 +361,15 @@ export default function NewDashboard() {
           await navigator.serviceWorker.ready;
           console.log('✅ Service worker registered');
           
+          // Check for existing subscription and unsubscribe if needed
+          console.log('🔍 Checking for existing subscription...');
+          const existingSubscription = await registration.pushManager.getSubscription();
+          if (existingSubscription) {
+            console.log('⚠️ Found existing subscription, unsubscribing...');
+            await existingSubscription.unsubscribe();
+            console.log('✅ Old subscription removed');
+          }
+          
           // Subscribe to push
           console.log('📬 Subscribing to push notifications...');
           const subscription = await registration.pushManager.subscribe({

@@ -323,7 +323,7 @@ export default function NewDashboard() {
                 <h3 className="text-lg font-semibold mb-4">Quick Integration Code</h3>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <pre className="text-xs overflow-x-auto">
-{`<!-- Add to your HTML page -->
+{`<!-- Step 1: Add to your HTML page -->
 <script>
   const API_KEY = '${me?.customer?.api_key || 'YOUR_API_KEY_FROM_SETTINGS'}'; // ${me?.customer?.api_key ? '✅ Your actual API key' : 'From Settings'}
   const SERVER_URL = '${apiBase}';
@@ -333,7 +333,58 @@ export default function NewDashboard() {
     const script = document.createElement('script');
     script.src = SERVER_URL + '/sdk.js';
     script.onload = () => {
-      // Initialize with just your API key
+      // Initialize SDK
+      window.PN = window.PN || {};
+      PN.init = async function(config) {
+        try {
+          // Get VAPID key and settings from server
+          const res = await fetch(\`\${config.baseUrl}/api/public/config?apiKey=\${config.apiKey}\`);
+          const data = await res.json();
+          
+          // Request permission
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') throw new Error('Permission denied');
+          
+          // Register service worker
+          const registration = await navigator.serviceWorker.register('/pn-sw.js');
+          await navigator.serviceWorker.ready;
+          
+          // Subscribe to push
+          const subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(data.vapid_public_key)
+          });
+          
+          // Save subscription to server
+          await fetch(\`\${config.baseUrl}/api/public/subscribe\`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              apiKey: config.apiKey,
+              subscription: subscription.toJSON()
+            })
+          });
+          
+          console.log('✅ Push notifications initialized!');
+        } catch (err) {
+          console.error('Failed to initialize:', err);
+          throw err;
+        }
+      };
+      
+      // Helper function for VAPID key conversion
+      function urlBase64ToUint8Array(base64String) {
+        const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        const rawData = atob(base64);
+        const outputArray = new Uint8Array(rawData.length);
+        for (let i = 0; i < rawData.length; ++i) {
+          outputArray[i] = rawData.charCodeAt(i);
+        }
+        return outputArray;
+      }
+      
+      // Auto-initialize
       PN.init({
         apiKey: API_KEY,
         baseUrl: SERVER_URL
@@ -355,8 +406,43 @@ export default function NewDashboard() {
   }
 </script>
 
-<!-- ${me?.customer?.api_key ? 'Ready to use! Your API key is already included above.' : 'Replace YOUR_API_KEY_FROM_SETTINGS with your actual API key from Settings'} -->
-<!-- The SDK handles permission, subscription, and VAPID keys -->`}
+<!-- Step 2: Create service worker file /pn-sw.js in your website root -->
+<!-- Save the following as /pn-sw.js:
+
+self.addEventListener('push', function(event) {
+  const data = event.data ? event.data.json() : {};
+  const options = {
+    body: data.body || 'New notification',
+    icon: data.icon || '/icon-192x192.png',
+    badge: data.badge || '/badge-72x72.png',
+    vibrate: data.vibrate || [200, 100, 200],
+    data: data.data || {},
+    actions: data.actions || [],
+    tag: data.tag || 'default',
+    requireInteraction: data.requireInteraction || false,
+    renotify: data.renotify || false,
+    silent: data.silent || false,
+    dir: data.dir || 'auto',
+    lang: data.lang || 'en-US',
+    image: data.image
+  };
+  
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Notification', options)
+  );
+});
+
+self.addEventListener('notificationclick', function(event) {
+  event.notification.close();
+  if (event.notification.data && event.notification.data.url) {
+    event.waitUntil(clients.openWindow(event.notification.data.url));
+  }
+});
+
+-->
+
+<!-- ${me?.customer?.api_key ? '✅ Ready! Your API key is included above.' : '⚠️ Replace YOUR_API_KEY_FROM_SETTINGS with your actual API key'} -->
+<!-- The SDK automatically handles permissions, VAPID keys, and subscriptions -->`}
                   </pre>
                 </div>
                 <div className="mt-4 flex items-center justify-between">

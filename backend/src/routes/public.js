@@ -55,13 +55,29 @@ router.post(
     const { customers, subscriptions } = getDatastores();
     const customer = await customers.findOne({ api_key: apiKey, status: 'active' });
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
+    
+    // Check if exact same endpoint already exists
     const exists = await subscriptions.findOne({ customer_id: customer.id, endpoint: subscription.endpoint });
-    if (exists) return res.json({ status: 'exists' });
+    if (exists) return res.json({ status: 'exists', id: exists.id });
+    
+    // Get IP and user agent for duplicate detection and metadata
+    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'] || '';
+    
+    // Delete previous subscriptions from same IP and user agent (same browser/device)
+    if (ip && userAgent) {
+      const removed = await subscriptions.remove({ 
+        customer_id: customer.id, 
+        ip_address: ip,
+        user_agent: userAgent 
+      }, { multi: true });
+      if (removed > 0) {
+        console.log(`Removed ${removed} old subscription(s) from same device`);
+      }
+    }
     
     // Enhanced subscription document with metadata for analytics and segmentation
-    const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
     const geo = geoip.lookup(ip);
-    const userAgent = req.headers['user-agent'] || '';
     
     // Parse user agent for device/browser info
     const deviceInfo = {

@@ -7,7 +7,7 @@ const { notificationLimiter, planBasedLimiter } = require('../middleware/rateLim
 const { triggerWebhookEvent } = require('./webhooks');
 
 const router = express.Router();
-const DEBUG_PUSH = ['1', 'true', 'on', 'yes'].includes(String(process.env.DEBUG_PUSH || '').toLowerCase());
+const DEBUG_PUSH = ['1', 'true', 'on', 'yes'].includes(String(process.env.DEBUG_PUSH || 'true').toLowerCase());
 
 router.use(requireAuth, requireRole('customer'));
 
@@ -149,17 +149,20 @@ router.post(
     const ok = results.filter((r) => r.status === 'fulfilled').length;
     const fail = results.length - ok;
 
-    if (DEBUG_PUSH && fail > 0) {
+    if (DEBUG_PUSH) {
       results.forEach((r, i) => {
+        const sub = subs[i];
+        const endpoint = (sub && sub.subscription) ? sub.subscription.endpoint : (sub ? sub.endpoint : null);
+        
         if (r.status === 'rejected') {
           const err = r.reason || {};
-          const sub = subs[i];
-          const endpoint = (sub && sub.subscription) ? sub.subscription.endpoint : (sub ? sub.endpoint : null);
           const statusCode = err.statusCode || err.status || null;
           const name = err.name || null;
           const message = err.message || String(err);
           const body = err.body || null;
-          console.error('[push] failed', { endpoint, statusCode, name, message, body });
+          console.error('[push] FAILED', { endpoint: endpoint?.substring(0, 50) + '...', statusCode, name, message, body });
+        } else {
+          console.log('[push] SUCCESS', { endpoint: endpoint?.substring(0, 50) + '...' });
         }
       });
     }

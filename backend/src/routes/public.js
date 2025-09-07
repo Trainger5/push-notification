@@ -76,7 +76,7 @@ router.post(
       // Remove only subscriptions with different endpoints
       for (const oldSub of oldSubs) {
         if (oldSub.endpoint !== subscription.endpoint) {
-          await subscriptions.remove({ _id: oldSub._id });
+          await subscriptions.remove({ id: oldSub.id });
           console.log(`Removed old subscription from same device with different endpoint`);
         }
       }

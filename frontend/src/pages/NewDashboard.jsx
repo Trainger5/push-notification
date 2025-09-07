@@ -337,26 +337,41 @@ export default function NewDashboard() {
       window.PN = window.PN || {};
       PN.init = async function(config) {
         try {
+          console.log('📡 Fetching VAPID configuration...');
           // Get VAPID key and settings from server
-          const res = await fetch(\`\${config.baseUrl}/api/public/config?apiKey=\${config.apiKey}\`);
+          const res = await fetch(\`\${config.baseUrl}/api/config?apiKey=\${config.apiKey}\`);
+          if (!res.ok) {
+            throw new Error(\`Config fetch failed: \${res.status} \${res.statusText}\`);
+          }
           const data = await res.json();
+          console.log('✅ Config received, VAPID key:', data.vapid_public_key ? 'Present' : 'Missing');
           
           // Request permission
+          console.log('🔔 Requesting notification permission...');
           const permission = await Notification.requestPermission();
-          if (permission !== 'granted') throw new Error('Permission denied');
+          if (permission !== 'granted') {
+            console.warn('❌ Permission denied by user');
+            throw new Error('Permission denied');
+          }
+          console.log('✅ Permission granted');
           
           // Register service worker
+          console.log('⚙️ Registering service worker at /pn-sw.js...');
           const registration = await navigator.serviceWorker.register('/pn-sw.js');
           await navigator.serviceWorker.ready;
+          console.log('✅ Service worker registered');
           
           // Subscribe to push
+          console.log('📬 Subscribing to push notifications...');
           const subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
             applicationServerKey: urlBase64ToUint8Array(data.vapid_public_key)
           });
+          console.log('✅ Push subscription created');
           
           // Save subscription to server
-          await fetch(\`\${config.baseUrl}/api/public/subscribe\`, {
+          console.log('💾 Saving subscription to server...');
+          const saveRes = await fetch(\`\${config.baseUrl}/api/subscribe\`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -365,9 +380,18 @@ export default function NewDashboard() {
             })
           });
           
-          console.log('✅ Push notifications initialized!');
+          if (!saveRes.ok) {
+            throw new Error(\`Subscribe failed: \${saveRes.status} \${saveRes.statusText}\`);
+          }
+          
+          const saveData = await saveRes.json();
+          console.log('✅ Subscription saved:', saveData);
+          
+          console.log('🎉 Push notifications fully initialized!');
+          return { success: true, subscription };
         } catch (err) {
-          console.error('Failed to initialize:', err);
+          console.error('❌ Initialization failed:', err.message);
+          console.error('Stack:', err.stack);
           throw err;
         }
       };

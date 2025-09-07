@@ -1,9 +1,12 @@
 // Enhanced push notification handler with rich media support
 self.addEventListener('push', function (event) {
+  console.log('🔔 Service Worker: Push event received!', event);
   let payload = {};
   try {
     payload = event.data ? event.data.json() : {};
+    console.log('📄 Service Worker: Payload received:', payload);
   } catch (e) {
+    console.error('❌ Service Worker: Failed to parse payload:', e);
     payload = {};
   }
 
@@ -63,7 +66,10 @@ self.addEventListener('push', function (event) {
       }
 
       // Show the notification
-      return self.registration.showNotification(title, options);
+      console.log('✅ Service Worker: Showing notification:', title, options);
+      const result = await self.registration.showNotification(title, options);
+      console.log('🎉 Service Worker: Notification shown successfully');
+      return result;
     })()
   );
 });

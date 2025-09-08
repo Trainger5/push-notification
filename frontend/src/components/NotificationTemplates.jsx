@@ -454,28 +454,10 @@ export default function NotificationTemplates() {
       
       const method = editingTemplate ? 'PUT' : 'POST'
       
-      // Build the request body, only including non-empty optional fields
-      const requestBody = {
-        name: form.name.trim(),
-        title: form.title.trim(),
-        body: form.body.trim(),
-        category: form.category || 'general',
-        variables: form.variables,
-        isActive: form.isActive
-      }
-      
-      // Only add optional fields if they have values
-      if (form.description?.trim()) requestBody.description = form.description.trim()
-      if (form.url?.trim()) requestBody.url = form.url.trim()
-      if (form.icon?.trim()) requestBody.icon = form.icon.trim()
-      if (form.badge?.trim()) requestBody.badge = form.badge.trim()
-      if (form.image?.trim()) requestBody.image = form.image.trim()
-      if (form.tag?.trim()) requestBody.tag = form.tag.trim()
-      
       const response = await fetch(url, {
         method,
         headers,
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(form)
       })
 
       if (!response.ok) {

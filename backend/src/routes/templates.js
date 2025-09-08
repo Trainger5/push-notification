@@ -35,17 +35,18 @@ router.get('/', async (req, res) => {
 router.post(
   '/create',
   body('name').isString().notEmpty().isLength({ min: 1, max: 100 }),
-  body('description').optional().isString().isLength({ max: 500 }),
+  body('description').optional({ checkFalsy: true }).isString().isLength({ max: 500 }),
   body('title').isString().notEmpty().isLength({ min: 1, max: 100 }),
   body('body').isString().notEmpty().isLength({ min: 1, max: 500 }),
-  body('url').optional().isURL(),
-  body('icon').optional().isURL(),
-  body('badge').optional().isURL(),
-  body('image').optional().isURL(),
-  body('tag').optional().isString().isLength({ max: 50 }),
-  body('category').optional().isString().isLength({ max: 50 }),
-  body('variables').optional().isArray(),
-  body('actions').optional().isArray(),
+  body('url').optional({ checkFalsy: true }).isURL(),
+  body('icon').optional({ checkFalsy: true }).isURL(),
+  body('badge').optional({ checkFalsy: true }).isURL(),
+  body('image').optional({ checkFalsy: true }).isURL(),
+  body('tag').optional({ checkFalsy: true }).isString().isLength({ max: 50 }),
+  body('category').optional({ checkFalsy: true }).isString().isLength({ max: 50 }),
+  body('variables').optional({ checkFalsy: true }).isArray(),
+  body('actions').optional({ checkFalsy: true }).isArray(),
+  body('isActive').optional().isBoolean(),
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -84,7 +85,7 @@ router.post(
         custom_data: JSON.stringify({ variables: req.body.variables || [] }), // Store variables in custom_data
         actions: JSON.stringify(req.body.actions || []),
         usage_count: 0,
-        status: 'active',
+        status: req.body.isActive === false ? 'inactive' : 'active',
         created_by: req.user.user_id
       };
 
@@ -181,17 +182,17 @@ router.get('/:id', async (req, res) => {
 router.put(
   '/:id',
   body('name').optional().isString().notEmpty().isLength({ min: 1, max: 100 }),
-  body('description').optional().isString().isLength({ max: 500 }),
+  body('description').optional({ checkFalsy: true }).isString().isLength({ max: 500 }),
   body('title').optional().isString().notEmpty().isLength({ min: 1, max: 100 }),
   body('body').optional().isString().notEmpty().isLength({ min: 1, max: 500 }),
-  body('url').optional().isURL(),
-  body('icon').optional().isURL(),
-  body('badge').optional().isURL(),
-  body('image').optional().isURL(),
-  body('tag').optional().isString().isLength({ max: 50 }),
-  body('category').optional().isString().isLength({ max: 50 }),
-  body('variables').optional().isArray(),
-  body('actions').optional().isArray(),
+  body('url').optional({ checkFalsy: true }).isURL(),
+  body('icon').optional({ checkFalsy: true }).isURL(),
+  body('badge').optional({ checkFalsy: true }).isURL(),
+  body('image').optional({ checkFalsy: true }).isURL(),
+  body('tag').optional({ checkFalsy: true }).isString().isLength({ max: 50 }),
+  body('category').optional({ checkFalsy: true }).isString().isLength({ max: 50 }),
+  body('variables').optional({ checkFalsy: true }).isArray(),
+  body('actions').optional({ checkFalsy: true }).isArray(),
   body('isActive').optional().isBoolean(),
   async (req, res) => {
     try {
@@ -228,10 +229,31 @@ router.put(
         }
       }
 
-      const updates = {
-        ...req.body,
-        updated_at: new Date().toISOString()
-      };
+      // Build updates object with proper field mapping
+      const updates = {};
+      
+      // Map fields properly
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.description !== undefined) updates.description = req.body.description || '';
+      if (req.body.title !== undefined) updates.title = req.body.title;
+      if (req.body.body !== undefined) updates.body = req.body.body;
+      if (req.body.url !== undefined) updates.url = req.body.url || null;
+      if (req.body.icon !== undefined) updates.icon_url = req.body.icon || null;
+      if (req.body.badge !== undefined) updates.badge_url = req.body.badge || null;
+      if (req.body.image !== undefined) updates.image_url = req.body.image || null;
+      if (req.body.tag !== undefined) updates.tag = req.body.tag || null;
+      if (req.body.category !== undefined) updates.category = req.body.category || 'general';
+      if (req.body.variables !== undefined) {
+        updates.custom_data = JSON.stringify({ variables: req.body.variables || [] });
+      }
+      if (req.body.actions !== undefined) {
+        updates.actions = JSON.stringify(req.body.actions || []);
+      }
+      if (req.body.isActive !== undefined) {
+        updates.status = req.body.isActive ? 'active' : 'inactive';
+      }
+      
+      updates.updated_at = new Date().toISOString();
 
       await notificationTemplates.update(
         { id: req.params.id },

@@ -123,13 +123,28 @@ const TemplateCard = ({ template, onEdit, onDelete, onDuplicate, onUse, onView }
   const cardBg = useColorModeValue('white', 'gray.800')
   const borderColor = useColorModeValue('gray.200', 'gray.600')
   
+  // Parse custom_data to get variables
+  let variables = []
+  if (template.custom_data) {
+    try {
+      const customData = typeof template.custom_data === 'string' 
+        ? JSON.parse(template.custom_data) 
+        : template.custom_data
+      variables = customData.variables || []
+    } catch (e) {
+      console.error('Failed to parse custom_data:', e)
+    }
+  }
+  
+  const isActive = template.status === 'active'
+  
   return (
     <Card 
       bg={cardBg} 
       borderRadius="xl" 
       borderWidth={1} 
-      borderColor={template.isActive ? borderColor : 'gray.400'}
-      opacity={template.isActive ? 1 : 0.7}
+      borderColor={isActive ? borderColor : 'gray.400'}
+      opacity={isActive ? 1 : 0.7}
       transition="all 0.2s"
       _hover={{ transform: 'translateY(-2px)', shadow: 'lg' }}
     >
@@ -138,7 +153,7 @@ const TemplateCard = ({ template, onEdit, onDelete, onDuplicate, onUse, onView }
           <Box flex={1}>
             <HStack mb={2}>
               <Heading size="sm" noOfLines={1}>{template.name}</Heading>
-              {!template.isActive && <Badge colorScheme="gray" size="sm">Inactive</Badge>}
+              {!isActive && <Badge colorScheme="gray" size="sm">Inactive</Badge>}
             </HStack>
             
             {template.description && (
@@ -158,10 +173,10 @@ const TemplateCard = ({ template, onEdit, onDelete, onDuplicate, onUse, onView }
             
             <HStack mt={3} spacing={2} flexWrap="wrap">
               <Badge colorScheme="purple" size="sm">{template.category}</Badge>
-              {template.variables && template.variables.length > 0 && (
-                <Badge colorScheme="blue" size="sm">{template.variables.length} variables</Badge>
+              {variables.length > 0 && (
+                <Badge colorScheme="blue" size="sm">{variables.length} variables</Badge>
               )}
-              <Badge colorScheme="gray" size="sm">Used {template.usageCount || 0} times</Badge>
+              <Badge colorScheme="gray" size="sm">Used {template.usage_count || 0} times</Badge>
             </HStack>
           </Box>
           
@@ -204,8 +219,24 @@ const TemplateCard = ({ template, onEdit, onDelete, onDuplicate, onUse, onView }
 const TemplatePreview = ({ template, variables, onVariableChange }) => {
   const processTemplate = (text, vars) => {
     let processed = text;
-    if (template.variables) {
-      template.variables.forEach(varName => {
+    
+    // Parse template.variables from custom_data if needed
+    let templateVars = []
+    if (template.custom_data) {
+      try {
+        const customData = typeof template.custom_data === 'string' 
+          ? JSON.parse(template.custom_data) 
+          : template.custom_data
+        templateVars = customData.variables || []
+      } catch (e) {
+        console.error('Failed to parse custom_data:', e)
+      }
+    } else if (Array.isArray(template.variables)) {
+      templateVars = template.variables
+    }
+    
+    if (templateVars.length > 0) {
+      templateVars.forEach(varName => {
         const value = vars[varName] || `{{${varName}}}`;
         processed = processed.replace(new RegExp(`{{${varName}}}`, 'g'), value);
       });
@@ -237,24 +268,41 @@ const TemplatePreview = ({ template, variables, onVariableChange }) => {
         </Box>
       </Box>
 
-      {template.variables && template.variables.length > 0 && (
-        <Box>
-          <Text fontSize="sm" fontWeight="medium" mb={2}>Variables</Text>
-          <VStack spacing={2} align="stretch">
-            {template.variables.map(varName => (
-              <FormControl key={varName}>
-                <FormLabel fontSize="sm">{varName}</FormLabel>
-                <Input
-                  size="sm"
-                  value={variables[varName] || ''}
-                  onChange={(e) => onVariableChange(varName, e.target.value)}
-                  placeholder={`Enter ${varName}`}
-                />
-              </FormControl>
-            ))}
-          </VStack>
-        </Box>
-      )}
+      {(() => {
+        // Parse template.variables from custom_data if needed
+        let templateVars = []
+        if (template.custom_data) {
+          try {
+            const customData = typeof template.custom_data === 'string' 
+              ? JSON.parse(template.custom_data) 
+              : template.custom_data
+            templateVars = customData.variables || []
+          } catch (e) {
+            console.error('Failed to parse custom_data:', e)
+          }
+        } else if (Array.isArray(template.variables)) {
+          templateVars = template.variables
+        }
+        
+        return templateVars.length > 0 && (
+          <Box>
+            <Text fontSize="sm" fontWeight="medium" mb={2}>Variables</Text>
+            <VStack spacing={2} align="stretch">
+              {templateVars.map(varName => (
+                <FormControl key={varName}>
+                  <FormLabel fontSize="sm">{varName}</FormLabel>
+                  <Input
+                    size="sm"
+                    value={variables[varName] || ''}
+                    onChange={(e) => onVariableChange(varName, e.target.value)}
+                    placeholder={`Enter ${varName}`}
+                  />
+                </FormControl>
+              ))}
+            </VStack>
+          </Box>
+        )
+      })()}
     </VStack>
   )
 }
@@ -313,7 +361,7 @@ export default function NotificationTemplates() {
       if (searchTerm) params.append('search', searchTerm)
       if (!showInactive) params.append('active', 'true')
 
-      const response = await fetch(getApiUrl(`/api/templates/list?${params}`), { headers })
+      const response = await fetch(getApiUrl(`/api/templates?${params}`), { headers })
       
       if (!response.ok) {
         throw new Error('Failed to fetch templates')
@@ -386,7 +434,7 @@ export default function NotificationTemplates() {
     setSubmitting(true)
     try {
       const url = editingTemplate 
-        ? getApiUrl(`/api/templates/${editingTemplate._id}`)
+        ? getApiUrl(`/api/templates/${editingTemplate.id}`)
         : getApiUrl('/api/templates/create')
       
       const method = editingTemplate ? 'PUT' : 'POST'
@@ -428,19 +476,32 @@ export default function NotificationTemplates() {
 
   const handleEdit = (template) => {
     setEditingTemplate(template)
+    // Parse custom_data if it's a string
+    let variables = []
+    if (template.custom_data) {
+      try {
+        const customData = typeof template.custom_data === 'string' 
+          ? JSON.parse(template.custom_data) 
+          : template.custom_data
+        variables = customData.variables || []
+      } catch (e) {
+        console.error('Failed to parse custom_data:', e)
+      }
+    }
+    
     setForm({
       name: template.name,
       description: template.description || '',
       title: template.title,
       body: template.body,
       url: template.url || '',
-      icon: template.icon || '',
-      badge: template.badge || '',
-      image: template.image || '',
+      icon: template.icon_url || '',
+      badge: template.badge_url || '',
+      image: template.image_url || '',
       tag: template.tag || '',
       category: template.category || 'general',
-      variables: template.variables || [],
-      isActive: template.isActive !== false
+      variables: variables,
+      isActive: template.status === 'active'
     })
     onFormOpen()
   }
@@ -449,7 +510,7 @@ export default function NotificationTemplates() {
     if (!confirm(`Are you sure you want to delete "${template.name}"?`)) return
 
     try {
-      const response = await fetch(getApiUrl(`/api/templates/${template._id}`), {
+      const response = await fetch(getApiUrl(`/api/templates/${template.id}`), {
         method: 'DELETE',
         headers
       })
@@ -479,7 +540,7 @@ export default function NotificationTemplates() {
 
   const handleDuplicate = async (template) => {
     try {
-      const response = await fetch(getApiUrl(`/api/templates/${template._id}/duplicate`), {
+      const response = await fetch(getApiUrl(`/api/templates/${template.id}/duplicate`), {
         method: 'POST',
         headers
       })
@@ -530,7 +591,7 @@ export default function NotificationTemplates() {
         payload.timezone = useForm.timezone
       }
 
-      const response = await fetch(getApiUrl(`/api/templates/${usingTemplate._id}/send`), {
+      const response = await fetch(getApiUrl(`/api/templates/${usingTemplate.id}/send`), {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)
@@ -666,7 +727,7 @@ export default function NotificationTemplates() {
       <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={6}>
         {templates.map((template) => (
           <TemplateCard
-            key={template._id}
+            key={template.id}
             template={template}
             onEdit={handleEdit}
             onDelete={handleDelete}
@@ -936,21 +997,35 @@ export default function NotificationTemplates() {
                 
                 <Box>
                   <Text fontSize="sm" fontWeight="medium" color="gray.500">Usage Count</Text>
-                  <Text>{viewingTemplate.usageCount || 0} times</Text>
+                  <Text>{viewingTemplate.usage_count || 0} times</Text>
                 </Box>
                 
-                {viewingTemplate.variables && viewingTemplate.variables.length > 0 && (
-                  <Box>
-                    <Text fontSize="sm" fontWeight="medium" color="gray.500">Variables</Text>
-                    <Wrap>
-                      {viewingTemplate.variables.map(variable => (
-                        <WrapItem key={variable}>
-                          <Tag size="sm" colorScheme="blue">{variable}</Tag>
-                        </WrapItem>
-                      ))}
-                    </Wrap>
-                  </Box>
-                )}
+                {(() => {
+                  let variables = []
+                  if (viewingTemplate.custom_data) {
+                    try {
+                      const customData = typeof viewingTemplate.custom_data === 'string' 
+                        ? JSON.parse(viewingTemplate.custom_data) 
+                        : viewingTemplate.custom_data
+                      variables = customData.variables || []
+                    } catch (e) {
+                      console.error('Failed to parse custom_data:', e)
+                    }
+                  }
+                  
+                  return variables.length > 0 && (
+                    <Box>
+                      <Text fontSize="sm" fontWeight="medium" color="gray.500">Variables</Text>
+                      <Wrap>
+                        {variables.map(variable => (
+                          <WrapItem key={variable}>
+                            <Tag size="sm" colorScheme="blue">{variable}</Tag>
+                          </WrapItem>
+                        ))}
+                      </Wrap>
+                    </Box>
+                  )
+                })()}
                 
                 <Box>
                   <Text fontSize="sm" fontWeight="medium" color="gray.500">Preview</Text>

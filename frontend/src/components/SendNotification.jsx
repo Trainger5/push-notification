@@ -223,14 +223,26 @@ export default function SendNotification() {
       const templatesRes = await fetch(getApiUrl('/api/templates/list?active=true'), { headers })
       if (templatesRes.ok) {
         const templatesData = await templatesRes.json()
-        setTemplates(templatesData.templates)
+        console.log('🔍 Templates API Response:', templatesData)
+        console.log('🔍 Templates array:', templatesData.templates)
+        console.log('🔍 Is templates array?', Array.isArray(templatesData.templates))
+        setTemplates(templatesData.templates || [])
+      } else {
+        console.error('❌ Templates fetch failed:', templatesRes.status)
+        setTemplates([])
       }
 
       // Fetch segments
       const segmentsRes = await fetch(getApiUrl('/api/segments/list'), { headers })
       if (segmentsRes.ok) {
         const segmentsData = await segmentsRes.json()
+        console.log('🔍 Segments API Response:', segmentsData)
+        console.log('🔍 Segments array:', segmentsData.segments)
+        console.log('🔍 Is segments array?', Array.isArray(segmentsData.segments))
         setSegments(segmentsData.segments || [])
+      } else {
+        console.error('❌ Segments fetch failed:', segmentsRes.status)
+        setSegments([])
       }
 
       // Fetch stats
@@ -482,7 +494,10 @@ export default function SendNotification() {
     }
   }
 
-  const selectedTemplate = templates.find(t => t._id === templateForm.selectedTemplate)
+  const selectedTemplate = templates.find(t => t.id === templateForm.selectedTemplate)
+  console.log('🔍 Looking for template ID:', templateForm.selectedTemplate)
+  console.log('🔍 Available templates:', templates.map(t => ({id: t.id, name: t.name})))
+  console.log('🔍 Selected template:', selectedTemplate)
 
   const processTemplateText = (text, variables) => {
     if (!text || !selectedTemplate) return text
@@ -833,15 +848,24 @@ export default function SendNotification() {
                     {(() => {
                       // Parse variables from custom_data
                       let templateVars = []
+                      console.log('🔍 Processing template variables for:', selectedTemplate)
                       try {
                         if (selectedTemplate.custom_data) {
+                          console.log('🔍 Template custom_data:', selectedTemplate.custom_data)
+                          console.log('🔍 Custom_data type:', typeof selectedTemplate.custom_data)
                           const customData = typeof selectedTemplate.custom_data === 'string' 
                             ? JSON.parse(selectedTemplate.custom_data) 
                             : selectedTemplate.custom_data
+                          console.log('🔍 Parsed customData:', customData)
+                          console.log('🔍 customData.variables:', customData.variables)
+                          console.log('🔍 Is customData.variables array?', Array.isArray(customData.variables))
                           templateVars = Array.isArray(customData.variables) ? customData.variables : []
                         } else if (Array.isArray(selectedTemplate.variables)) {
+                          console.log('🔍 Using selectedTemplate.variables:', selectedTemplate.variables)
                           templateVars = selectedTemplate.variables
                         }
+                        console.log('🔍 Final templateVars:', templateVars)
+                        console.log('🔍 Is templateVars array?', Array.isArray(templateVars))
                       } catch (e) {
                         console.error('Failed to parse template variables:', e)
                         templateVars = []
@@ -1016,15 +1040,20 @@ export default function SendNotification() {
                       {(() => {
                         // Parse variables from custom_data
                         let templateVars = []
+                        console.log('🔍 Processing preview template variables for:', selectedTemplate)
                         try {
                           if (selectedTemplate.custom_data) {
+                            console.log('🔍 Preview custom_data:', selectedTemplate.custom_data)
                             const customData = typeof selectedTemplate.custom_data === 'string' 
                               ? JSON.parse(selectedTemplate.custom_data) 
                               : selectedTemplate.custom_data
+                            console.log('🔍 Preview parsed customData:', customData)
                             templateVars = Array.isArray(customData.variables) ? customData.variables : []
                           } else if (Array.isArray(selectedTemplate.variables)) {
+                            console.log('🔍 Preview using selectedTemplate.variables:', selectedTemplate.variables)
                             templateVars = selectedTemplate.variables
                           }
+                          console.log('🔍 Preview final templateVars:', templateVars)
                         } catch (e) {
                           console.error('Failed to parse template variables for preview:', e)
                           templateVars = []

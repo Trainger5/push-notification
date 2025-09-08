@@ -809,7 +809,7 @@ export default function SendNotification() {
                     placeholder="Select a template"
                   >
                     {templates.map(template => (
-                      <option key={template._id} value={template._id}>
+                      <option key={template.id} value={template.id}>
                         {template.name} ({template.category})
                       </option>
                     ))}
@@ -830,31 +830,49 @@ export default function SendNotification() {
                       </Alert>
                     )}
 
-                    {selectedTemplate.variables && selectedTemplate.variables.length > 0 && (
-                      <Box>
-                        <Text fontSize="sm" fontWeight="medium" mb={3}>Template Variables</Text>
-                        <VStack spacing={3} align="stretch">
-                          {selectedTemplate.variables.map(varName => (
-                            <FormControl key={varName}>
-                              <FormLabel fontSize="sm">
-                                {varName} <Code fontSize="xs">{`{{${varName}}}`}</Code>
-                              </FormLabel>
-                              <Input
-                                value={templateForm.variables[varName] || ''}
-                                onChange={(e) => setTemplateForm({
-                                  ...templateForm,
-                                  variables: {
-                                    ...templateForm.variables,
-                                    [varName]: e.target.value
-                                  }
-                                })}
-                                placeholder={`Enter ${varName}`}
-                              />
-                            </FormControl>
-                          ))}
-                        </VStack>
-                      </Box>
-                    )}
+                    {(() => {
+                      // Parse variables from custom_data
+                      let templateVars = []
+                      try {
+                        if (selectedTemplate.custom_data) {
+                          const customData = typeof selectedTemplate.custom_data === 'string' 
+                            ? JSON.parse(selectedTemplate.custom_data) 
+                            : selectedTemplate.custom_data
+                          templateVars = Array.isArray(customData.variables) ? customData.variables : []
+                        } else if (Array.isArray(selectedTemplate.variables)) {
+                          templateVars = selectedTemplate.variables
+                        }
+                      } catch (e) {
+                        console.error('Failed to parse template variables:', e)
+                        templateVars = []
+                      }
+                      
+                      return templateVars.length > 0 && (
+                        <Box>
+                          <Text fontSize="sm" fontWeight="medium" mb={3}>Template Variables</Text>
+                          <VStack spacing={3} align="stretch">
+                            {templateVars.map((varName, index) => (
+                              <FormControl key={`${varName}-${index}`}>
+                                <FormLabel fontSize="sm">
+                                  {varName} <Code fontSize="xs">{`{{${varName}}}`}</Code>
+                                </FormLabel>
+                                <Input
+                                  value={templateForm.variables[varName] || ''}
+                                  onChange={(e) => setTemplateForm({
+                                    ...templateForm,
+                                    variables: {
+                                      ...templateForm.variables,
+                                      [varName]: e.target.value
+                                    }
+                                  })}
+                                  placeholder={`Enter ${varName}`}
+                                />
+                              </FormControl>
+                            ))}
+                          </VStack>
+                        </Box>
+                      )
+                    })()}
 
                     <Tabs variant="enclosed" size="sm">
                       <TabList>
@@ -960,9 +978,9 @@ export default function SendNotification() {
                     title={processTemplateText(selectedTemplate.title, templateForm.variables)}
                     body={processTemplateText(selectedTemplate.body, templateForm.variables)}
                     url={processTemplateText(selectedTemplate.url, templateForm.variables)}
-                    image={selectedTemplate.image}
-                    icon={selectedTemplate.icon}
-                    badge={selectedTemplate.badge}
+                    image={selectedTemplate.image_url}
+                    icon={selectedTemplate.icon_url}
+                    badge={selectedTemplate.badge_url}
                   />
                 ) : (
                   <Box textAlign="center" py={8}>
@@ -973,17 +991,51 @@ export default function SendNotification() {
               </CardBody>
             </Card>
 
-            {selectedTemplate && selectedTemplate.variables && selectedTemplate.variables.length > 0 && (
+            {selectedTemplate && (() => {
+              // Check if template has variables
+              let hasVariables = false
+              try {
+                if (selectedTemplate.custom_data) {
+                  const customData = typeof selectedTemplate.custom_data === 'string' 
+                    ? JSON.parse(selectedTemplate.custom_data) 
+                    : selectedTemplate.custom_data
+                  hasVariables = Array.isArray(customData.variables) && customData.variables.length > 0
+                } else if (Array.isArray(selectedTemplate.variables)) {
+                  hasVariables = selectedTemplate.variables.length > 0
+                }
+              } catch (e) {
+                hasVariables = false
+              }
+              return hasVariables
+            })() && (
               <Card bg={cardBg} borderRadius="xl">
                 <CardBody>
                   <VStack align="stretch" spacing={2}>
                     <Text fontSize="sm" fontWeight="medium">Template Variables</Text>
                     <HStack spacing={2} flexWrap="wrap">
-                      {selectedTemplate.variables.map(varName => (
-                        <Tag key={varName} size="sm" colorScheme="purple">
-                          <TagLabel>{`{{${varName}}}`}</TagLabel>
-                        </Tag>
-                      ))}
+                      {(() => {
+                        // Parse variables from custom_data
+                        let templateVars = []
+                        try {
+                          if (selectedTemplate.custom_data) {
+                            const customData = typeof selectedTemplate.custom_data === 'string' 
+                              ? JSON.parse(selectedTemplate.custom_data) 
+                              : selectedTemplate.custom_data
+                            templateVars = Array.isArray(customData.variables) ? customData.variables : []
+                          } else if (Array.isArray(selectedTemplate.variables)) {
+                            templateVars = selectedTemplate.variables
+                          }
+                        } catch (e) {
+                          console.error('Failed to parse template variables for preview:', e)
+                          templateVars = []
+                        }
+                        
+                        return templateVars.map((varName, index) => (
+                          <Tag key={`${varName}-${index}`} size="sm" colorScheme="purple">
+                            <TagLabel>{`{{${varName}}}`}</TagLabel>
+                          </Tag>
+                        ))
+                      })()}
                     </HStack>
                     <Text fontSize="xs" color="gray.500" mt={2}>
                       Fill in the variable values to personalize your notification

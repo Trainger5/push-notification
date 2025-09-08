@@ -170,6 +170,7 @@ const NotificationPreview = ({ title, body, url, image, icon, badge, actions, re
 }
 
 export default function SendNotification() {
+  console.log('🚀 SendNotification component rendering')
   const [mode, setMode] = useState('direct') // 'direct' or 'template'
   const [templates, setTemplates] = useState([])
   const [segments, setSegments] = useState([])
@@ -269,6 +270,7 @@ export default function SendNotification() {
   }
 
   useEffect(() => {
+    console.log('🔄 useEffect triggered - fetching initial data')
     fetchInitialData()
   }, [])
 
@@ -604,11 +606,14 @@ export default function SendNotification() {
               variant={mode === 'template' ? 'solid' : 'outline'}
               colorScheme="blue"
               onClick={() => {
+                console.log('🔥 USE TEMPLATE BUTTON CLICKED!')
                 console.log('🔍 Switching to template mode')
                 console.log('🔍 Current templates state:', templates)
                 console.log('🔍 Is templates array?', Array.isArray(templates))
                 console.log('🔍 Templates length:', templates?.length)
+                console.log('🔍 Current mode:', mode)
                 setMode('template')
+                console.log('🔍 Mode should now be template')
               }}
               leftIcon={<Icon as={FiFileText} />}
             >

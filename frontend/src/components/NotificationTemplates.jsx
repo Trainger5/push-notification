@@ -130,9 +130,10 @@ const TemplateCard = ({ template, onEdit, onDelete, onDuplicate, onUse, onView }
       const customData = typeof template.custom_data === 'string' 
         ? JSON.parse(template.custom_data) 
         : template.custom_data
-      variables = customData.variables || []
+      variables = Array.isArray(customData.variables) ? customData.variables : []
     } catch (e) {
       console.error('Failed to parse custom_data:', e)
+      variables = []
     }
   }
   
@@ -218,21 +219,24 @@ const TemplateCard = ({ template, onEdit, onDelete, onDuplicate, onUse, onView }
 
 const TemplatePreview = ({ template, variables, onVariableChange }) => {
   const processTemplate = (text, vars) => {
+    if (!text) return '';
+    
     let processed = text;
     
     // Parse template.variables from custom_data if needed
     let templateVars = []
-    if (template.custom_data) {
-      try {
+    try {
+      if (template.custom_data) {
         const customData = typeof template.custom_data === 'string' 
           ? JSON.parse(template.custom_data) 
           : template.custom_data
-        templateVars = customData.variables || []
-      } catch (e) {
-        console.error('Failed to parse custom_data:', e)
+        templateVars = Array.isArray(customData.variables) ? customData.variables : []
+      } else if (Array.isArray(template.variables)) {
+        templateVars = template.variables
       }
-    } else if (Array.isArray(template.variables)) {
-      templateVars = template.variables
+    } catch (e) {
+      console.error('Failed to parse template variables:', e)
+      templateVars = []
     }
     
     if (templateVars.length > 0) {
@@ -271,25 +275,26 @@ const TemplatePreview = ({ template, variables, onVariableChange }) => {
       {(() => {
         // Parse template.variables from custom_data if needed
         let templateVars = []
-        if (template.custom_data) {
-          try {
+        try {
+          if (template.custom_data) {
             const customData = typeof template.custom_data === 'string' 
               ? JSON.parse(template.custom_data) 
               : template.custom_data
-            templateVars = customData.variables || []
-          } catch (e) {
-            console.error('Failed to parse custom_data:', e)
+            templateVars = Array.isArray(customData.variables) ? customData.variables : []
+          } else if (Array.isArray(template.variables)) {
+            templateVars = template.variables
           }
-        } else if (Array.isArray(template.variables)) {
-          templateVars = template.variables
+        } catch (e) {
+          console.error('Failed to parse template variables for display:', e)
+          templateVars = []
         }
         
         return templateVars.length > 0 && (
           <Box>
             <Text fontSize="sm" fontWeight="medium" mb={2}>Variables</Text>
             <VStack spacing={2} align="stretch">
-              {templateVars.map(varName => (
-                <FormControl key={varName}>
+              {templateVars.map((varName, index) => (
+                <FormControl key={`${varName}-${index}`}>
                   <FormLabel fontSize="sm">{varName}</FormLabel>
                   <Input
                     size="sm"
@@ -339,6 +344,7 @@ export default function NotificationTemplates() {
     tag: '',
     category: 'general',
     variables: [],
+    actions: [],
     isActive: true
   })
 
@@ -435,6 +441,7 @@ export default function NotificationTemplates() {
       tag: '',
       category: 'general',
       variables: [],
+      actions: [],
       isActive: true
     })
     setEditingTemplate(null)
@@ -493,14 +500,29 @@ export default function NotificationTemplates() {
     setEditingTemplate(template)
     // Parse custom_data if it's a string
     let variables = []
+    let actions = []
     if (template.custom_data) {
       try {
         const customData = typeof template.custom_data === 'string' 
           ? JSON.parse(template.custom_data) 
           : template.custom_data
-        variables = customData.variables || []
+        variables = Array.isArray(customData.variables) ? customData.variables : []
       } catch (e) {
         console.error('Failed to parse custom_data:', e)
+        variables = []
+      }
+    }
+    
+    // Parse actions if it's a string
+    if (template.actions) {
+      try {
+        actions = typeof template.actions === 'string' 
+          ? JSON.parse(template.actions) 
+          : template.actions
+        actions = Array.isArray(actions) ? actions : []
+      } catch (e) {
+        console.error('Failed to parse actions:', e)
+        actions = []
       }
     }
     
@@ -516,6 +538,7 @@ export default function NotificationTemplates() {
       tag: template.tag || '',
       category: template.category || 'general',
       variables: variables,
+      actions: actions,
       isActive: template.status === 'active'
     })
     onFormOpen()
@@ -585,6 +608,28 @@ export default function NotificationTemplates() {
 
   const handleUse = (template) => {
     setUsingTemplate(template)
+    
+    // Ensure template has valid variables array
+    let variables = []
+    if (template.custom_data) {
+      try {
+        const customData = typeof template.custom_data === 'string' 
+          ? JSON.parse(template.custom_data) 
+          : template.custom_data
+        variables = Array.isArray(customData.variables) ? customData.variables : []
+      } catch (e) {
+        console.error('Failed to parse custom_data:', e)
+        variables = []
+      }
+    }
+    
+    // Update template object with parsed variables for consistency
+    const updatedTemplate = {
+      ...template,
+      variables: variables
+    }
+    
+    setUsingTemplate(updatedTemplate)
     setUseForm({
       variables: {},
       scheduledFor: '',
@@ -1082,9 +1127,10 @@ export default function NotificationTemplates() {
                       const customData = typeof viewingTemplate.custom_data === 'string' 
                         ? JSON.parse(viewingTemplate.custom_data) 
                         : viewingTemplate.custom_data
-                      variables = customData.variables || []
+                      variables = Array.isArray(customData.variables) ? customData.variables : []
                     } catch (e) {
                       console.error('Failed to parse custom_data:', e)
+                      variables = []
                     }
                   }
                   
@@ -1092,8 +1138,8 @@ export default function NotificationTemplates() {
                     <Box>
                       <Text fontSize="sm" fontWeight="medium" color="gray.500">Variables</Text>
                       <Wrap>
-                        {variables.map(variable => (
-                          <WrapItem key={variable}>
+                        {variables.map((variable, index) => (
+                          <WrapItem key={`${variable}-${index}`}>
                             <Tag size="sm" colorScheme="blue">{variable}</Tag>
                           </WrapItem>
                         ))}

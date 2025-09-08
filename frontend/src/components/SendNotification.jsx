@@ -652,7 +652,7 @@ export default function SendNotification() {
                             onChange={(e) => setFormData({ ...formData, targetSegment: e.target.value })}
                           >
                             <option value="all">All Subscribers</option>
-                            {segments.map(segment => (
+                            {Array.isArray(segments) && segments.map(segment => (
                               <option key={segment._id} value={segment._id}>
                                 {segment.name} ({segment.matchedUsers || 0} users)
                               </option>
@@ -808,7 +808,7 @@ export default function SendNotification() {
                     }}
                     placeholder="Select a template"
                   >
-                    {templates.map(template => (
+                    {Array.isArray(templates) && templates.map(template => (
                       <option key={template.id} value={template.id}>
                         {template.name} ({template.category})
                       </option>
@@ -851,7 +851,7 @@ export default function SendNotification() {
                         <Box>
                           <Text fontSize="sm" fontWeight="medium" mb={3}>Template Variables</Text>
                           <VStack spacing={3} align="stretch">
-                            {templateVars.map((varName, index) => (
+                            {Array.isArray(templateVars) && templateVars.map((varName, index) => (
                               <FormControl key={`${varName}-${index}`}>
                                 <FormLabel fontSize="sm">
                                   {varName} <Code fontSize="xs">{`{{${varName}}}`}</Code>
@@ -921,7 +921,7 @@ export default function SendNotification() {
                               onChange={(e) => setTemplateForm({ ...templateForm, targetSegment: e.target.value })}
                             >
                               <option value="all">All Subscribers</option>
-                              {segments.map(segment => (
+                              {Array.isArray(segments) && segments.map(segment => (
                                 <option key={segment._id} value={segment._id}>
                                   {segment.name} ({segment.matchedUsers || 0} users)
                                 </option>
@@ -1030,7 +1030,7 @@ export default function SendNotification() {
                           templateVars = []
                         }
                         
-                        return templateVars.map((varName, index) => (
+                        return Array.isArray(templateVars) && templateVars.map((varName, index) => (
                           <Tag key={`${varName}-${index}`} size="sm" colorScheme="purple">
                             <TagLabel>{`{{${varName}}}`}</TagLabel>
                           </Tag>

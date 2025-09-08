@@ -328,6 +328,67 @@ router.get('/analytics/demographics', async (req, res) => {
   }
 });
 
+// Get metrics summary (public endpoint for dashboard)
+router.get('/', requireAuth, requireRole('customer'), async (req, res) => {
+  try {
+    const { customers, notifications, metrics, subscriptions } = getDatastores();
+    const customer = await customers.findOne({ user_id: req.user.user_id });
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    const customer_id = customer.id;
+    const range = req.query.range || '7d';
+    
+    // Parse range to get date
+    let startDate = new Date();
+    if (range === '24h') {
+      startDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    } else if (range === '7d') {
+      startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    } else if (range === '30d') {
+      startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    }
+
+    // Get metrics for the period
+    const periodMetrics = await metrics.find({ 
+      customer_id: customer_id,
+      timestamp: { $gte: startDate }
+    });
+
+    const periodNotifications = await notifications.find({
+      customer_id: customer_id,
+      created_at: { $gte: startDate }
+    });
+
+    // Calculate summary stats
+    const totalSent = periodNotifications.reduce((sum, n) => sum + (n.success || 0), 0);
+    const totalFailed = periodNotifications.reduce((sum, n) => sum + (n.failed || 0), 0);
+    const totalOpens = periodMetrics.filter(m => m.event_type === 'opened').length;
+    const totalClicks = periodMetrics.filter(m => m.event_type === 'clicked').length;
+    
+    const deliveryRate = totalSent + totalFailed > 0 ? (totalSent / (totalSent + totalFailed)) * 100 : 0;
+    const openRate = totalSent > 0 ? (totalOpens / totalSent) * 100 : 0;
+    const clickRate = totalOpens > 0 ? (totalClicks / totalOpens) * 100 : 0;
+
+    // Get subscriber count
+    const totalSubscribers = await subscriptions.count({ customer_id: customer_id });
+
+    res.json({
+      range,
+      subscribers: totalSubscribers,
+      sent: totalSent,
+      failed: totalFailed,
+      opened: totalOpens,
+      clicked: totalClicks,
+      deliveryRate: parseFloat(deliveryRate.toFixed(2)),
+      openRate: parseFloat(openRate.toFixed(2)),
+      clickRate: parseFloat(clickRate.toFixed(2))
+    });
+  } catch (error) {
+    console.error('Metrics summary error:', error);
+    res.status(500).json({ error: 'Failed to fetch metrics' });
+  }
+});
+
 // Get recent activity
 router.get('/analytics/activity', async (req, res) => {
   try {

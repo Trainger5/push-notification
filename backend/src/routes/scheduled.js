@@ -9,6 +9,28 @@ const router = express.Router();
 
 router.use(requireAuth, requireRole('customer'));
 
+// Get scheduled notifications (alias for /list)
+router.get('/', async (req, res) => {
+  try {
+    const { customers } = getDatastores();
+    const customer = await customers.findOne({ user_id: req.user.user_id });
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const scheduler = getScheduler();
+    const scheduledNotifications = await scheduler.getScheduledNotifications(customer.id);
+    
+    res.json({
+      notifications: scheduledNotifications,
+      total: scheduledNotifications.length
+    });
+  } catch (error) {
+    console.error('Get scheduled notifications error:', error);
+    res.status(500).json({ error: 'Failed to retrieve scheduled notifications' });
+  }
+});
+
 // Schedule a notification
 router.post(
   '/schedule',

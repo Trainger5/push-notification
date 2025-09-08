@@ -8,6 +8,29 @@ const router = express.Router();
 
 router.use(requireAuth, requireRole('customer'));
 
+// Get all templates (alias for /list)
+router.get('/', async (req, res) => {
+  try {
+    const { customers, notificationTemplates } = getDatastores();
+    const customer = await customers.findOne({ user_id: req.user.user_id });
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const templates = await notificationTemplates.find({ customer_id: customer.id }, { 
+      sort: { updated_at: -1 } 
+    });
+
+    res.json({
+      templates,
+      total: templates.length
+    });
+  } catch (error) {
+    console.error('Get templates error:', error);
+    res.status(500).json({ error: 'Failed to retrieve templates' });
+  }
+});
+
 // Create a new template
 router.post(
   '/create',
@@ -52,18 +75,16 @@ router.post(
         description: req.body.description || '',
         title: req.body.title,
         body: req.body.body,
-        url: req.body.url,
-        icon: req.body.icon,
-        badge: req.body.badge,
-        image: req.body.image,
-        tag: req.body.tag,
+        url: req.body.url || null,
+        icon_url: req.body.icon || null,
+        badge_url: req.body.badge || null,
+        image_url: req.body.image || null,
+        tag: req.body.tag || null,
         category: req.body.category || 'general',
-        variables: req.body.variables || [], // Array of variable names like ['userName', 'productName']
-        actions: req.body.actions || [],
-        usageCount: 0,
-        isActive: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        custom_data: JSON.stringify({ variables: req.body.variables || [] }), // Store variables in custom_data
+        actions: JSON.stringify(req.body.actions || []),
+        usage_count: 0,
+        status: 'active',
         created_by: req.user.user_id
       };
 

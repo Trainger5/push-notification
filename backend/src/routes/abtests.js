@@ -8,6 +8,29 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth, requireRole('customer'));
 
+// Get all A/B tests (alias for /list)
+router.get('/', async (req, res) => {
+  try {
+    const { customers, abTests } = getDatastores();
+    const customer = await customers.findOne({ user_id: req.user.user_id });
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const tests = await abTests.find({ customer_id: customer.id }, { 
+      sort: { created_at: -1 } 
+    });
+
+    res.json({
+      tests,
+      total: tests.length
+    });
+  } catch (error) {
+    console.error('Get A/B tests error:', error);
+    res.status(500).json({ error: 'Failed to retrieve A/B tests' });
+  }
+});
+
 // Create new A/B test
 router.post(
   '/create',

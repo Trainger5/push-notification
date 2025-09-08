@@ -8,6 +8,29 @@ const router = express.Router();
 
 router.use(requireAuth, requireRole('customer'));
 
+// Get all webhooks (alias for /list)
+router.get('/', async (req, res) => {
+  try {
+    const { customers, webhooks } = getDatastores();
+    const customer = await customers.findOne({ user_id: req.user.user_id });
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const webhookList = await webhooks.find({ customer_id: customer.id }, { 
+      sort: { created_at: -1 } 
+    });
+
+    res.json({
+      webhooks: webhookList,
+      total: webhookList.length
+    });
+  } catch (error) {
+    console.error('Get webhooks error:', error);
+    res.status(500).json({ error: 'Failed to retrieve webhooks' });
+  }
+});
+
 // Create a new webhook endpoint
 router.post(
   '/create',

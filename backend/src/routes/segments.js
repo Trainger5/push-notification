@@ -7,6 +7,29 @@ const router = express.Router();
 
 router.use(requireAuth, requireRole('customer'));
 
+// Get all segments (alias for /list)
+router.get('/', async (req, res) => {
+  try {
+    const { customers, userSegments } = getDatastores();
+    const customer = await customers.findOne({ user_id: req.user.user_id });
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+
+    const segments = await userSegments.find({ customer_id: customer.id }, { 
+      sort: { updated_at: -1 } 
+    });
+
+    res.json({
+      segments,
+      total: segments.length
+    });
+  } catch (error) {
+    console.error('Get segments error:', error);
+    res.status(500).json({ error: 'Failed to retrieve segments' });
+  }
+});
+
 // Create a new advanced segment
 router.post(
   '/create',

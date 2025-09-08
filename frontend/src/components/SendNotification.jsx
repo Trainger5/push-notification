@@ -494,20 +494,41 @@ export default function SendNotification() {
     }
   }
 
-  const selectedTemplate = templates.find(t => t.id === templateForm.selectedTemplate)
+  const selectedTemplate = Array.isArray(templates) 
+    ? templates.find(t => t.id === templateForm.selectedTemplate)
+    : null
   console.log('🔍 Looking for template ID:', templateForm.selectedTemplate)
-  console.log('🔍 Available templates:', templates.map(t => ({id: t.id, name: t.name})))
+  console.log('🔍 Available templates:', Array.isArray(templates) ? templates.map(t => ({id: t.id, name: t.name})) : [])
   console.log('🔍 Selected template:', selectedTemplate)
 
   const processTemplateText = (text, variables) => {
+    console.log('🔍 Processing template text:', { text, variables, selectedTemplate })
     if (!text || !selectedTemplate) return text
     let processed = text
-    if (selectedTemplate.variables) {
-      selectedTemplate.variables.forEach(varName => {
-        const value = variables[varName] || `{{${varName}}}`
-        processed = processed.replace(new RegExp(`{{${varName}}}`, 'g'), value)
-      })
+    
+    // Get variables from custom_data or variables property
+    let templateVariables = []
+    try {
+      if (selectedTemplate.custom_data && selectedTemplate.custom_data.variables) {
+        templateVariables = Array.isArray(selectedTemplate.custom_data.variables) 
+          ? selectedTemplate.custom_data.variables 
+          : []
+      } else if (selectedTemplate.variables && Array.isArray(selectedTemplate.variables)) {
+        templateVariables = selectedTemplate.variables
+      }
+      
+      console.log('🔍 Template variables for processing:', templateVariables)
+      
+      if (templateVariables.length > 0) {
+        templateVariables.forEach(varName => {
+          const value = variables[varName] || `{{${varName}}}`
+          processed = processed.replace(new RegExp(`{{${varName}}}`, 'g'), value)
+        })
+      }
+    } catch (e) {
+      console.error('🔍 Error in processTemplateText:', e)
     }
+    
     return processed
   }
 
@@ -582,10 +603,16 @@ export default function SendNotification() {
             <Button
               variant={mode === 'template' ? 'solid' : 'outline'}
               colorScheme="blue"
-              onClick={() => setMode('template')}
+              onClick={() => {
+                console.log('🔍 Switching to template mode')
+                console.log('🔍 Current templates state:', templates)
+                console.log('🔍 Is templates array?', Array.isArray(templates))
+                console.log('🔍 Templates length:', templates?.length)
+                setMode('template')
+              }}
               leftIcon={<Icon as={FiFileText} />}
             >
-              Use Template ({templates.length} available)
+              Use Template ({Array.isArray(templates) ? templates.length : 0} available)
             </Button>
           </ButtonGroup>
         </CardBody>
@@ -802,7 +829,13 @@ export default function SendNotification() {
       )}
 
       {/* Template Form */}
-      {mode === 'template' && (
+      {mode === 'template' && (() => {
+        console.log('🔍 Rendering template mode')
+        console.log('🔍 Templates state in render:', templates)
+        console.log('🔍 Is templates array in render?', Array.isArray(templates))
+        console.log('🔍 Templates count:', templates?.length || 0)
+        return true
+      })() && (
         <Grid templateColumns={{ base: '1fr', lg: '2fr 1fr' }} gap={6}>
           <Card bg={cardBg} borderRadius="xl">
             <CardHeader>

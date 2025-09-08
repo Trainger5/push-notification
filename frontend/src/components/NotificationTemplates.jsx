@@ -402,6 +402,21 @@ export default function NotificationTemplates() {
     if (!form.name.trim()) newErrors.name = 'Name is required'
     if (!form.title.trim()) newErrors.title = 'Title is required'
     if (!form.body.trim()) newErrors.body = 'Body is required'
+    
+    // Validate URLs if provided
+    const urlPattern = /^https?:\/\/.+/i
+    if (form.url?.trim() && !urlPattern.test(form.url.trim())) {
+      newErrors.url = 'Please enter a valid URL (must start with http:// or https://)'
+    }
+    if (form.icon?.trim() && !urlPattern.test(form.icon.trim())) {
+      newErrors.icon = 'Please enter a valid URL (must start with http:// or https://)'
+    }
+    if (form.badge?.trim() && !urlPattern.test(form.badge.trim())) {
+      newErrors.badge = 'Please enter a valid URL (must start with http:// or https://)'
+    }
+    if (form.image?.trim() && !urlPattern.test(form.image.trim())) {
+      newErrors.image = 'Please enter a valid URL (must start with http:// or https://)'
+    }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
@@ -439,10 +454,28 @@ export default function NotificationTemplates() {
       
       const method = editingTemplate ? 'PUT' : 'POST'
       
+      // Build the request body, only including non-empty optional fields
+      const requestBody = {
+        name: form.name.trim(),
+        title: form.title.trim(),
+        body: form.body.trim(),
+        category: form.category || 'general',
+        variables: form.variables,
+        isActive: form.isActive
+      }
+      
+      // Only add optional fields if they have values
+      if (form.description?.trim()) requestBody.description = form.description.trim()
+      if (form.url?.trim()) requestBody.url = form.url.trim()
+      if (form.icon?.trim()) requestBody.icon = form.icon.trim()
+      if (form.badge?.trim()) requestBody.badge = form.badge.trim()
+      if (form.image?.trim()) requestBody.image = form.image.trim()
+      if (form.tag?.trim()) requestBody.tag = form.tag.trim()
+      
       const response = await fetch(url, {
         method,
         headers,
-        body: JSON.stringify(form)
+        body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {
@@ -763,7 +796,9 @@ export default function NotificationTemplates() {
                 <VStack spacing={4} align="stretch">
                   <Grid templateColumns="repeat(2, 1fr)" gap={4}>
                     <FormControl isInvalid={!!errors.name}>
-                      <FormLabel>Template Name</FormLabel>
+                      <FormLabel>
+                        Template Name <Text as="span" color="red.500">*</Text>
+                      </FormLabel>
                       <Input
                         value={form.name}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -773,7 +808,9 @@ export default function NotificationTemplates() {
                     </FormControl>
 
                     <FormControl>
-                      <FormLabel>Category</FormLabel>
+                      <FormLabel>
+                        Category <Text as="span" fontSize="xs" color="gray.500">(optional)</Text>
+                      </FormLabel>
                       <Input
                         value={form.category}
                         onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -793,7 +830,9 @@ export default function NotificationTemplates() {
                   </FormControl>
 
                   <FormControl isInvalid={!!errors.title}>
-                    <FormLabel>Notification Title</FormLabel>
+                    <FormLabel>
+                      Notification Title <Text as="span" color="red.500">*</Text>
+                    </FormLabel>
                     <Input
                       value={form.title}
                       onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -803,7 +842,9 @@ export default function NotificationTemplates() {
                   </FormControl>
 
                   <FormControl isInvalid={!!errors.body}>
-                    <FormLabel>Notification Body</FormLabel>
+                    <FormLabel>
+                      Notification Body <Text as="span" color="red.500">*</Text>
+                    </FormLabel>
                     <Textarea
                       value={form.body}
                       onChange={(e) => setForm({ ...form, body: e.target.value })}
@@ -814,17 +855,22 @@ export default function NotificationTemplates() {
                   </FormControl>
 
                   <Grid templateColumns="repeat(2, 1fr)" gap={4}>
-                    <FormControl>
-                      <FormLabel>Landing URL</FormLabel>
+                    <FormControl isInvalid={!!errors.url}>
+                      <FormLabel>
+                        Landing URL <Text as="span" fontSize="xs" color="gray.500">(optional)</Text>
+                      </FormLabel>
                       <Input
                         value={form.url}
                         onChange={(e) => setForm({ ...form, url: e.target.value })}
                         placeholder="https://example.com/{{productId}}"
                       />
+                      <FormErrorMessage>{errors.url}</FormErrorMessage>
                     </FormControl>
 
                     <FormControl>
-                      <FormLabel>Tag</FormLabel>
+                      <FormLabel>
+                        Tag <Text as="span" fontSize="xs" color="gray.500">(optional)</Text>
+                      </FormLabel>
                       <Input
                         value={form.tag}
                         onChange={(e) => setForm({ ...form, tag: e.target.value })}
@@ -833,14 +879,61 @@ export default function NotificationTemplates() {
                     </FormControl>
                   </Grid>
 
+                  <Box>
+                    <Text fontSize="sm" fontWeight="medium" mb={2}>
+                      Asset URLs <Text as="span" fontSize="xs" color="gray.500">(all optional)</Text>
+                    </Text>
+                    <Grid templateColumns="repeat(2, 1fr)" gap={4}>
+                      <FormControl isInvalid={!!errors.icon}>
+                        <FormLabel fontSize="sm">Icon URL</FormLabel>
+                        <Input
+                          size="sm"
+                          value={form.icon}
+                          onChange={(e) => setForm({ ...form, icon: e.target.value })}
+                          placeholder="https://example.com/icon.png"
+                        />
+                        <FormErrorMessage fontSize="xs">{errors.icon}</FormErrorMessage>
+                      </FormControl>
+                      
+                      <FormControl isInvalid={!!errors.badge}>
+                        <FormLabel fontSize="sm">Badge URL</FormLabel>
+                        <Input
+                          size="sm"
+                          value={form.badge}
+                          onChange={(e) => setForm({ ...form, badge: e.target.value })}
+                          placeholder="https://example.com/badge.png"
+                        />
+                        <FormErrorMessage fontSize="xs">{errors.badge}</FormErrorMessage>
+                      </FormControl>
+                      
+                      <FormControl isInvalid={!!errors.image} gridColumn="span 2">
+                        <FormLabel fontSize="sm">Image URL</FormLabel>
+                        <Input
+                          size="sm"
+                          value={form.image}
+                          onChange={(e) => setForm({ ...form, image: e.target.value })}
+                          placeholder="https://example.com/image.jpg"
+                        />
+                        <FormErrorMessage fontSize="xs">{errors.image}</FormErrorMessage>
+                      </FormControl>
+                    </Grid>
+                  </Box>
+
                   <FormControl>
-                    <FormLabel>Variables</FormLabel>
+                    <FormLabel>
+                      Variables <Text as="span" fontSize="xs" color="gray.500">(optional)</Text>
+                    </FormLabel>
                     <HStack>
                       <Input
                         value={newVariable}
                         onChange={(e) => setNewVariable(e.target.value)}
                         placeholder="userName, productName, etc."
-                        onKeyPress={(e) => e.key === 'Enter' && addVariable()}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            addVariable()
+                          }
+                        }}
                       />
                       <Button onClick={addVariable} size="sm">Add</Button>
                     </HStack>

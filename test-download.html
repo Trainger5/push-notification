@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; max-width: 600px; }
+        .result { margin: 15px 0; padding: 15px; border-radius: 5px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        button { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; margin: 10px 0; }
+        a { display: inline-block; padding: 10px 20px; background: #28a745; color: white; text-decoration: none; border-radius: 3px; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Download Route Test</h1>
+    <p>Testing if the service worker download works correctly.</p>
+
+    <div>
+        <h3>Download Links:</h3>
+        <a href="http://13.126.228.42/download/pn-sw.js" download="pn-sw.js">📥 Download pn-sw.js</a>
+        <a href="http://13.126.228.42/download/pn-sw.js" target="_blank">🔍 View in Browser</a>
+    </div>
+
+    <div>
+        <h3>Test Download URL:</h3>
+        <button onclick="testDownloadUrl()">Test Download Route</button>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            results.innerHTML += `<div class="result ${type}">${message}</div>`;
+        }
+
+        async function testDownloadUrl() {
+            document.getElementById('results').innerHTML = '';
+            
+            log('🔄 Testing download route...', 'info');
+            
+            try {
+                const response = await fetch('http://13.126.228.42/download/pn-sw.js');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const content = await response.text();
+                const contentType = response.headers.get('content-type');
+                const contentDisposition = response.headers.get('content-disposition');
+                
+                log('✅ Download route is working!', 'success');
+                log(`Content-Type: ${contentType}`, 'info');
+                log(`Content-Disposition: ${contentDisposition}`, 'info');
+                log(`Content length: ${content.length} characters`, 'info');
+                
+                if (content.includes('importScripts')) {
+                    log('✅ Service worker content looks correct', 'success');
+                } else {
+                    log('⚠️ Service worker content might be incorrect', 'error');
+                }
+                
+                // Show first few lines of content
+                const firstLines = content.split('\n').slice(0, 5).join('\n');
+                log(`<strong>First few lines:</strong><pre>${firstLines}</pre>`, 'info');
+                
+            } catch (error) {
+                log('❌ Download route failed: ' + error.message, 'error');
+            }
+        }
+
+        // Auto-test on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            testDownloadUrl();
+        });
+    </script>
+</body>
+</html>

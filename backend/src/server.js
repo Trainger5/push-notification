@@ -92,7 +92,7 @@ app.get('/pn-sw.js', (_req, res) => {
   res.send(fs.readFileSync(path.join(__dirname, 'sdk', 'service-worker.js'), 'utf-8'));
 });
 
-// Serve downloadable service worker file for users
+// Serve downloadable service worker file for users (BEFORE static middleware)
 app.get('/download/pn-sw.js', (_req, res) => {
   const serviceWorkerContent = `// Push Notification Service Worker
 // Save this file as 'pn-sw.js' at your website root (same folder as index.html)

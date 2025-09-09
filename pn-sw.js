@@ -104,7 +104,7 @@ self.addEventListener('notificationclick', function (event) {
   let trackingType = 'click';
 
   // Handle action button clicks
-  if (action) {
+  if (action && Array.isArray(event.notification.actions)) {
     const actionConfig = event.notification.actions.find(a => a.action === action);
     if (actionConfig) {
       // Action-specific URL if defined in custom data

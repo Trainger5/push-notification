@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Embed Snippet (Copy/Paste)</title>
+    <style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:860px;margin:40px auto;padding:0 14px}.card{border:1px solid #e5e7eb;border-radius:12px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05)}</style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Recommended Embed Snippet</h2>
+      <p>Use these two steps on your website. Replace <code>YOUR_CUSTOMER_API_KEY</code> with your key from the dashboard.</p>
+      <h3>1) Create <code>/pn-sw.js</code> at your site root:</h3>
+      <pre><code>importScripts('http://13.126.228.42/pn-sw.js');</code></pre>
+
+      <h3>2) Add SDK + init before <code>&lt;/body&gt;</code>:</h3>
+      <pre><code>&lt;script src="http://13.126.228.42/sdk.js" data-api-key="YOUR_CUSTOMER_API_KEY"&gt;&lt;/script&gt;
+&lt;script&gt;
+  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });
+&lt;/script&gt;</code></pre>
+
+      <p>Tip: You can pass the API key programmatically as well:</p>
+      <pre><code>PN.init({ apiKey: 'YOUR_CUSTOMER_API_KEY', baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });</code></pre>
+    </div>
+  </body>
+</html>
+

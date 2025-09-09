@@ -178,7 +178,7 @@
     function Docs() {
         const el = document.createElement('div');
         el.className = 'container';
-        el.innerHTML = `
+        const html = `
             <div class="card">
                 <h2>Integration Guide</h2>
                 <ol>
@@ -189,22 +189,15 @@
                     <li style="margin-bottom:14px;">
                         <strong>Host a service worker at your site root</strong><br/>
                         Create <code>/pn-sw.js</code> at your domain root with:
-                        <pre><code>// /pn-sw.js at your site root
-importScripts('https://YOUR_BACKEND_HOST/pn-sw.js');</code></pre>
-                        Browsers require the service worker to be same-origin as your pages.
+                        <pre><code id="embed-sw">// /pn-sw.js at your site root\nimportScripts('http://13.126.228.42/pn-sw.js');</code></pre>
+                        <button class="btn secondary" id="copy-sw" style="margin-top:10px; padding:10px 16px; font-size:.9rem">Copy</button>
+                        <div class="muted">Browsers require the service worker to be same-origin as your pages.</div>
                     </li>
                     <li style="margin-bottom:14px;">
                         <strong>Add the SDK to your pages</strong><br/>
                         Paste before closing <code>&lt;/body&gt;</code>:
-                        <pre><code>&lt;script src="https://YOUR_BACKEND_HOST/sdk.js" data-api-key="YOUR_API_KEY"&gt;&lt;/script&gt;
-&lt;script&gt;
-  PN.init({ baseUrl: 'https://YOUR_BACKEND_HOST' });
-&lt;/script&gt;</code></pre>
-                    </li>
-                    <li style="margin-bottom:14px;">
-                        <strong>Programmatic (optional)</strong>
-                        <pre><code>// Re-subscribe after unsubscribe
-PN.unsubscribe().then(() => PN.init({ apiKey: 'YOUR_API_KEY', baseUrl: 'https://YOUR_BACKEND_HOST' }));</code></pre>
+                        <pre><code id="embed-sdk">&lt;script src="http://13.126.228.42/sdk.js" data-api-key="YOUR_CUSTOMER_API_KEY"&gt;&lt;/script&gt;\n&lt;script&gt;\n  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });\n&lt;/script&gt;</code></pre>
+                        <button class="btn secondary" id="copy-sdk" style="margin-top:10px; padding:10px 16px; font-size:.9rem">Copy</button>
                     </li>
                     <li style="margin-bottom:14px;">
                         <strong>Test</strong><br/>
@@ -214,7 +207,65 @@ PN.unsubscribe().then(() => PN.init({ apiKey: 'YOUR_API_KEY', baseUrl: 'https://
                 <div class="muted">Notes: Use HTTPS in production. Local testing works on http://localhost in most browsers. Allow notifications for your site and ensure OS Do Not Disturb is off.</div>
             </div>
         `;
+        el.innerHTML = html;
+        attachCopy(el);
+
+        // If a customer is logged in, inject their real API key into the snippet
+        (async () => {
+            try {
+                if (!state.token) return; // not logged in
+                // Prefer showing customer-specific key only for customer role
+                if (state.role !== 'customer') return;
+                const me = await api('/customer/me');
+                const key = me?.customer?.apiKey;
+                if (!key) return;
+                const sdk = el.querySelector('#embed-sdk');
+                if (sdk) {
+                    sdk.textContent = (
+`<script src="http://13.126.228.42/sdk.js" data-api-key="${key}"></script>
+<script>
+  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });
+</script>`
+                    );
+                }
+                attachCopy(el);
+            } catch (_) { /* ignore */ }
+        })();
+
         return el;
+    }
+
+    function attachCopy(scope) {
+      function doCopy(text, btn) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => flash(btn));
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand('copy'); } catch (_) {}
+          document.body.removeChild(ta);
+          flash(btn);
+        }
+      }
+      function flash(btn) {
+        if (!btn) return;
+        const old = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.disabled = true;
+        setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 1200);
+      }
+      const swBtn = scope.querySelector('#copy-sw');
+      const sdkBtn = scope.querySelector('#copy-sdk');
+      if (swBtn) swBtn.onclick = () => {
+        const code = scope.querySelector('#embed-sw')?.textContent || '';
+        doCopy(code, swBtn);
+      };
+      if (sdkBtn) sdkBtn.onclick = () => {
+        const code = scope.querySelector('#embed-sdk')?.textContent || '';
+        doCopy(code, sdkBtn);
+      };
     }
 
     function Admin() {

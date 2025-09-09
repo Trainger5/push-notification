@@ -633,11 +633,16 @@
             if (!API_KEY || API_KEY === 'YOUR_API_KEY_HERE') return;
             
             try {
+                const token = localStorage.getItem('testAuthToken');
+                if (!token) {
+                    console.warn('No auth token found. Register/login to get a token before calling /customer/notify');
+                    return;
+                }
                 const response = await fetch(`${API_BASE_URL}/customer/notify`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${API_KEY}`
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         title: '🎉 Welcome to TechShop!',
@@ -659,11 +664,16 @@
             if (!API_KEY || API_KEY === 'YOUR_API_KEY_HERE') return;
             
             try {
+                const token = localStorage.getItem('testAuthToken');
+                if (!token) {
+                    console.warn('No auth token found. Register/login to get a token before calling /customer/notify');
+                    return;
+                }
                 const response = await fetch(`${API_BASE_URL}/customer/notify`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${API_KEY}`
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify({
                         title: '🛒 Complete Your Purchase',

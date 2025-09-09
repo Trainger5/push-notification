@@ -88,7 +88,16 @@
         
         <div class="section">
             <h3>Step 1: Initialize Push System</h3>
-            <p>Connect to your live server at: <strong>http://13.126.228.42</strong></p>
+            <div class="row">
+                <div>
+                    <label>Server URL</label>
+                    <input type="text" id="serverUrl" value="http://localhost:4000" />
+                </div>
+                <div>
+                    <label>Customer API Key</label>
+                    <input type="text" id="apiKey" placeholder="Paste API key" />
+                </div>
+            </div>
             <button onclick="initializePush()">Initialize Push System</button>
             <div id="initStatus"></div>
         </div>
@@ -103,7 +112,12 @@
         <div class="section">
             <h3>Step 3: Send Test Notification</h3>
             <p>Send a notification using the API</p>
-            <input type="text" id="siteId" placeholder="Enter Site ID (e.g., 'test-site')" value="test-site">
+            <div class="row">
+                <div>
+                    <label>Auth Token (JWT)</label>
+                    <input type="text" id="authToken" placeholder="Paste token from /api/auth/register or /api/auth/login" />
+                </div>
+            </div>
             <button onclick="sendTestNotification()">Send Test Notification</button>
             <div id="sendStatus"></div>
         </div>
@@ -116,35 +130,43 @@
         </div>
     </div>
 
-    <!-- Load SDK from live server -->
-    <script src="http://13.126.228.42/sdk.js"></script>
+    <!-- SDK will be loaded dynamically based on the server URL -->
     <script>
         let pushClient = null;
-        const SERVER_URL = 'http://13.126.228.42';
-        const SITE_ID = 'test-site';
+        let PNReady = false;
 
         function showStatus(elementId, message, type = 'info') {
             const el = document.getElementById(elementId);
             el.innerHTML = `<div class="status ${type}">${message}</div>`;
         }
 
+        function loadSDK(serverUrl) {
+            return new Promise((resolve, reject) => {
+                const existing = document.querySelector('script[data-pn-sdk]');
+                if (existing) existing.remove();
+                const s = document.createElement('script');
+                s.src = `${serverUrl.replace(/\/+$/, '')}/sdk.js`;
+                s.async = true;
+                s.setAttribute('data-pn-sdk', '1');
+                s.onload = () => resolve();
+                s.onerror = () => reject(new Error('Failed to load SDK'));
+                document.head.appendChild(s);
+            });
+        }
+
         async function initializePush() {
             try {
                 showStatus('initStatus', 'Initializing push system...', 'info');
-                
-                // Initialize using the documentation approach
-                if (typeof PushClient !== 'undefined') {
-                    await PushClient.init({
-                        serverUrl: SERVER_URL,
-                        siteId: SITE_ID
-                    });
-                    pushClient = PushClient;
-                    
-                    showStatus('initStatus', '✅ Push system initialized successfully!', 'success');
-                    document.getElementById('subscribeBtn').disabled = false;
-                } else {
-                    throw new Error('PushClient not found. SDK may not have loaded.');
-                }
+                const serverUrl = document.getElementById('serverUrl').value.trim();
+                const apiKey = document.getElementById('apiKey').value.trim();
+                if (!apiKey) throw new Error('Customer API Key is required');
+                await loadSDK(serverUrl);
+                if (typeof PN === 'undefined') throw new Error('PN SDK not found');
+                await PN.init({ apiKey, baseUrl: serverUrl });
+                pushClient = PN;
+                PNReady = true;
+                showStatus('initStatus', '✅ Push system initialized successfully!', 'success');
+                document.getElementById('subscribeBtn').disabled = false;
             } catch (error) {
                 console.error('Init error:', error);
                 showStatus('initStatus', `❌ Failed to initialize: ${error.message}`, 'error');
@@ -161,8 +183,12 @@
                 if (permission !== 'granted') {
                     throw new Error('Notification permission denied');
                 }
-
-                showStatus('subscribeStatus', '✅ Permission granted! Subscription successful.', 'success');
+                // PN.init already handles subscription once permission is granted
+                if (!PNReady) {
+                    showStatus('subscribeStatus', '⚠️ SDK not initialized yet. Run Step 1 first.', 'error');
+                    return;
+                }
+                showStatus('subscribeStatus', '✅ Permission granted! Subscription saved.', 'success');
                 
             } catch (error) {
                 console.error('Subscribe error:', error);
@@ -173,16 +199,16 @@
         async function sendTestNotification() {
             try {
                 showStatus('sendStatus', 'Sending test notification...', 'info');
-                
-                const siteId = document.getElementById('siteId').value || SITE_ID;
-                
-                const response = await fetch(`${SERVER_URL}/api/notify`, {
+                const serverUrl = document.getElementById('serverUrl').value.trim();
+                const authToken = document.getElementById('authToken').value.trim();
+                if (!authToken) throw new Error('Auth Token (JWT) is required');
+                const response = await fetch(`${serverUrl.replace(/\/+$/, '')}/api/customer/notify`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
                     },
                     body: JSON.stringify({
-                        siteId: siteId,
                         title: 'Hello from Web Push Test!',
                         body: 'This is a test notification from your push system.',
                         icon: 'https://via.placeholder.com/64x64/007bff/ffffff?text=📱',
@@ -205,17 +231,16 @@
         }
 
         function updateCurlCommand() {
-            const siteId = document.getElementById('siteId').value || SITE_ID;
-            const curlCommand = `curl -X POST ${SERVER_URL}/api/notify \\
+            const serverUrl = document.getElementById('serverUrl').value || 'http://localhost:4000';
+            const curlCommand = `curl -X POST ${serverUrl.replace(/\/+$/, '')}/api/customer/notify \\
   -H 'Content-Type: application/json' \\
+  -H 'Authorization: Bearer <AUTH_TOKEN>' \\
   -d '{
-        "siteId": "${siteId}",
         "title": "Hello from Web Push",
         "body": "This is a test notification",
         "icon": "https://via.placeholder.com/64x64/007bff/ffffff?text=📱",
         "url": "${window.location.href}"
       }'`;
-            
             document.getElementById('curlCommand').textContent = curlCommand;
         }
 

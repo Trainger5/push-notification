@@ -16,6 +16,10 @@
     async init({ apiKey, baseUrl, serviceWorkerUrl }) {
       this.apiKey = apiKey || this.apiKey || (typeof document !== 'undefined' ? document.currentScript?.dataset?.apiKey : null);
       if (!this.apiKey) throw new Error('Missing apiKey');
+      // Always default to a same-origin service worker. Do NOT switch to a remote URL
+      // automatically, as service workers must be registered from the same origin
+      // as the page. If you need to load logic from a remote origin, host a local
+      // stub at '/pn-sw.js' that uses importScripts('https://remote/pn-sw.js').
       this.serviceWorkerUrl = serviceWorkerUrl || '/pn-sw.js';
       if (baseUrl) {
         const trimmed = String(baseUrl).replace(/\/+$/, '');
@@ -23,10 +27,8 @@
         this.configEndpoint = apiBase + '/config';
         this.subscribeEndpoint = apiBase + '/subscribe';
         this.unsubscribeEndpoint = apiBase + '/unsubscribe';
-        // If baseUrl is provided but no explicit serviceWorkerUrl, use baseUrl for SW too
-        if (!serviceWorkerUrl) {
-          this.serviceWorkerUrl = trimmed + '/pn-sw.js';
-        }
+        // Important: do not change serviceWorkerUrl automatically to a remote origin.
+        // Keep it same-origin unless explicitly overridden by the integrator.
       }
       const cfgRes = await fetch(`${this.configEndpoint}?apiKey=${encodeURIComponent(this.apiKey)}`);
       const cfg = await cfgRes.json();
@@ -87,5 +89,4 @@
     window.PN = PN;
   }
 })();
-
 

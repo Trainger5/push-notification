@@ -102,11 +102,11 @@ sudo certbot --nginx -d <your_domain>
 8) Customer integration (summary)
 # On customer site root (same origin as their pages):
 # /pn-sw.js
-importScripts('https://<your_domain>/pn-sw.js');
+importScripts('http://13.126.228.42/pn-sw.js');
 
 # In their HTML:
-<script src="https://<your_domain>/sdk.js" data-api-key="CUSTOMER_API_KEY"></script>
-<script> PN.init({ baseUrl: 'https://<your_domain>' }); </script>
+<script src="http://13.126.228.42/sdk.js" data-api-key="YOUR_CUSTOMER_API_KEY"></script>
+<script> PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' }); </script>
 
 9) Troubleshooting
 sudo nginx -T | less

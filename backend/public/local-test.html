@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local Push Test (Single Origin)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 820px; margin: 40px auto; padding: 0 16px; }
+    .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.05); }
+    h1 { margin: 0 0 10px; font-size: 22px; }
+    button { margin: 8px 8px 8px 0; padding: 10px 14px; background: #111827; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    .status { margin-top: 8px; padding: 8px 10px; border-radius: 6px; }
+    .info { background: #e5f0ff; color: #1e3a8a; }
+    .ok { background: #dcfde6; color: #065f46; }
+    .err { background: #ffe4e6; color: #9f1239; }
+    pre { background: #0b1220; color: #e2e8f0; padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    input { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+  </style>
+  <script>
+    // Simple logger
+    function show(el, msg, cls) { el.className = 'status ' + (cls||'info'); el.textContent = msg; }
+    function brief(obj) { try { return JSON.stringify(obj, null, 2); } catch { return String(obj); } }
+    function b64ToUint8Array(b64) {
+      const p = '='.repeat((4 - (b64.length % 4)) % 4);
+      const s = (b64 + p).replace(/-/g, '+').replace(/_/g, '/');
+      const raw = atob(s);
+      const arr = new Uint8Array(raw.length);
+      for (let i=0;i<raw.length;i++) arr[i] = raw.charCodeAt(i);
+      return arr;
+    }
+  </script>
+</head>
+<body>
+  <div class="card">
+    <h1>Local Push Test (Single Origin)</h1>
+    <p>This page uses only this origin (<code>window.location.origin</code>) for SDK, service worker and API.</p>
+    <div class="row">
+      <div>
+        <label>API Base</label>
+        <input id="apiBase" />
+      </div>
+      <div>
+        <label>Customer API Key</label>
+        <input id="apiKey" placeholder="Filled after Register" />
+      </div>
+    </div>
+
+    <div style="margin-top:10px;">
+      <button id="btnRegister">1) Register Test Customer</button>
+      <button id="btnSubscribe" disabled>2) Subscribe</button>
+      <button id="btnSend" disabled>3) Send Notification</button>
+      <div id="status" class="status info">Ready</div>
+    </div>
+
+    <h3>Details</h3>
+    <pre id="out"></pre>
+  </div>
+
+  <script>
+    const st = document.getElementById('status');
+    const out = document.getElementById('out');
+    const apiBaseEl = document.getElementById('apiBase');
+    const apiKeyEl = document.getElementById('apiKey');
+    const btnRegister = document.getElementById('btnRegister');
+    const btnSubscribe = document.getElementById('btnSubscribe');
+    const btnSend = document.getElementById('btnSend');
+
+    const API_BASE = window.location.origin; // Same origin for everything
+    apiBaseEl.value = API_BASE;
+
+    let token = null;
+    let vapid = null;
+    let subscription = null;
+
+    async function registerCustomer() {
+      show(st, 'Registering test customer…', 'info');
+      const email = `local_${Date.now()}@example.com`;
+      const res = await fetch(`${API_BASE}/api/auth/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: 'testpass123', name: 'Local Test', companyName: 'Local Co' })
+      });
+      if (!res.ok) throw new Error('Register failed: ' + (await res.text()));
+      const data = await res.json();
+      token = data.token;
+      apiKeyEl.value = data.customer.apiKey;
+      show(st, 'Registered. Fetching VAPID…', 'ok');
+      out.textContent = brief(data);
+      return data;
+    }
+
+    async function fetchConfig() {
+      const apiKey = apiKeyEl.value.trim();
+      const res = await fetch(`${API_BASE}/api/config?apiKey=${encodeURIComponent(apiKey)}`);
+      if (!res.ok) throw new Error('Config failed: ' + (await res.text()));
+      const cfg = await res.json();
+      vapid = cfg.vapid_public_key || cfg.vapidPublicKey;
+      out.textContent = brief({ vapid });
+      return cfg;
+    }
+
+    async function subscribe() {
+      show(st, 'Requesting permission…', 'info');
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') throw new Error('Permission: ' + perm);
+
+      show(st, 'Registering service worker…', 'info');
+      await navigator.serviceWorker.register('/pn-sw.js');
+      const reg = await navigator.serviceWorker.ready;
+
+      show(st, 'Creating push subscription…', 'info');
+      subscription = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToUint8Array(vapid) });
+
+      show(st, 'Saving subscription…', 'info');
+      const res = await fetch(`${API_BASE}/api/subscribe`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: apiKeyEl.value.trim(), subscription })
+      });
+      if (!res.ok) throw new Error('Subscribe failed: ' + (await res.text()));
+      out.textContent = brief({ subscription });
+      show(st, 'Subscribed ✓', 'ok');
+    }
+
+    async function sendNotification() {
+      show(st, 'Sending notification…', 'info');
+      const res = await fetch(`${API_BASE}/api/customer/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          title: 'Local Test Notification',
+          body: 'If you see this, push works end-to-end.',
+          url: window.location.href
+        })
+      });
+      if (!res.ok) throw new Error('Send failed: ' + (await res.text()));
+      const json = await res.json();
+      out.textContent = brief(json);
+      show(st, `Sent: ${json.sent}, Failed: ${json.failed}`, 'ok');
+    }
+
+    btnRegister.onclick = async () => {
+      try {
+        btnRegister.disabled = true;
+        await registerCustomer();
+        await fetchConfig();
+        btnSubscribe.disabled = false;
+      } catch (e) {
+        show(st, e.message || String(e), 'err'); btnRegister.disabled = false;
+      }
+    };
+
+    btnSubscribe.onclick = async () => {
+      try {
+        btnSubscribe.disabled = true;
+        await subscribe();
+        btnSend.disabled = true;
+        // Slight delay before enabling send
+        setTimeout(() => { btnSend.disabled = false; }, 500);
+      } catch (e) {
+        show(st, e.message || String(e), 'err'); btnSubscribe.disabled = false;
+      }
+    };
+
+    btnSend.onclick = async () => {
+      try {
+        btnSend.disabled = true;
+        await sendNotification();
+      } catch (e) {
+        show(st, e.message || String(e), 'err');
+      } finally {
+        btnSend.disabled = false;
+      }
+    };
+  </script>
+</body>
+</html>
+

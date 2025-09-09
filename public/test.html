@@ -28,12 +28,12 @@
 
       <div class="row">
         <div>
-          <label>Site ID</label>
-          <input id="siteId" value="test-site" />
-        </div>
-        <div>
           <label>Server URL</label>
           <input id="serverUrl" />
+        </div>
+        <div>
+          <label>Customer API Key</label>
+          <input id="customerApiKey" placeholder="Paste API key" />
         </div>
       </div>
 
@@ -51,8 +51,8 @@
 
       <div class="row">
         <div>
-          <label>API Key (optional)</label>
-          <input id="apiKey" placeholder="If set on server" />
+          <label>Auth Token (JWT for /api/customer)</label>
+          <input id="authToken" placeholder="Paste token from /api/auth/register or /api/auth/login" />
         </div>
         <div>
           <label>TTL (seconds, optional)</label>
@@ -74,13 +74,13 @@
     <script>
       const statusEl = document.getElementById('status');
       const resultEl = document.getElementById('result');
-      const siteIdEl = document.getElementById('siteId');
       const serverUrlEl = document.getElementById('serverUrl');
+      const customerApiKeyEl = document.getElementById('customerApiKey');
       const titleEl = document.getElementById('title');
       const bodyEl = document.getElementById('body');
       const iconEl = document.getElementById('icon');
       const urlEl = document.getElementById('url');
-      const apiKeyEl = document.getElementById('apiKey');
+      const authTokenEl = document.getElementById('authToken');
       const ttlEl = document.getElementById('ttl');
       const subscribeBtn = document.getElementById('subscribeBtn');
       const sendBtn = document.getElementById('sendBtn');
@@ -91,7 +91,10 @@
         subscribeBtn.disabled = true;
         resultEl.textContent = '';
         try {
-          await PushClient.init({ serverUrl: serverUrlEl.value, siteId: siteIdEl.value });
+          if (!customerApiKeyEl.value) {
+            throw new Error('Customer API Key is required to subscribe');
+          }
+          await PN.init({ apiKey: customerApiKeyEl.value, baseUrl: serverUrlEl.value });
           statusEl.textContent = 'Subscribed';
           statusEl.className = 'success';
           sendBtn.disabled = false;
@@ -106,14 +109,16 @@
         sendBtn.disabled = true;
         resultEl.textContent = 'Sending…';
         try {
-          const res = await fetch(`${serverUrlEl.value}/api/notify`, {
+          if (!authTokenEl.value) {
+            throw new Error('Auth Token (JWT) is required to call /api/customer/notify');
+          }
+          const res = await fetch(`${serverUrlEl.value}/api/customer/notify`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              ...(apiKeyEl.value ? { 'Authorization': `Bearer ${apiKeyEl.value}` } : {})
+              'Authorization': `Bearer ${authTokenEl.value}`
             },
             body: JSON.stringify({
-              siteId: siteIdEl.value,
               title: titleEl.value,
               body: bodyEl.value,
               icon: iconEl.value || undefined,
@@ -122,7 +127,7 @@
             })
           });
           const json = await res.json();
-          resultEl.textContent = `OK: sent ${json.sent || 0} (removed ${json.removed || 0})`;
+          resultEl.textContent = `OK: sent ${json.sent || 0}, failed ${json.failed || 0}`;
           resultEl.className = 'success';
         } catch (e) {
           resultEl.textContent = 'Error: ' + (e?.message || e);
@@ -136,5 +141,4 @@
     </script>
   </body>
   </html>
-
 

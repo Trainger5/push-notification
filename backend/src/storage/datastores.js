@@ -1,9 +1,16 @@
-// Use MySQL datastores instead of NeDB
-const { getMySQLDatastores, seedAdminIfMissing } = require('./mysql-datastores');
+// Choose datastore implementation based on environment
+const useMemory = String(process.env.USE_MEMORY_STORE || 'false').toLowerCase() === 'true';
 
-// Export MySQL functions with same interface
-const getDatastores = getMySQLDatastores;
+let getDatastores;
+let seedAdminIfMissing;
+
+if (useMemory) {
+  ({ getMemoryDatastores: getDatastores, seedAdminIfMissing } = require('./memory-datastores'));
+  console.log('⚙️  Using in-memory datastores (USE_MEMORY_STORE=true)');
+} else {
+  ({ getMySQLDatastores: getDatastores, seedAdminIfMissing } = require('./mysql-datastores'));
+  console.log('🗄️  Using MySQL datastores');
+}
 
 module.exports = { getDatastores, seedAdminIfMissing };
-
 

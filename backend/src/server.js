@@ -45,19 +45,27 @@ app.use(morgan('dev'));
 // Apply general rate limiting to all API routes
 // app.use('/api/', apiLimiter); // TODO: Re-enable rate limiting later
 
-// Check if database is set up, if not run setup automatically
-async function initializeDatabase() {
+// Initialize storage (MySQL or in-memory)
+const USE_MEMORY = String(process.env.USE_MEMORY_STORE || 'false').toLowerCase() === 'true';
+
+async function initializeStorage() {
+  if (USE_MEMORY) {
+    console.log('🧪 Memory mode: skipping DB setup/migrations');
+    // Initialize in-memory stores and seed minimal data
+    await seedAdminIfMissing();
+    return;
+  }
+
+  // Check if database is set up, if not run setup automatically
   try {
     const setup = new SetupManager();
     const status = await setup.checkSetupStatus();
-    
     if (!status.setup) {
       console.log(`🔧 Database not set up: ${status.reason}`);
       console.log('🚀 Running automatic setup...');
       await setup.setupDatabase();
     } else {
       console.log('✅ Database already set up');
-      // Initialize datastores
       getDatastores();
     }
   } catch (error) {
@@ -66,11 +74,13 @@ async function initializeDatabase() {
   }
 }
 
-// Initialize database on startup
-initializeDatabase();
+// Initialize storage on startup
+initializeStorage();
 
-// Initialize notification scheduler
-getScheduler();
+// Initialize notification scheduler only when using MySQL
+if (!USE_MEMORY) {
+  getScheduler();
+}
 
 // Serve SDK files
 app.get('/sdk.js', (_req, res) => {
@@ -133,5 +143,4 @@ app.listen(PORT, () => {
   const campaignExecutor = getCampaignExecutor();
   campaignExecutor.start();
 });
-
 

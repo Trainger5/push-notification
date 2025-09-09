@@ -22,7 +22,7 @@ function useAuthHeaders() {
 }
 
 function useApiBase() {
-  const apiBaseRaw = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://localhost:4000'
+  const apiBaseRaw = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE) || 'http://13.126.228.42'
   return apiBaseRaw.toString().replace(/\/?$/, '')
 }
 
@@ -326,7 +326,7 @@ export default function NewDashboard() {
 {`<!-- Step 1: Add to your HTML page -->
 <script>
   const API_KEY = '${me?.customer?.api_key || 'YOUR_API_KEY_FROM_SETTINGS'}'; // ${me?.customer?.api_key ? '✅ Your actual API key' : 'From Settings'}
-  const SERVER_URL = '${apiBase}';
+  const SERVER_URL = 'http://13.126.228.42';
   
   // Load and initialize SDK
   function loadNotificationSDK() {
@@ -442,6 +442,8 @@ export default function NewDashboard() {
 <!-- Step 2: Create service worker file /pn-sw.js in your website root -->
 <!-- Save the following as /pn-sw.js:
 
+importScripts('http://13.126.228.42/pn-sw.js');
+
 self.addEventListener('push', function(event) {
   const data = event.data ? event.data.json() : {};
   const options = {
@@ -474,7 +476,7 @@ self.addEventListener('notificationclick', function(event) {
 
 -->
 
-<!-- ${me?.customer?.api_key ? '✅ Ready! Your API key is included above.' : '⚠️ Replace YOUR_API_KEY_FROM_SETTINGS with your actual API key'} -->
+<!-- ${me?.customer?.api_key ? '✅ Ready! Your API key is included above.' : '⚠️ Replace YOUR_CUSTOMER_API_KEY with your actual API key'} -->
 <!-- The SDK automatically handles permissions, VAPID keys, and subscriptions -->`}
                   </pre>
                 </div>

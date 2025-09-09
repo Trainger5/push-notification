@@ -1,30 +1,165 @@
-/*
-  Minimal Web Push SDK
-  Usage on a website:
+// Minimal client SDK to embed on customer sites
+// Usage:
+// <script src="https://your-domain/sdk.js" data-api-key="CUSTOMER_API_KEY"></script>
+// PN.init({ apiKey: 'CUSTOMER_API_KEY' });
 
-  <script src="https://YOUR_PUSH_SERVER/sdk.js"></script>
-  <script>
-    PushClient.init({ serverUrl: 'https://YOUR_PUSH_SERVER', siteId: 'YOUR_SITE_ID' });
-  </script>
-*/
+/* global window, Notification */
+
 (function () {
-  const STATE = {
-    initialized: false,
-    serverUrl: null,
-    siteId: null,
-    swPath: '/sw.js'
-  };
+  const PN = {
+    apiKey: null,
+    vapidPublicKey: null,
+    configEndpoint: '/api/config',
+    subscribeEndpoint: '/api/subscribe',
+    unsubscribeEndpoint: '/api/unsubscribe',
 
-  async function getVapidPublicKey() {
-    const res = await fetch(concatUrl(STATE.serverUrl, '/api/vapidPublicKey'));
-    const json = await res.json();
-    return json.publicKey;
-  }
+    async init({ apiKey, baseUrl, serviceWorkerUrl }) {
+      // Try to get API key from multiple sources
+      this.apiKey = apiKey || this.apiKey || this._getApiKeyFromScript();
+      if (!this.apiKey) throw new Error('Missing apiKey');
+      // Always default to a same-origin service worker. Do NOT switch to a remote URL
+      // automatically, as service workers must be registered from the same origin
+      // as the page. If you need to load logic from a remote origin, host a local
+      // stub at '/pn-sw.js' that uses importScripts('https://remote/pn-sw.js').
+      this.serviceWorkerUrl = serviceWorkerUrl || '/pn-sw.js';
+      if (baseUrl) {
+        const trimmed = String(baseUrl).replace(/\/+$/, '');
+        const apiBase = /\/api$/i.test(trimmed) ? trimmed : trimmed + '/api';
+        this.configEndpoint = apiBase + '/config';
+        this.subscribeEndpoint = apiBase + '/subscribe';
+        this.unsubscribeEndpoint = apiBase + '/unsubscribe';
+        // Important: do not change serviceWorkerUrl automatically to a remote origin.
+        // Keep it same-origin unless explicitly overridden by the integrator.
+      }
+      const cfgRes = await fetch(`${this.configEndpoint}?apiKey=${encodeURIComponent(this.apiKey)}`);
+      const cfg = await cfgRes.json();
+      this.vapidPublicKey = cfg.vapidPublicKey || cfg.vapid_public_key || null;
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        console.warn('Push not supported in this browser');
+        return;
+      }
+      if (Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+      if (Notification.permission !== 'granted') {
+        console.warn('Notifications permission not granted');
+        return;
+      }
+      const sw = await navigator.serviceWorker.register(this.serviceWorkerUrl);
+      const registration = await navigator.serviceWorker.ready;
+      let sub = await registration.pushManager.getSubscription();
+      if (!sub && this.vapidPublicKey) {
+        const converted = urlBase64ToUint8Array(this.vapidPublicKey);
+        sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: converted });
+      }
+      if (sub) {
+        await fetch(this.subscribeEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: this.apiKey, subscription: sub })
+        });
+      }
+    },
+
+    async subscribe() {
+      if (!this.apiKey) throw new Error('SDK not initialized. Call PN.init() first.');
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        throw new Error('Push notifications not supported in this browser');
+      }
+      
+      // Request permission if needed
+      if (Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+      if (Notification.permission !== 'granted') {
+        throw new Error('Notifications permission denied');
+      }
+      
+      const registration = await navigator.serviceWorker.ready;
+      let sub = await registration.pushManager.getSubscription();
+      
+      if (!sub && this.vapidPublicKey) {
+        const converted = urlBase64ToUint8Array(this.vapidPublicKey);
+        sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: converted });
+        
+        // Save new subscription
+        await fetch(this.subscribeEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: this.apiKey, subscription: sub })
+        });
+      }
+      
+      return sub;
+    },
+
+    async unsubscribe() {
+      if (!this.apiKey) throw new Error('SDK not initialized. Call PN.init() first.');
+      const registration = await navigator.serviceWorker.ready;
+      const sub = await registration.pushManager.getSubscription();
+      if (sub) {
+        await fetch(this.unsubscribeEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: this.apiKey, endpoint: sub.endpoint })
+        });
+        await sub.unsubscribe();
+      }
+      return true;
+    },
+
+    async getSubscriptionStatus() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        return { 
+          isSupported: false, 
+          isSubscribed: false, 
+          permission: Notification.permission,
+          error: 'Push notifications not supported'
+        };
+      }
+      
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const sub = await registration.pushManager.getSubscription();
+        return {
+          isSupported: true,
+          isSubscribed: !!sub,
+          permission: Notification.permission,
+          subscription: sub,
+          endpoint: sub?.endpoint
+        };
+      } catch (error) {
+        return {
+          isSupported: false,
+          isSubscribed: false,
+          permission: Notification.permission,
+          error: error.message
+        };
+      }
+    },
+
+    _getApiKeyFromScript() {
+      if (typeof document === 'undefined') return null;
+      
+      // Try current script first
+      if (document.currentScript?.dataset?.apiKey) {
+        return document.currentScript.dataset.apiKey;
+      }
+      
+      // Fallback: search all script tags with src containing sdk.js
+      const scripts = document.querySelectorAll('script[src*="sdk.js"][data-api-key]');
+      if (scripts.length > 0) {
+        return scripts[scripts.length - 1].dataset.apiKey;
+      }
+      
+      return null;
+    }
+  };
 
   function urlBase64ToUint8Array(base64String) {
     const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
     const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = atob(base64);
+    const rawData = window.atob(base64);
     const outputArray = new Uint8Array(rawData.length);
     for (let i = 0; i < rawData.length; ++i) {
       outputArray[i] = rawData.charCodeAt(i);
@@ -32,71 +167,9 @@
     return outputArray;
   }
 
-  function concatUrl(base, path) {
-    if (!base.endsWith('/') && !path.startsWith('/')) return base + '/' + path;
-    if (base.endsWith('/') && path.startsWith('/')) return base + path.slice(1);
-    return base + path;
+  if (typeof window !== 'undefined') {
+    window.PN = PN;
   }
-
-  async function ensurePermission() {
-    if (!('Notification' in window)) throw new Error('Notifications not supported');
-    if (Notification.permission === 'granted') return true;
-    if (Notification.permission === 'denied') return false;
-    const result = await Notification.requestPermission();
-    return result === 'granted';
-  }
-
-  async function registerServiceWorker(swPath) {
-    if (!('serviceWorker' in navigator)) throw new Error('Service workers not supported');
-    const registration = await navigator.serviceWorker.register(swPath);
-    await navigator.serviceWorker.ready; // ensure active
-    return registration;
-  }
-
-  async function subscribeToPush(registration, publicKey) {
-    const applicationServerKey = urlBase64ToUint8Array(publicKey);
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey
-    });
-    return subscription;
-  }
-
-  async function saveSubscription(subscription) {
-    const res = await fetch(concatUrl(STATE.serverUrl, '/api/subscriptions'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ siteId: STATE.siteId, subscription })
-    });
-    if (!res.ok) throw new Error('Failed to save subscription');
-    return res.json();
-  }
-
-  async function init(options) {
-    if (STATE.initialized) return;
-    if (!options || !options.serverUrl || !options.siteId) {
-      throw new Error('Please provide serverUrl and siteId');
-    }
-    STATE.serverUrl = options.serverUrl.replace(/\/$/, '');
-    STATE.siteId = options.siteId;
-    STATE.swPath = options.swPath || '/sw.js';
-
-    const hasPermission = await ensurePermission();
-    if (!hasPermission) {
-      console.warn('[PushClient] Notification permission not granted');
-      return;
-    }
-
-    const registration = await registerServiceWorker(STATE.swPath);
-    const publicKey = await getVapidPublicKey();
-    const subscription = await subscribeToPush(registration, publicKey);
-    await saveSubscription(subscription);
-
-    STATE.initialized = true;
-    console.log('[PushClient] Ready');
-  }
-
-  window.PushClient = { init };
 })();
 
 

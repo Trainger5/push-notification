@@ -14,7 +14,8 @@
     unsubscribeEndpoint: '/api/unsubscribe',
 
     async init({ apiKey, baseUrl, serviceWorkerUrl }) {
-      this.apiKey = apiKey || this.apiKey || (typeof document !== 'undefined' ? document.currentScript?.dataset?.apiKey : null);
+      // Try to get API key from multiple sources
+      this.apiKey = apiKey || this.apiKey || this._getApiKeyFromScript();
       if (!this.apiKey) throw new Error('Missing apiKey');
       // Always default to a same-origin service worker. Do NOT switch to a remote URL
       // automatically, as service workers must be registered from the same origin
@@ -60,7 +61,40 @@
       }
     },
 
+    async subscribe() {
+      if (!this.apiKey) throw new Error('SDK not initialized. Call PN.init() first.');
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        throw new Error('Push notifications not supported in this browser');
+      }
+      
+      // Request permission if needed
+      if (Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+      if (Notification.permission !== 'granted') {
+        throw new Error('Notifications permission denied');
+      }
+      
+      const registration = await navigator.serviceWorker.ready;
+      let sub = await registration.pushManager.getSubscription();
+      
+      if (!sub && this.vapidPublicKey) {
+        const converted = urlBase64ToUint8Array(this.vapidPublicKey);
+        sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: converted });
+        
+        // Save new subscription
+        await fetch(this.subscribeEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apiKey: this.apiKey, subscription: sub })
+        });
+      }
+      
+      return sub;
+    },
+
     async unsubscribe() {
+      if (!this.apiKey) throw new Error('SDK not initialized. Call PN.init() first.');
       const registration = await navigator.serviceWorker.ready;
       const sub = await registration.pushManager.getSubscription();
       if (sub) {
@@ -71,6 +105,54 @@
         });
         await sub.unsubscribe();
       }
+      return true;
+    },
+
+    async getSubscriptionStatus() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        return { 
+          isSupported: false, 
+          isSubscribed: false, 
+          permission: Notification.permission,
+          error: 'Push notifications not supported'
+        };
+      }
+      
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const sub = await registration.pushManager.getSubscription();
+        return {
+          isSupported: true,
+          isSubscribed: !!sub,
+          permission: Notification.permission,
+          subscription: sub,
+          endpoint: sub?.endpoint
+        };
+      } catch (error) {
+        return {
+          isSupported: false,
+          isSubscribed: false,
+          permission: Notification.permission,
+          error: error.message
+        };
+      }
+    },
+
+    _getApiKeyFromScript() {
+      if (typeof document === 'undefined') return null;
+      
+      // Try current script first
+      if (document.currentScript?.dataset?.apiKey) {
+        return document.currentScript.dataset.apiKey;
+      }
+      
+      // Fallback: search all script tags with src containing sdk.js
+      const scripts = document.querySelectorAll('script[src*="sdk.js"][data-api-key]');
+      if (scripts.length > 0) {
+        return scripts[scripts.length - 1].dataset.apiKey;
+      }
+      
+      return null;
     }
   };
 

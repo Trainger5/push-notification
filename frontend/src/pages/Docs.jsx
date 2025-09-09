@@ -226,9 +226,41 @@ Or for testing: Create a customer account in Admin Dashboard`}
                         <Box>
                           <Heading size="md" mb={4}>2. Create Service Worker File</Heading>
                           <Text mb={4}>Create <Code>/pn-sw.js</Code> at your site root:</Text>
-                          <CodeBlock language="javascript">
+                          
+                          <Alert status="warning" borderRadius="md" mb={4}>
+                            <Alert />
+                            <Text fontSize="sm">
+                              <strong>Important:</strong> This must be in a separate file, not in your HTML!
+                            </Text>
+                          </Alert>
+
+                          <VStack align="stretch" spacing={4}>
+                            <Box>
+                              <Text fontWeight="bold" mb={2}>Option A: Download ready-to-use file</Text>
+                              <Link 
+                                href="http://13.126.228.42/download/pn-sw.js" 
+                                download="pn-sw.js"
+                                display="inline-flex"
+                                alignItems="center"
+                                bg="blue.500"
+                                color="white"
+                                px={4}
+                                py={2}
+                                borderRadius="md"
+                                _hover={{ bg: 'blue.600', textDecoration: 'none' }}
+                              >
+                                <Icon as={FiCopy} mr={2} />
+                                Download pn-sw.js
+                              </Link>
+                            </Box>
+                            
+                            <Box>
+                              <Text fontWeight="bold" mb={2}>Option B: Create manually</Text>
+                              <CodeBlock language="javascript">
 {`importScripts('http://13.126.228.42/pn-sw.js');`}
-                          </CodeBlock>
+                              </CodeBlock>
+                            </Box>
+                          </VStack>
                         </Box>
 
                         <Box>

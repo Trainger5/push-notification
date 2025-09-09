@@ -92,6 +92,24 @@ app.get('/pn-sw.js', (_req, res) => {
   res.send(fs.readFileSync(path.join(__dirname, 'sdk', 'service-worker.js'), 'utf-8'));
 });
 
+// Serve downloadable service worker file for users
+app.get('/download/pn-sw.js', (_req, res) => {
+  const serviceWorkerContent = `// Push Notification Service Worker
+// Save this file as 'pn-sw.js' at your website root (same folder as index.html)
+
+// Import the full push notification service worker from the server
+importScripts('http://13.126.228.42/pn-sw.js');
+
+// Optional: Add your own service worker logic here
+// This file runs in the background and handles push notifications
+
+console.log('Push notification service worker loaded');`;
+  
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Content-Disposition', 'attachment; filename="pn-sw.js"');
+  res.send(serviceWorkerContent);
+});
+
 // Serve static admin/customer UI
 app.use(express.static(path.join(__dirname, '..', 'public')));
 

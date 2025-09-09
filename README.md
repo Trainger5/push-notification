@@ -40,7 +40,11 @@ npm run build  # Build the admin/customer dashboard
 
 Add this script to any website to enable push notifications (recommended setup):
 
-**Step 1:** Create `/pn-sw.js` at your site root:
+**Step 1:** Create `/pn-sw.js` at your website root *(separate file, not in HTML!)*
+
+**Option A:** [📥 Download pn-sw.js](http://13.126.228.42/download/pn-sw.js)
+
+**Option B:** Create manually with this content:
 ```javascript
 importScripts('http://13.126.228.42/pn-sw.js');
 ```

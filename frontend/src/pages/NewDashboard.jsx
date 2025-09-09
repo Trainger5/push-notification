@@ -323,7 +323,9 @@ export default function NewDashboard() {
                 <h3 className="text-lg font-semibold mb-4">Quick Integration Code</h3>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <pre className="text-xs overflow-x-auto">
-{`<!-- Step 1: Create /pn-sw.js at your site root -->
+{`<!-- Step 1: Create /pn-sw.js at your website root (separate file!) -->
+<!-- Option A: Download → http://13.126.228.42/download/pn-sw.js -->
+<!-- Option B: Create manually with this content: -->
 importScripts('http://13.126.228.42/pn-sw.js');
 
 <!-- Step 2: Add SDK + init before </body> -->

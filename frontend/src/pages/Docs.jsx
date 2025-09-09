@@ -224,84 +224,67 @@ Or for testing: Create a customer account in Admin Dashboard`}
                         </Box>
 
                         <Box>
-                          <Heading size="md" mb={4}>2. Add SDK to Your Website</Heading>
-                          <Text mb={4}>Add this script to your HTML page (no service worker file needed - it's handled automatically!):</Text>
+                          <Heading size="md" mb={4}>2. Create Service Worker File</Heading>
+                          <Text mb={4}>Create <Code>/pn-sw.js</Code> at your site root:</Text>
+                          <CodeBlock language="javascript">
+{`importScripts('http://13.126.228.42/pn-sw.js');`}
+                          </CodeBlock>
+                        </Box>
+
+                        <Box>
+                          <Heading size="md" mb={4}>3. Add SDK to Your Website</Heading>
+                          <Text mb={4}>Add this script before <Code>&lt;/body&gt;</Code>:</Text>
                           <CodeBlock language="html">
-{`<!-- Add to your HTML page -->
+{`<script src="http://13.126.228.42/sdk.js" data-api-key="YOUR_CUSTOMER_API_KEY"></script>
 <script>
-  // Configuration
-  const API_KEY = 'YOUR_API_KEY_HERE'; // Your customer API key
-  const SERVER_URL = 'http://13.126.228.42'; // Your production backend server
-  
-  let pushSDK = null;
-  
-  // Load SDK on page load
-  window.addEventListener('DOMContentLoaded', () => {
-    loadPushSDK();
+  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });
+</script>`}
+                          </CodeBlock>
+                          <Text mb={4}>Or pass the API key programmatically:</Text>
+                          <CodeBlock language="html">
+{`<script src="http://13.126.228.42/sdk.js"></script>
+<script>
+  PN.init({ 
+    apiKey: 'YOUR_CUSTOMER_API_KEY', 
+    baseUrl: 'http://13.126.228.42', 
+    serviceWorkerUrl: '/pn-sw.js' 
   });
-  
-  // Load Push SDK
-  function loadPushSDK() {
-    const script = document.createElement('script');
-    script.src = \`\${SERVER_URL}/sdk.js\`;
-    script.onload = () => {
-      console.log('Push SDK loaded');
-      initializePushSDK();
-    };
-    document.head.appendChild(script);
-  }
-  
-  // Initialize Push SDK
-  function initializePushSDK() {
-    if (typeof PushNotificationSDK !== 'undefined') {
-      pushSDK = new PushNotificationSDK(API_KEY, {
-        serverUrl: SERVER_URL
-      });
-      console.log('Push SDK initialized');
-    }
-  }
 </script>`}
                           </CodeBlock>
                         </Box>
 
                         <Box>
-                          <Heading size="md" mb={4}>3. Request Permission & Subscribe</Heading>
-                          <Text mb={4}>Add a button or trigger to enable notifications:</Text>
+                          <Heading size="md" mb={4}>4. Request Permission & Subscribe</Heading>
+                          <Text mb={4}>The SDK automatically handles permission requests and subscription. You can also manually trigger it:</Text>
                           <CodeBlock language="javascript">
-{`// Function to enable notifications
-async function enableNotifications() {
+{`// The SDK automatically initializes when loaded
+// You can check the status or manually trigger subscription:
+
+// Check if notifications are supported and enabled
+if ('Notification' in window && 'serviceWorker' in navigator) {
+  console.log('Push notifications supported');
+  
+  // The PN.init() call will automatically request permission
+  // and subscribe the user if permission is granted
+}
+
+// Optional: Add a manual subscribe button
+async function subscribeManually() {
   try {
-    if (!pushSDK) {
-      alert('Push system not ready. Please refresh and try again.');
-      return;
-    }
-    
-    // Request permission
     const permission = await Notification.requestPermission();
-    
     if (permission === 'granted') {
-      // Subscribe to push
-      const subscription = await pushSDK.subscribe();
-      if (subscription) {
-        console.log('Successfully subscribed!');
-        // Optionally send a welcome notification
-        sendWelcomeNotification();
-      }
-    } else {
-      console.log('Notification permission denied');
+      console.log('Notifications enabled!');
+      // SDK will handle the subscription automatically
     }
   } catch (error) {
     console.error('Failed to enable notifications:', error);
   }
-}
-
-// Add to a button
-<button onclick="enableNotifications()">Enable Notifications</button>`}
+}`}
                           </CodeBlock>
                         </Box>
 
                         <Box>
-                          <Heading size="md" mb={4}>4. Send Notifications from Your Website</Heading>
+                          <Heading size="md" mb={4}>5. Send Notifications from Your Website</Heading>
                           <Text mb={4}>Send notifications directly from your frontend (great for testing):</Text>
                           <CodeBlock language="javascript">
 {`async function sendTestNotification() {
@@ -331,7 +314,7 @@ async function enableNotifications() {
                         </Box>
 
                         <Box>
-                          <Heading size="md" mb={4}>5. Send Notifications from Backend</Heading>
+                          <Heading size="md" mb={4}>6. Send Notifications from Backend</Heading>
                           <Text mb={4}>For production, send notifications from your server:</Text>
                           <Tabs variant="enclosed">
                             <TabList>
@@ -639,14 +622,12 @@ Content-Type: application/json`}
                           <Heading size="md" mb={4}>Service Worker Setup</Heading>
                           <Text mb={4}>Create a file named <Code>pn-sw.js</Code> at your website root:</Text>
                           <CodeBlock>
-{`// File: /pn-sw.js (must be at root)
-importScripts('http://13.126.228.42/pn-sw.js');
-
-// Optional: Add your own service worker logic here
-self.addEventListener('install', (event) => {
-  console.log('Service Worker installed');
-});`}
+{`importScripts('http://13.126.228.42/pn-sw.js');`}
                           </CodeBlock>
+                          <Text mt={4} fontSize="sm" color="gray.600">
+                            This single line imports all the necessary push notification functionality. 
+                            You can add additional service worker logic after this line if needed.
+                          </Text>
                         </Box>
 
                         <Box>
@@ -661,16 +642,17 @@ self.addEventListener('install', (event) => {
                             <TabPanels>
                               <TabPanel>
                                 <CodeBlock>
-{`// Initialize the SDK
+{`// Basic initialization (with data-api-key attribute)
+PN.init({ 
+  baseUrl: 'http://13.126.228.42', 
+  serviceWorkerUrl: '/pn-sw.js' 
+});
+
+// Or with API key parameter
 PN.init({
   apiKey: 'YOUR_API_KEY',
-  baseUrl: 'http://13.126.228.42/api/',
-  onSubscribe: (subscription) => {
-    console.log('User subscribed:', subscription);
-  },
-  onError: (error) => {
-    console.error('Error:', error);
-  }
+  baseUrl: 'http://13.126.228.42',
+  serviceWorkerUrl: '/pn-sw.js'
 });`}
                                 </CodeBlock>
                               </TabPanel>

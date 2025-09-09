@@ -40,29 +40,36 @@ npm run build  # Build the admin/customer dashboard
 
 Add this script to any website to enable push notifications (recommended setup):
 
-```html
-<!-- 1) Service worker stub at your site root (required) -->
-<!-- File: /pn-sw.js (same origin as your pages) -->
-<!-- Contents: -->
-<!-- importScripts('http://13.126.228.42/pn-sw.js'); -->
+**Step 1:** Create `/pn-sw.js` at your site root:
+```javascript
+importScripts('http://13.126.228.42/pn-sw.js');
+```
 
-<!-- 2) SDK + init on your pages -->
+**Step 2:** Add SDK + init before `</body>`:
+```html
 <script src="http://13.126.228.42/sdk.js" data-api-key="YOUR_CUSTOMER_API_KEY"></script>
 <script>
-  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' })
-    .then(() => console.log('✅ Push notifications ready'))
-    .catch(err => console.error('Failed to initialize:', err));
+  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });
+</script>
+```
+
+**Alternative:** Pass the API key programmatically:
+```html
+<script src="http://13.126.228.42/sdk.js"></script>
+<script>
+  PN.init({ 
+    apiKey: 'YOUR_CUSTOMER_API_KEY', 
+    baseUrl: 'http://13.126.228.42', 
+    serviceWorkerUrl: '/pn-sw.js' 
+  });
 </script>
 ```
 
 The SDK automatically:
 - Requests notification permission
-- Registers service worker from your server
+- Registers service worker from your server  
 - Creates push subscription
 - Sends subscription to your backend
-
-Tip: You can also pass the API key programmatically instead of data attribute:
-`PN.init({ apiKey: 'YOUR_CUSTOMER_API_KEY', baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' })`.
 
 ### Local End-to-End Test (Memory Mode)
 

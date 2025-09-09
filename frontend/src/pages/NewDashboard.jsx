@@ -309,10 +309,10 @@ export default function NewDashboard() {
                     Add to Your Website
                   </h3>
                   <div className="space-y-3 text-sm">
-                    <div>→ Add SDK script to your HTML</div>
-                    <div>→ Initialize with your API key</div>
-                    <div>→ SDK handles everything automatically</div>
-                    <div className="text-xs text-gray-500">✅ Permission + subscription handled by SDK</div>
+                    <div>→ Create <code>/pn-sw.js</code> at your site root</div>
+                    <div>→ Add SDK script with your API key</div>
+                    <div>→ Call <code>PN.init()</code> with baseUrl and serviceWorkerUrl</div>
+                    <div className="text-xs text-gray-500">✅ SDK handles permissions & subscriptions automatically</div>
                   </div>
                 </CardBody>
               </Card>
@@ -323,158 +323,24 @@ export default function NewDashboard() {
                 <h3 className="text-lg font-semibold mb-4">Quick Integration Code</h3>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <pre className="text-xs overflow-x-auto">
-{`<!-- Step 1: Add to your HTML page -->
-<script>
-  const API_KEY = '${me?.customer?.api_key || 'YOUR_API_KEY_FROM_SETTINGS'}'; // ${me?.customer?.api_key ? '✅ Your actual API key' : 'From Settings'}
-  const SERVER_URL = 'http://13.126.228.42';
-  
-  // Load and initialize SDK
-  function loadNotificationSDK() {
-    const script = document.createElement('script');
-    script.src = SERVER_URL + '/sdk.js';
-    script.onload = () => {
-      // Initialize SDK
-      window.PN = window.PN || {};
-      PN.init = async function(config) {
-        try {
-          console.log('📡 Fetching VAPID configuration...');
-          // Get VAPID key and settings from server
-          const res = await fetch(\`\${config.baseUrl}/api/config?apiKey=\${config.apiKey}\`);
-          if (!res.ok) {
-            throw new Error(\`Config fetch failed: \${res.status} \${res.statusText}\`);
-          }
-          const data = await res.json();
-          console.log('✅ Config received, VAPID key:', data.vapid_public_key ? 'Present' : 'Missing');
-          
-          // Request permission
-          console.log('🔔 Requesting notification permission...');
-          const permission = await Notification.requestPermission();
-          if (permission !== 'granted') {
-            console.warn('❌ Permission denied by user');
-            throw new Error('Permission denied');
-          }
-          console.log('✅ Permission granted');
-          
-          // Register service worker
-          console.log('⚙️ Registering service worker at /pn-sw.js...');
-          const registration = await navigator.serviceWorker.register('/pn-sw.js');
-          await navigator.serviceWorker.ready;
-          console.log('✅ Service worker registered');
-          
-          // Check for existing subscription and unsubscribe if needed
-          console.log('🔍 Checking for existing subscription...');
-          const existingSubscription = await registration.pushManager.getSubscription();
-          if (existingSubscription) {
-            console.log('⚠️ Found existing subscription, unsubscribing...');
-            await existingSubscription.unsubscribe();
-            console.log('✅ Old subscription removed');
-          }
-          
-          // Subscribe to push
-          console.log('📬 Subscribing to push notifications...');
-          const subscription = await registration.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(data.vapid_public_key)
-          });
-          console.log('✅ Push subscription created');
-          
-          // Save subscription to server
-          console.log('💾 Saving subscription to server...');
-          const saveRes = await fetch(\`\${config.baseUrl}/api/subscribe\`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              apiKey: config.apiKey,
-              subscription: subscription.toJSON()
-            })
-          });
-          
-          if (!saveRes.ok) {
-            throw new Error(\`Subscribe failed: \${saveRes.status} \${saveRes.statusText}\`);
-          }
-          
-          const saveData = await saveRes.json();
-          console.log('✅ Subscription saved:', saveData);
-          
-          console.log('🎉 Push notifications fully initialized!');
-          return { success: true, subscription };
-        } catch (err) {
-          console.error('❌ Initialization failed:', err.message);
-          console.error('Stack:', err.stack);
-          throw err;
-        }
-      };
-      
-      // Helper function for VAPID key conversion
-      function urlBase64ToUint8Array(base64String) {
-        const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
-        const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-        const rawData = atob(base64);
-        const outputArray = new Uint8Array(rawData.length);
-        for (let i = 0; i < rawData.length; ++i) {
-          outputArray[i] = rawData.charCodeAt(i);
-        }
-        return outputArray;
-      }
-      
-      // Auto-initialize
-      PN.init({
-        apiKey: API_KEY,
-        baseUrl: SERVER_URL
-      }).then(() => {
-        console.log('✅ Push notifications ready!');
-        // SDK handles VAPID keys automatically
-      }).catch(err => {
-        console.error('Failed to initialize:', err);
-      });
-    };
-    document.head.appendChild(script);
-  }
-  
-  // Load on page ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadNotificationSDK);
-  } else {
-    loadNotificationSDK();
-  }
-</script>
-
-<!-- Step 2: Create service worker file /pn-sw.js in your website root -->
-<!-- Save the following as /pn-sw.js:
-
+{`<!-- Step 1: Create /pn-sw.js at your site root -->
 importScripts('http://13.126.228.42/pn-sw.js');
 
-self.addEventListener('push', function(event) {
-  const data = event.data ? event.data.json() : {};
-  const options = {
-    body: data.body || 'New notification',
-    icon: data.icon || '/icon-192x192.png',
-    badge: data.badge || '/badge-72x72.png',
-    vibrate: data.vibrate || [200, 100, 200],
-    data: data.data || {},
-    actions: data.actions || [],
-    tag: data.tag || 'default',
-    requireInteraction: data.requireInteraction || false,
-    renotify: data.renotify || false,
-    silent: data.silent || false,
-    dir: data.dir || 'auto',
-    lang: data.lang || 'en-US',
-    image: data.image
-  };
-  
-  event.waitUntil(
-    self.registration.showNotification(data.title || 'Notification', options)
-  );
-});
+<!-- Step 2: Add SDK + init before </body> -->
+<script src="http://13.126.228.42/sdk.js" data-api-key="${me?.customer?.api_key || 'YOUR_CUSTOMER_API_KEY'}"></script>
+<script>
+  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });
+</script>
 
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close();
-  if (event.notification.data && event.notification.data.url) {
-    event.waitUntil(clients.openWindow(event.notification.data.url));
-  }
-});
-
--->
+<!-- Alternative: Pass API key programmatically -->
+<script src="http://13.126.228.42/sdk.js"></script>
+<script>
+  PN.init({ 
+    apiKey: '${me?.customer?.api_key || 'YOUR_CUSTOMER_API_KEY'}', 
+    baseUrl: 'http://13.126.228.42', 
+    serviceWorkerUrl: '/pn-sw.js' 
+  });
+</script>
 
 <!-- ${me?.customer?.api_key ? '✅ Ready! Your API key is included above.' : '⚠️ Replace YOUR_CUSTOMER_API_KEY with your actual API key'} -->
 <!-- The SDK automatically handles permissions, VAPID keys, and subscriptions -->`}

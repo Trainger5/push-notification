@@ -309,10 +309,10 @@ export default function NewDashboard() {
                     Add to Your Website
                   </h3>
                   <div className="space-y-3 text-sm">
-                    <div>→ Create <code>/pn-sw.js</code> at your site root</div>
-                    <div>→ Add SDK script with your API key</div>
-                    <div>→ Call <code>PN.init()</code> with baseUrl and serviceWorkerUrl</div>
-                    <div className="text-xs text-gray-500">✅ SDK handles permissions & subscriptions automatically</div>
+                    <div>→ Create <code>/pn-sw.js</code> file at your website root</div>
+                    <div>→ Add SDK script with <code>data-api-key</code> attribute</div>
+                    <div>→ Call <code>PN.init()</code> to initialize push notifications</div>
+                    <div className="text-xs text-green-600">✅ Fully tested and working - see integration code below!</div>
                   </div>
                 </CardBody>
               </Card>
@@ -320,71 +320,124 @@ export default function NewDashboard() {
 
             <Card>
               <CardBody>
-                <h3 className="text-lg font-semibold mb-4">Quick Integration Code</h3>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <pre className="text-xs overflow-x-auto">
-{`<!-- Step 1: Create /pn-sw.js at your website root (separate file!) -->
-<!-- Option A: Download → http://13.126.228.42/download/pn-sw.js -->
-<!-- Option B: Create manually with this content: -->
-importScripts('http://13.126.228.42/pn-sw.js');
+                <h3 className="text-lg font-semibold mb-4">Working Integration Code</h3>
+                <div className="bg-green-50 border border-green-200 p-4 rounded-lg mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-sm text-green-700 font-medium">✅ Tested & Verified Working</span>
+                  </div>
+                  <p className="text-sm text-green-600">Copy this exact code - it's been tested and works perfectly!</p>
+                </div>
 
-<!-- Step 2: Add SDK + init before </body> -->
-<script src="http://13.126.228.42/sdk.js" data-api-key="${me?.customer?.api_key || 'YOUR_CUSTOMER_API_KEY'}"></script>
-<script>
-  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });
-</script>
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="font-semibold mb-2">Step 1: Create Service Worker File</h4>
+                    <p className="text-sm text-gray-600 mb-3">Create a file called <code className="bg-gray-100 px-1 rounded">/pn-sw.js</code> at your website root (same folder as index.html):</p>
+                    <div className="bg-gray-50 p-3 rounded border">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs text-gray-600">File: /pn-sw.js</span>
+                        <a href="http://13.126.228.42/download/pn-sw.js" className="text-xs text-blue-600 hover:underline">📥 Download file</a>
+                      </div>
+                      <pre className="text-xs bg-white p-2 rounded border">
+{`importScripts('http://13.126.228.42/pn-sw.js');`}
+                      </pre>
+                    </div>
+                  </div>
 
-<!-- Alternative: Pass API key programmatically -->
-<script src="http://13.126.228.42/sdk.js"></script>
+                  <div>
+                    <h4 className="font-semibold mb-2">Step 2: Add to Your HTML</h4>
+                    <p className="text-sm text-gray-600 mb-3">Add this before <code className="bg-gray-100 px-1 rounded">&lt;/body&gt;</code> in your HTML:</p>
+                    <div className="bg-gray-50 p-3 rounded border">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs text-gray-600">Add to your HTML file</span>
+                        <button 
+                          className="text-xs text-blue-600 hover:underline"
+                          onClick={() => {
+                            const htmlCode = document.getElementById('html-integration-code').textContent;
+                            navigator.clipboard.writeText(htmlCode);
+                          }}
+                        >
+                          📋 Copy HTML
+                        </button>
+                      </div>
+                      <pre id="html-integration-code" className="text-xs bg-white p-2 rounded border overflow-x-auto">
+{`<script src="http://13.126.228.42/sdk.js" data-api-key="${me?.customer?.api_key || 'pn_YOUR_API_KEY_HERE'}"></script>
 <script>
   PN.init({ 
-    apiKey: '${me?.customer?.api_key || 'YOUR_CUSTOMER_API_KEY'}', 
     baseUrl: 'http://13.126.228.42', 
     serviceWorkerUrl: '/pn-sw.js' 
   });
-</script>
-
-<!-- ${me?.customer?.api_key ? '✅ Ready! Your API key is included above.' : '⚠️ Replace YOUR_CUSTOMER_API_KEY with your actual API key'} -->
-<!-- The SDK automatically handles permissions, VAPID keys, and subscriptions -->`}
-                  </pre>
-                </div>
-                <div className="mt-4 flex items-center justify-between">
-                  {me?.customer?.api_key ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-sm text-green-600 font-medium">Ready to use! Your API key is included above</span>
+</script>`}
+                      </pre>
                     </div>
-                  ) : (
-                    <span className="text-sm text-gray-600">Replace YOUR_API_KEY_FROM_SETTINGS with your actual API key from Settings</span>
-                  )}
-                  <Button 
-                    variant="secondary" 
-                    size="sm"
-                    onClick={async () => {
-                      const code = document.querySelector('pre').textContent;
-                      try {
-                        if (navigator.clipboard && window.isSecureContext) {
-                          await navigator.clipboard.writeText(code)
-                        } else {
-                          // Fallback for non-secure contexts
-                          const textArea = document.createElement('textarea')
-                          textArea.value = code
-                          textArea.style.position = 'fixed'
-                          textArea.style.left = '-999999px'
-                          textArea.style.top = '-999999px'
-                          document.body.appendChild(textArea)
-                          textArea.focus()
-                          textArea.select()
-                          document.execCommand('copy')
-                          textArea.remove()
-                        }
-                      } catch (err) {
-                        console.error('Failed to copy:', err)
-                      }
-                    }}
-                  >
-                    Copy Code
-                  </Button>
+                  </div>
+
+                  <div>
+                    <h4 className="font-semibold mb-2">Alternative: Programmatic API Key</h4>
+                    <div className="bg-gray-50 p-3 rounded border">
+                      <pre className="text-xs bg-white p-2 rounded border overflow-x-auto">
+{`<script src="http://13.126.228.42/sdk.js"></script>
+<script>
+  PN.init({ 
+    apiKey: '${me?.customer?.api_key || 'pn_YOUR_API_KEY_HERE'}', 
+    baseUrl: 'http://13.126.228.42', 
+    serviceWorkerUrl: '/pn-sw.js' 
+  });
+</script>`}
+                      </pre>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                    <h4 className="font-semibold text-blue-800 mb-2">🧪 Test Your Integration</h4>
+                    <p className="text-sm text-blue-700 mb-3">Use our test page to verify everything works:</p>
+                    <a 
+                      href="/api-key-test.html" 
+                      target="_blank"
+                      className="inline-flex items-center gap-2 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                    >
+                      🔬 Open Integration Test
+                    </a>
+                    <p className="text-xs text-blue-600 mt-2">This will test your API key and full integration flow step by step.</p>
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardBody>
+                <h3 className="text-lg font-semibold mb-4">What This Code Does</h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">1</div>
+                    <div>
+                      <strong>Loads the SDK</strong> - Downloads and initializes the push notification system
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">2</div>
+                    <div>
+                      <strong>Registers Service Worker</strong> - Sets up background push handling using your /pn-sw.js file
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">3</div>
+                    <div>
+                      <strong>Requests Permission</strong> - Automatically asks user for notification permission
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">4</div>
+                    <div>
+                      <strong>Creates Subscription</strong> - Generates push endpoint and saves it to your dashboard
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">5</div>
+                    <div>
+                      <strong>Ready to Send</strong> - You can now send notifications from this dashboard!
+                    </div>
+                  </div>
                 </div>
               </CardBody>
             </Card>

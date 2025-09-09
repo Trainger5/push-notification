@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Working Push Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; max-width: 800px; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Simple Working Push Test</h1>
+    <p>This test will verify each step of the integration.</p>
+
+    <div class="step">
+        <h3>Configuration</h3>
+        <label>API Key: <input type="text" id="apiKey" value="pn_YTI1ZjhlNjUtYjg4My00NDU4" style="width: 300px;"></label><br><br>
+        <label>Server URL: <input type="text" id="serverUrl" value="http://13.126.228.42" style="width: 300px;"></label>
+    </div>
+
+    <div class="step" id="step1">
+        <h3>Step 1: Test API Configuration</h3>
+        <button onclick="testConfig()">Test Config API</button>
+        <div id="configResult"></div>
+    </div>
+
+    <div class="step" id="step2">
+        <h3>Step 2: Load SDK</h3>
+        <button onclick="loadSDK()">Load SDK from Server</button>
+        <div id="sdkResult"></div>
+    </div>
+
+    <div class="step" id="step3">
+        <h3>Step 3: Initialize Push Notifications</h3>
+        <button onclick="initPush()" id="initBtn" disabled>Initialize PN</button>
+        <div id="initResult"></div>
+    </div>
+
+    <div class="step" id="step4">
+        <h3>Step 4: Subscribe to Push</h3>
+        <button onclick="subscribePush()" id="subscribeBtn" disabled>Subscribe</button>
+        <div id="subscribeResult"></div>
+    </div>
+
+    <div class="step" id="step5">
+        <h3>Step 5: Send Test Notification</h3>
+        <button onclick="sendTest()" id="sendBtn" disabled>Send Test</button>
+        <div id="sendResult"></div>
+    </div>
+
+    <script>
+        let configValid = false;
+        let sdkLoaded = false;
+        let pushInitialized = false;
+        let subscribed = false;
+
+        // Step 1: Test API Configuration
+        async function testConfig() {
+            const apiKey = document.getElementById('apiKey').value;
+            const serverUrl = document.getElementById('serverUrl').value;
+            const resultDiv = document.getElementById('configResult');
+
+            resultDiv.innerHTML = '<p>Testing API configuration...</p>';
+
+            try {
+                const response = await fetch(`${serverUrl}/api/config?apiKey=${encodeURIComponent(apiKey)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.vapid_public_key) {
+                    resultDiv.innerHTML = '<p class="success">✅ Config API working! VAPID key received.</p><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                    configValid = true;
+                    document.getElementById('initBtn').disabled = false;
+                } else {
+                    resultDiv.innerHTML = '<p class="error">❌ Config API responded but no VAPID key found</p>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">❌ Config API failed: ' + error.message + '</p>';
+            }
+        }
+
+        // Step 2: Load SDK
+        async function loadSDK() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const resultDiv = document.getElementById('sdkResult');
+
+            resultDiv.innerHTML = '<p>Loading SDK...</p>';
+
+            try {
+                const script = document.createElement('script');
+                script.src = `${serverUrl}/sdk.js`;
+                
+                script.onerror = () => {
+                    resultDiv.innerHTML = '<p class="error">❌ Failed to load SDK</p>';
+                };
+
+                script.onload = () => {
+                    if (typeof PN !== 'undefined') {
+                        resultDiv.innerHTML = '<p class="success">✅ SDK loaded successfully!</p>';
+                        sdkLoaded = true;
+                        if (configValid) {
+                            document.getElementById('initBtn').disabled = false;
+                        }
+                    } else {
+                        resultDiv.innerHTML = '<p class="error">❌ SDK loaded but PN object not found</p>';
+                    }
+                };
+
+                document.head.appendChild(script);
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">❌ SDK loading failed: ' + error.message + '</p>';
+            }
+        }
+
+        // Step 3: Initialize Push
+        async function initPush() {
+            const apiKey = document.getElementById('apiKey').value;
+            const serverUrl = document.getElementById('serverUrl').value;
+            const resultDiv = document.getElementById('initResult');
+
+            if (!sdkLoaded) {
+                resultDiv.innerHTML = '<p class="error">❌ Please load SDK first</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p>Initializing push notifications...</p>';
+
+            try {
+                await PN.init({
+                    apiKey: apiKey,
+                    baseUrl: serverUrl,
+                    serviceWorkerUrl: '/pn-sw.js'
+                });
+
+                resultDiv.innerHTML = '<p class="success">✅ Push notifications initialized!</p>';
+                pushInitialized = true;
+                document.getElementById('subscribeBtn').disabled = false;
+                
+                // Check if already subscribed
+                const status = await PN.getSubscriptionStatus();
+                if (status.isSubscribed) {
+                    resultDiv.innerHTML += '<p class="info">ℹ️ Already subscribed!</p>';
+                    subscribed = true;
+                    document.getElementById('sendBtn').disabled = false;
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">❌ Push initialization failed: ' + error.message + '</p>';
+            }
+        }
+
+        // Step 4: Subscribe
+        async function subscribePush() {
+            const resultDiv = document.getElementById('subscribeResult');
+
+            if (!pushInitialized) {
+                resultDiv.innerHTML = '<p class="error">❌ Please initialize push first</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p>Requesting notification permission and subscribing...</p>';
+
+            try {
+                // Request permission
+                const permission = await Notification.requestPermission();
+                
+                if (permission !== 'granted') {
+                    resultDiv.innerHTML = '<p class="error">❌ Notification permission denied</p>';
+                    return;
+                }
+
+                // Subscribe
+                const subscription = await PN.subscribe();
+                
+                if (subscription) {
+                    resultDiv.innerHTML = '<p class="success">✅ Successfully subscribed to push notifications!</p>';
+                    subscribed = true;
+                    document.getElementById('sendBtn').disabled = false;
+                } else {
+                    resultDiv.innerHTML = '<p class="error">❌ Subscription failed</p>';
+                }
+                
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">❌ Subscription failed: ' + error.message + '</p>';
+            }
+        }
+
+        // Step 5: Send Test
+        async function sendTest() {
+            const apiKey = document.getElementById('apiKey').value;
+            const serverUrl = document.getElementById('serverUrl').value;
+            const resultDiv = document.getElementById('sendResult');
+
+            if (!subscribed) {
+                resultDiv.innerHTML = '<p class="error">❌ Please subscribe first</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p>Sending test notification...</p>';
+
+            try {
+                const response = await fetch(`${serverUrl}/api/customer/notify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        title: 'Test Notification',
+                        body: 'This is a test from the debug page!',
+                        url: window.location.href
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                resultDiv.innerHTML = `<p class="success">✅ Test notification sent! Sent: ${data.sent}, Failed: ${data.failed}</p>`;
+                
+            } catch (error) {
+                resultDiv.innerHTML = '<p class="error">❌ Send failed: ' + error.message + '</p>';
+            }
+        }
+
+        // Auto-load SDK on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('Page loaded, ready for testing');
+        });
+    </script>
+</body>
+</html>

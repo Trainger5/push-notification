@@ -100,6 +100,26 @@ class DataSeeder {
         updated_at: new Date()
       },
       {
+        id: 'test-customer-id',
+        user_id: 'test-user-id',
+        name: 'Test Company',
+        email: 'test@example.com',
+        company_name: 'Test Corp',
+        industry: 'Testing',
+        country: 'US',
+        timezone: 'UTC',
+        plan: 'pro',
+        status: 'active',
+        subscriber_limit: 10000,
+        monthly_quota: 50000,
+        quota_used: 0,
+        quota_reset_date: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
+        billing_email: 'test@example.com',
+        api_key: 'pn_YTI1ZjhlNjUtYjg4My00NDU4',
+        created_at: new Date(),
+        updated_at: new Date()
+      },
+      {
         id: this.demoCustomerId,
         user_id: this.demoUserId,
         name: 'Demo Company',
@@ -573,7 +593,7 @@ class DataSeeder {
   }
 
   generateApiKey() {
-    return 'np_' + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+    return 'pn_' + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
   }
 
   async reset() {

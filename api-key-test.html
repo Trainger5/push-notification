@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Key Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; max-width: 600px; }
+        .result { margin: 20px 0; padding: 15px; border-radius: 5px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; margin: 10px 0; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>API Key Test</h1>
+    <p>Testing API key: <code>pn_YTI1ZjhlNjUtYjg4My00NDU4</code></p>
+    
+    <button onclick="testApiKey()">Test API Key</button>
+    <button onclick="testFullFlow()">Test Full Integration</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_KEY = 'pn_YTI1ZjhlNjUtYjg4My00NDU4';
+        const SERVER_URL = 'http://13.126.228.42';
+        
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            results.innerHTML += `<div class="result ${type}">${message}</div>`;
+        }
+
+        async function testApiKey() {
+            document.getElementById('results').innerHTML = '';
+            
+            log('Testing API key with config endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${SERVER_URL}/api/config?apiKey=${encodeURIComponent(API_KEY)}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.vapid_public_key) {
+                    log('✅ API key is valid! VAPID key received.', 'success');
+                    log('<strong>Response:</strong><pre>' + JSON.stringify(data, null, 2) + '</pre>', 'info');
+                } else {
+                    log('⚠️ API key accepted but no VAPID key in response', 'error');
+                    log('<pre>' + JSON.stringify(data, null, 2) + '</pre>', 'info');
+                }
+                
+            } catch (error) {
+                log('❌ API key test failed: ' + error.message, 'error');
+            }
+        }
+
+        async function testFullFlow() {
+            document.getElementById('results').innerHTML = '';
+            
+            // Step 1: Test API key
+            log('Step 1: Testing API key...', 'info');
+            try {
+                const configResponse = await fetch(`${SERVER_URL}/api/config?apiKey=${encodeURIComponent(API_KEY)}`);
+                if (!configResponse.ok) throw new Error('Config API failed');
+                const configData = await configResponse.json();
+                log('✅ Config API working', 'success');
+                
+                // Step 2: Load SDK
+                log('Step 2: Loading SDK...', 'info');
+                const script = document.createElement('script');
+                script.src = `${SERVER_URL}/sdk.js`;
+                
+                script.onload = async () => {
+                    log('✅ SDK loaded', 'success');
+                    
+                    try {
+                        // Step 3: Initialize
+                        log('Step 3: Initializing PN...', 'info');
+                        await PN.init({
+                            apiKey: API_KEY,
+                            baseUrl: SERVER_URL,
+                            serviceWorkerUrl: '/pn-sw.js'
+                        });
+                        log('✅ PN initialized successfully!', 'success');
+                        
+                        // Step 4: Check status
+                        log('Step 4: Checking subscription status...', 'info');
+                        const status = await PN.getSubscriptionStatus();
+                        log('📊 Status: <pre>' + JSON.stringify(status, null, 2) + '</pre>', 'info');
+                        
+                        if (status.isSupported) {
+                            log('🎉 Push notifications are fully working!', 'success');
+                        }
+                        
+                    } catch (error) {
+                        log('❌ SDK initialization failed: ' + error.message, 'error');
+                    }
+                };
+                
+                script.onerror = () => {
+                    log('❌ Failed to load SDK', 'error');
+                };
+                
+                document.head.appendChild(script);
+                
+            } catch (error) {
+                log('❌ Full flow test failed: ' + error.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

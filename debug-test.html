@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Push Notification Debug Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; max-width: 800px; }
+        .status { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .error { background: #f8d7da; border-color: #f5c6cb; }
+        .info { background: #d1ecf1; border-color: #bee5eb; }
+        button { margin: 5px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h1>Push Notification Debug Test</h1>
+    <div id="console" style="max-height: 400px; overflow-y: scroll; background: #f8f9fa; padding: 10px; border: 1px solid #ddd; margin: 10px 0;"></div>
+    
+    <button onclick="testStep1()">Step 1: Load SDK</button>
+    <button onclick="testStep2()">Step 2: Initialize PN</button>
+    <button onclick="testStep3()">Step 3: Check Status</button>
+    <button onclick="testStep4()">Step 4: Manual Subscribe</button>
+
+    <script>
+        // Debug console
+        function log(msg, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            console.innerHTML += `<div class="status ${type}">[${timestamp}] ${msg}</div>`;
+            console.scrollTop = console.scrollHeight;
+            window.console.log(`[${type.toUpperCase()}] ${msg}`);
+        }
+
+        // Test configuration
+        const TEST_API_KEY = 'pn_YTI1ZjhlNjUtYjg4My00NDU4'; // Your actual API key
+        const TEST_SERVER_URL = 'http://13.126.228.42';
+        
+        let sdkLoaded = false;
+        let pnInitialized = false;
+
+        // Step 1: Load SDK
+        async function testStep1() {
+            log('Loading SDK from: ' + TEST_SERVER_URL + '/sdk.js');
+            try {
+                const script = document.createElement('script');
+                script.src = TEST_SERVER_URL + '/sdk.js';
+                script.onerror = () => {
+                    log('Failed to load SDK from server', 'error');
+                };
+                script.onload = () => {
+                    log('SDK loaded successfully', 'success');
+                    sdkLoaded = true;
+                    if (typeof PN !== 'undefined') {
+                        log('PN object is available: ' + typeof PN, 'success');
+                    } else {
+                        log('PN object not found after loading SDK', 'error');
+                    }
+                };
+                document.head.appendChild(script);
+            } catch (error) {
+                log('Error loading SDK: ' + error.message, 'error');
+            }
+        }
+
+        // Step 2: Initialize PN
+        async function testStep2() {
+            if (!sdkLoaded) {
+                log('Please load SDK first (Step 1)', 'error');
+                return;
+            }
+            
+            if (typeof PN === 'undefined') {
+                log('PN object not available', 'error');
+                return;
+            }
+
+            log('Initializing PN with API key and config...');
+            try {
+                await PN.init({
+                    apiKey: TEST_API_KEY,
+                    baseUrl: TEST_SERVER_URL,
+                    serviceWorkerUrl: '/pn-sw.js'
+                });
+                log('PN initialized successfully', 'success');
+                pnInitialized = true;
+            } catch (error) {
+                log('PN initialization failed: ' + error.message, 'error');
+            }
+        }
+
+        // Step 3: Check Status
+        async function testStep3() {
+            if (!pnInitialized) {
+                log('Please initialize PN first (Step 2)', 'error');
+                return;
+            }
+
+            try {
+                const status = await PN.getSubscriptionStatus();
+                log('Subscription status: ' + JSON.stringify(status, null, 2), 'info');
+                
+                log('Permission: ' + Notification.permission);
+                
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    log('Service worker registrations: ' + registrations.length);
+                    registrations.forEach((reg, i) => {
+                        log(`SW ${i}: ${reg.scope} - ${reg.active ? 'active' : 'inactive'}`);
+                    });
+                }
+            } catch (error) {
+                log('Status check failed: ' + error.message, 'error');
+            }
+        }
+
+        // Step 4: Manual Subscribe
+        async function testStep4() {
+            if (!pnInitialized) {
+                log('Please initialize PN first (Step 2)', 'error');
+                return;
+            }
+
+            try {
+                log('Requesting notification permission...');
+                const permission = await Notification.requestPermission();
+                log('Permission result: ' + permission);
+                
+                if (permission === 'granted') {
+                    log('Attempting manual subscription...');
+                    const subscription = await PN.subscribe();
+                    log('Manual subscription successful: ' + (subscription ? 'yes' : 'no'), 'success');
+                    if (subscription) {
+                        log('Endpoint: ' + subscription.endpoint.substring(0, 50) + '...');
+                    }
+                } else {
+                    log('Permission not granted, cannot subscribe', 'error');
+                }
+            } catch (error) {
+                log('Manual subscription failed: ' + error.message, 'error');
+            }
+        }
+
+        // Auto-start
+        log('Debug test loaded. Click Step 1 to begin.', 'info');
+    </script>
+</body>
+</html>

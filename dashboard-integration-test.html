@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Integration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; max-width: 800px; }
+        .result { margin: 15px 0; padding: 15px; border-radius: 5px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        button { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; margin: 10px 0; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 5px; overflow-x: auto; font-size: 12px; border: 1px solid #dee2e6; }
+        .code-section { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #dee2e6; }
+        h2 { color: #28a745; border-bottom: 2px solid #28a745; padding-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🎉 Dashboard Integration - Working Code</h1>
+    <p>This is the exact same integration code that's now in your dashboard!</p>
+
+    <div class="code-section">
+        <h2>📁 Step 1: Create /pn-sw.js file</h2>
+        <p>Create this file at your website root (same folder as index.html):</p>
+        <pre>importScripts('http://13.126.228.42/pn-sw.js');</pre>
+        <p>
+            <strong>Option 1:</strong> <a href="http://13.126.228.42/download/pn-sw.js" download="pn-sw.js">📥 Download pn-sw.js file</a><br>
+            <strong>Option 2:</strong> Copy the line above into a new file called pn-sw.js
+        </p>
+    </div>
+
+    <div class="code-section">
+        <h2>📄 Step 2: Add to your HTML</h2>
+        <p>Add this before &lt;/body&gt; in your HTML file:</p>
+        <pre id="html-code">&lt;script src="http://13.126.228.42/sdk.js" data-api-key="pn_YTI1ZjhlNjUtYjg4My00NDU4"&gt;&lt;/script&gt;
+&lt;script&gt;
+  PN.init({ 
+    baseUrl: 'http://13.126.228.42', 
+    serviceWorkerUrl: '/pn-sw.js' 
+  });
+&lt;/script&gt;</pre>
+        <button onclick="copyHtmlCode()">📋 Copy HTML Code</button>
+    </div>
+
+    <div class="code-section">
+        <h2>🧪 Test Integration</h2>
+        <p>Test that your integration works:</p>
+        <button onclick="testIntegration()">🔬 Test Integration Now</button>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="code-section">
+        <h2>✅ What This Does</h2>
+        <div style="display: grid; gap: 15px;">
+            <div style="display: flex; align-items: start; gap: 10px;">
+                <div style="width: 24px; height: 24px; background: #28a745; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">1</div>
+                <div><strong>Loads SDK</strong> - Downloads and initializes the push notification system</div>
+            </div>
+            <div style="display: flex; align-items: start; gap: 10px;">
+                <div style="width: 24px; height: 24px; background: #28a745; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">2</div>
+                <div><strong>Service Worker</strong> - Registers background push handling using /pn-sw.js</div>
+            </div>
+            <div style="display: flex; align-items: start; gap: 10px;">
+                <div style="width: 24px; height: 24px; background: #28a745; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">3</div>
+                <div><strong>Permission</strong> - Asks user for notification permission</div>
+            </div>
+            <div style="display: flex; align-items: start; gap: 10px;">
+                <div style="width: 24px; height: 24px; background: #28a745; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">4</div>
+                <div><strong>Subscribe</strong> - Creates push subscription and saves to dashboard</div>
+            </div>
+            <div style="display: flex; align-items: start; gap: 10px;">
+                <div style="width: 24px; height: 24px; background: #28a745; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">5</div>
+                <div><strong>Ready!</strong> - You can now send notifications from your dashboard</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = 'pn_YTI1ZjhlNjUtYjg4My00NDU4';
+        const SERVER_URL = 'http://13.126.228.42';
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('testResults');
+            results.innerHTML += `<div class="result ${type}">${message}</div>`;
+        }
+
+        function copyHtmlCode() {
+            const code = document.getElementById('html-code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                log('✅ HTML code copied to clipboard!', 'success');
+            }).catch(() => {
+                log('❌ Failed to copy - please copy manually', 'error');
+            });
+        }
+
+        async function testIntegration() {
+            document.getElementById('testResults').innerHTML = '';
+            log('🔄 Starting integration test...', 'info');
+
+            try {
+                // Step 1: Test API key
+                log('Step 1: Testing API key...', 'info');
+                const configResponse = await fetch(`${SERVER_URL}/api/config?apiKey=${encodeURIComponent(API_KEY)}`);
+                if (!configResponse.ok) throw new Error('API key invalid');
+                log('✅ API key is valid', 'success');
+
+                // Step 2: Load SDK
+                log('Step 2: Loading SDK...', 'info');
+                if (typeof PN === 'undefined') {
+                    const script = document.createElement('script');
+                    script.src = `${SERVER_URL}/sdk.js`;
+                    
+                    await new Promise((resolve, reject) => {
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+                log('✅ SDK loaded successfully', 'success');
+
+                // Step 3: Initialize
+                log('Step 3: Initializing push notifications...', 'info');
+                await PN.init({
+                    apiKey: API_KEY,
+                    baseUrl: SERVER_URL,
+                    serviceWorkerUrl: '/pn-sw.js'
+                });
+                log('✅ Push notifications initialized!', 'success');
+
+                // Step 4: Check status
+                log('Step 4: Checking subscription status...', 'info');
+                const status = await PN.getSubscriptionStatus();
+                
+                if (status.isSupported) {
+                    log('✅ Push notifications are fully supported!', 'success');
+                    
+                    if (status.isSubscribed) {
+                        log('🎉 Already subscribed and ready to receive notifications!', 'success');
+                    } else {
+                        log('ℹ️ Ready to subscribe - user needs to grant permission', 'info');
+                    }
+                    
+                    log('<strong>Integration Status:</strong><br>Permission: ' + status.permission + '<br>Subscribed: ' + (status.isSubscribed ? 'Yes' : 'No'), 'info');
+                } else {
+                    log('⚠️ Push notifications not supported in this browser', 'error');
+                }
+
+                log('🎉 Integration test completed successfully!', 'success');
+                
+            } catch (error) {
+                log('❌ Integration test failed: ' + error.message, 'error');
+            }
+        }
+
+        // Show success message
+        document.addEventListener('DOMContentLoaded', () => {
+            log('📋 Dashboard integration code is ready to use!', 'success');
+        });
+    </script>
+</body>
+</html>

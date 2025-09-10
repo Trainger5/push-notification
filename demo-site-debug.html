@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Site with Push Notifications Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border-left: 4px solid #ff6b6b;
+        }
+        .push-status {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            border-left: 4px solid #4CAF50;
+        }
+        .btn {
+            background: #ff6b6b;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #ff5252;
+        }
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            opacity: 0.8;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .success { background: rgba(76, 175, 80, 0.2); border-left: 4px solid #4CAF50; }
+        .error { background: rgba(244, 67, 54, 0.2); border-left: 4px solid #f44336; }
+        .info { background: rgba(33, 150, 243, 0.2); border-left: 4px solid #2196F3; }
+        .console { 
+            background: rgba(0, 0, 0, 0.3); 
+            padding: 15px; 
+            border-radius: 5px; 
+            font-family: 'Courier New', monospace; 
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Demo Site with Push Notifications</h1>
+        
+        <div class="feature">
+            <h3>Welcome to the Demo Site</h3>
+            <p>This is a demo site with push notifications integration.</p>
+        </div>
+        
+        <div class="push-status">
+            <h3>🔔 Push Notification Status</h3>
+            <div id="push-status">Loading push notification system...</div>
+            <div class="console" id="console"></div>
+            
+            <div style="margin-top: 15px;">
+                <button class="btn" onclick="checkStatus()">Check Status</button>
+                <button class="btn" onclick="requestPermission()" id="permissionBtn">Request Permission</button>
+                <button class="btn" onclick="subscribe()" id="subscribeBtn" disabled>Subscribe</button>
+                <button class="btn" onclick="unsubscribe()" id="unsubscribeBtn" disabled>Unsubscribe</button>
+            </div>
+        </div>
+        
+        <div class="feature">
+            <h3>Interactive Demo</h3>
+            <p>Click the button below to see some JavaScript in action:</p>
+            <button class="btn" onclick="showMessage()">Click Me!</button>
+            <p id="message" style="margin-top: 20px; font-weight: bold;"></p>
+        </div>
+        
+        <div class="footer">
+            <p>Demo Site &copy; 2024 | Built with HTML, CSS & JavaScript</p>
+        </div>
+    </div>
+
+    <script>
+        // Console logging for debugging
+        function log(message, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            console.innerHTML += `<div style="color: ${type === 'error' ? '#ff6b6b' : type === 'success' ? '#4CAF50' : '#fff'}">[${timestamp}] ${message}</div>`;
+            console.scrollTop = console.scrollHeight;
+            window.console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function showMessage() {
+            const messages = [
+                "Hello from the demo site! 👋",
+                "This is a JavaScript demo! ⚡",
+                "Thanks for clicking! 🎉",
+                "Interactive elements are working! ✨",
+                "Welcome to the future! 🚀"
+            ];
+            const randomMessage = messages[Math.floor(Math.random() * messages.length)];
+            document.getElementById('message').textContent = randomMessage;
+            log('Demo button clicked: ' + randomMessage, 'success');
+        }
+        
+        let pushReady = false;
+        let currentStatus = null;
+
+        // Push notification functions
+        async function checkStatus() {
+            log('Checking push notification status...', 'info');
+            try {
+                if (typeof PN === 'undefined') {
+                    throw new Error('PN SDK not loaded');
+                }
+                
+                const status = await PN.getSubscriptionStatus();
+                currentStatus = status;
+                
+                log('Status check successful', 'success');
+                log(`Supported: ${status.isSupported}`, 'info');
+                log(`Permission: ${status.permission}`, 'info');
+                log(`Subscribed: ${status.isSubscribed}`, 'info');
+                
+                updateStatusDisplay();
+                updateButtons();
+                
+            } catch (error) {
+                log('Status check failed: ' + error.message, 'error');
+            }
+        }
+
+        async function requestPermission() {
+            log('Requesting notification permission...', 'info');
+            try {
+                const permission = await Notification.requestPermission();
+                log(`Permission result: ${permission}`, permission === 'granted' ? 'success' : 'error');
+                checkStatus();
+            } catch (error) {
+                log('Permission request failed: ' + error.message, 'error');
+            }
+        }
+
+        async function subscribe() {
+            log('Attempting to subscribe...', 'info');
+            try {
+                const subscription = await PN.subscribe();
+                log('Subscription successful!', 'success');
+                checkStatus();
+            } catch (error) {
+                log('Subscription failed: ' + error.message, 'error');
+            }
+        }
+
+        async function unsubscribe() {
+            log('Attempting to unsubscribe...', 'info');
+            try {
+                await PN.unsubscribe();
+                log('Unsubscribed successfully!', 'success');
+                checkStatus();
+            } catch (error) {
+                log('Unsubscribe failed: ' + error.message, 'error');
+            }
+        }
+
+        function updateStatusDisplay() {
+            const statusDiv = document.getElementById('push-status');
+            if (!currentStatus) return;
+
+            let statusClass = 'info';
+            let statusText = 'Checking...';
+
+            if (!currentStatus.isSupported) {
+                statusClass = 'error';
+                statusText = '❌ Push notifications not supported in this browser';
+            } else if (currentStatus.permission === 'denied') {
+                statusClass = 'error';
+                statusText = '🚫 Push notifications blocked - please enable in browser settings';
+            } else if (currentStatus.isSubscribed) {
+                statusClass = 'success';
+                statusText = '✅ Push notifications are active and working!';
+            } else if (currentStatus.permission === 'granted') {
+                statusClass = 'info';
+                statusText = '📋 Permission granted - ready to subscribe';
+            } else {
+                statusClass = 'info';
+                statusText = '🔔 Ready to request push notification permission';
+            }
+
+            statusDiv.innerHTML = `<div class="status ${statusClass}">${statusText}</div>`;
+        }
+
+        function updateButtons() {
+            if (!currentStatus) return;
+
+            const permissionBtn = document.getElementById('permissionBtn');
+            const subscribeBtn = document.getElementById('subscribeBtn');
+            const unsubscribeBtn = document.getElementById('unsubscribeBtn');
+
+            permissionBtn.disabled = currentStatus.permission !== 'default';
+            subscribeBtn.disabled = currentStatus.permission !== 'granted' || currentStatus.isSubscribed;
+            unsubscribeBtn.disabled = !currentStatus.isSubscribed;
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Demo site loaded successfully!', 'success');
+            log('Push notification integration starting...', 'info');
+        });
+
+        // SDK initialization monitoring
+        let initAttempts = 0;
+        const maxInitAttempts = 10;
+
+        function waitForSDK() {
+            initAttempts++;
+            if (typeof PN !== 'undefined') {
+                log('✅ PN SDK loaded successfully!', 'success');
+                pushReady = true;
+                checkStatus();
+            } else if (initAttempts < maxInitAttempts) {
+                log(`Waiting for SDK... (attempt ${initAttempts}/${maxInitAttempts})`, 'info');
+                setTimeout(waitForSDK, 500);
+            } else {
+                log('❌ SDK failed to load after maximum attempts', 'error');
+            }
+        }
+
+        // Start monitoring for SDK
+        setTimeout(waitForSDK, 100);
+    </script>
+
+    <!-- Push Notification Integration -->
+    <script src="http://13.126.228.42/sdk.js"></script>
+    <script>
+        PN.init({ 
+            apiKey: 'pn_YTI1ZjhlNjUtYjg4My00NDU4', 
+            baseUrl: 'http://13.126.228.42', 
+            serviceWorkerUrl: '/pn-sw.js' 
+        }).then(() => {
+            log('🎉 PN.init() completed successfully!', 'success');
+        }).catch((error) => {
+            log('❌ PN.init() failed: ' + error.message, 'error');
+        });
+    </script>
+</body>
+</html>

@@ -336,7 +336,10 @@ export default function NewDashboard() {
                     <div className="bg-gray-50 p-3 rounded border">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-xs text-gray-600">File: /pn-sw.js</span>
-                        <a href="http://13.126.228.42/download/pn-sw.js" className="text-xs text-blue-600 hover:underline">📥 Download file</a>
+                        <div className="flex gap-2">
+                          <a href="https://13.126.228.42/download/pn-sw.js" className="text-xs text-blue-600 hover:underline">📥 Download</a>
+                          <a href="https://13.126.228.42/pn-sw-download.js" download="pn-sw.js" className="text-xs text-blue-600 hover:underline">📥 Backup</a>
+                        </div>
                       </div>
                       <pre className="text-xs bg-white p-2 rounded border">
 {`importScripts('http://13.126.228.42/pn-sw.js');`}

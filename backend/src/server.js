@@ -28,6 +28,9 @@ const campaignsRoutes = require('./routes/campaigns');
 
 const app = express();
 
+// Trust proxy for rate limiting to work correctly behind reverse proxies
+app.set('trust proxy', true);
+
 // Debug ALL requests
 app.use((req, res, next) => {
   console.log('=== REQUEST DEBUG ===');

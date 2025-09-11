@@ -562,6 +562,59 @@ router.patch('/customers/:id/status', async (req, res) => {
   }
 });
 
+// Clear all subscriptions for a customer (useful for fixing VAPID key mismatches)
+router.delete('/customers/:id/subscriptions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if customer exists
+    const [customer] = await query('SELECT * FROM customers WHERE id = ?', [id]);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    // Delete all subscriptions for this customer
+    const result = await query(
+      'DELETE FROM push_subscriptions WHERE customer_id = ?',
+      [id]
+    );
+    
+    res.json({ 
+      message: 'All subscriptions cleared successfully',
+      deleted: result.affectedRows 
+    });
+  } catch (error) {
+    console.error('Clear subscriptions error:', error);
+    res.status(500).json({ error: 'Failed to clear subscriptions' });
+  }
+});
+
+// Clear VAPID keys for a customer to force regeneration
+router.delete('/customers/:id/vapid-keys', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if customer exists
+    const [customer] = await query('SELECT * FROM customers WHERE id = ?', [id]);
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
+    
+    // Clear VAPID keys from push_settings
+    await query(
+      'UPDATE push_settings SET vapid_public_key = NULL, vapid_private_key = NULL, updated_at = NOW() WHERE customer_id = ?',
+      [id]
+    );
+    
+    res.json({ 
+      message: 'VAPID keys cleared successfully. New keys will be generated on next subscription.'
+    });
+  } catch (error) {
+    console.error('Clear VAPID keys error:', error);
+    res.status(500).json({ error: 'Failed to clear VAPID keys' });
+  }
+});
+
 module.exports = router;
 
 

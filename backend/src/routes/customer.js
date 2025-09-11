@@ -64,6 +64,51 @@ router.post(
   }
 );
 
+// Fix VAPID mismatch issues by regenerating keys and clearing subscriptions
+router.post('/fix-vapid', async (req, res) => {
+  const { customers, pushSettings, subscriptions } = getDatastores();
+  const customer = await customers.findOne({ user_id: req.user.user_id });
+  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  
+  try {
+    // Clear all existing subscriptions
+    const deletedSubs = await subscriptions.remove({ customer_id: customer.id }, { multi: true });
+    
+    // Generate new VAPID keys
+    const keys = webpush.generateVAPIDKeys();
+    const doc = {
+      customer_id: customer.id,
+      vapid_public_key: keys.publicKey,
+      vapid_private_key: keys.privateKey,
+      vapid_subject: 'mailto:admin@localhost',
+      default_title: `${customer.name || 'Notifications'}`,
+      default_icon_url: null,
+      default_badge_url: null,
+      default_url: null,
+      updated_at: new Date().toISOString()
+    };
+    
+    // Update or create settings with new keys
+    const existing = await pushSettings.findOne({ customer_id: customer.id });
+    if (existing) {
+      await pushSettings.update({ id: existing.id }, doc, { upsert: true });
+    } else {
+      await pushSettings.insert({ ...doc, created_at: new Date().toISOString() });
+    }
+    
+    res.json({
+      success: true,
+      message: 'VAPID keys regenerated and subscriptions cleared',
+      deletedSubscriptions: deletedSubs,
+      newPublicKey: keys.publicKey,
+      instructions: 'Please clear your browser cache/service worker and re-subscribe to push notifications.'
+    });
+  } catch (error) {
+    console.error('Fix VAPID error:', error);
+    res.status(500).json({ error: 'Failed to fix VAPID configuration' });
+  }
+});
+
 // Send a rich notification to all subscribers
 router.post(
   '/notify',
@@ -82,39 +127,21 @@ router.post(
     const { customers, subscriptions, pushSettings, notifications } = getDatastores();
     const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
-    let settings = await pushSettings.findOne({ customer_id: customer.id });
+    const settings = await pushSettings.findOne({ customer_id: customer.id });
     
-    // If no settings exist or VAPID keys are missing, generate them
-    // This ensures consistency with the /api/config endpoint
+    // Check if VAPID keys exist
     if (!settings || !settings.vapid_public_key || !settings.vapid_private_key) {
-      const keys = webpush.generateVAPIDKeys();
-      const doc = {
-        customer_id: customer.id,
-        vapid_public_key: keys.publicKey,
-        vapid_private_key: keys.privateKey,
-        vapid_subject: settings?.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@localhost',
-        default_title: settings?.default_title || `${customer.name || 'Notifications'}`,
-        default_icon_url: settings?.default_icon_url || null,
-        default_badge_url: settings?.default_badge_url || null,
-        default_url: settings?.default_url || null,
-        updated_at: new Date().toISOString()
-      };
-      if (settings) {
-        await pushSettings.update({ id: settings.id }, { $set: doc });
-        settings = { ...settings, ...doc };
-      } else {
-        settings = await pushSettings.insert({ ...doc, created_at: new Date().toISOString() });
-      }
+      return res.status(400).json({ 
+        error: 'VAPID keys not configured',
+        message: 'Push settings not initialized. Please ensure subscriptions are created first.',
+        code: 'VAPID_NOT_CONFIGURED'
+      });
     }
     
-    // Use the settings VAPID keys (never fall back to env vars)
+    // Use the settings VAPID keys
     const vapidPublicKey = settings.vapid_public_key;
     const vapidPrivateKey = settings.vapid_private_key;
-    const vapidSubject = settings.vapid_subject || 'mailto:admin@localhost';
-    
-    if (!vapidPublicKey || !vapidPrivateKey) {
-      return res.status(400).json({ error: 'VAPID keys not configured' });
-    }
+    const vapidSubject = settings.vapid_subject || settings.vapidSubject || 'mailto:admin@localhost';
     
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
@@ -177,7 +204,10 @@ router.post(
 
     const ok = results.filter((r) => r.status === 'fulfilled').length;
     const fail = results.length - ok;
-
+    
+    // Check for VAPID mismatch errors
+    let vapidMismatchDetected = false;
+    
     if (DEBUG_PUSH) {
       results.forEach((r, i) => {
         const sub = subs[i];
@@ -189,10 +219,26 @@ router.post(
           const name = err.name || null;
           const message = err.message || String(err);
           const body = err.body || null;
+          
+          // Detect VAPID mismatch error
+          if (statusCode === 403 && body && body.includes('VAPID credentials')) {
+            vapidMismatchDetected = true;
+          }
+          
           console.error('[push] FAILED', { endpoint: endpoint?.substring(0, 50) + '...', statusCode, name, message, body });
         } else {
           console.log('[push] SUCCESS', { endpoint: endpoint?.substring(0, 50) + '...' });
         }
+      });
+    }
+    
+    // If VAPID mismatch detected, return a more helpful error
+    if (vapidMismatchDetected) {
+      return res.status(400).json({
+        error: 'VAPID key mismatch',
+        message: 'The push subscriptions were created with different VAPID keys. Please clear subscriptions and re-subscribe.',
+        code: 'VAPID_MISMATCH',
+        solution: 'Use DELETE /api/admin/customers/{id}/subscriptions to clear old subscriptions, then re-subscribe.'
       });
     }
     const notificationRecord = await notifications.insert({ 

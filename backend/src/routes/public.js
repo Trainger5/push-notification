@@ -25,7 +25,7 @@ router.get('/config', async (req, res) => {
       customer_id: customer.id,
       vapid_public_key: keys.publicKey,
       vapid_private_key: keys.privateKey,
-      vapid_subject: settings?.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com',
+      vapid_subject: settings?.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@localhost',
       default_title: settings?.default_title || `${customer.name || 'Notifications'}`,
       default_icon_url: settings?.default_icon_url || null,
       default_badge_url: settings?.default_badge_url || null,

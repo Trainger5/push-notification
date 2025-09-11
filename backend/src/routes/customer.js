@@ -82,11 +82,40 @@ router.post(
     const { customers, subscriptions, pushSettings, notifications } = getDatastores();
     const customer = await customers.findOne({ user_id: req.user.user_id });
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
-    const settings = await pushSettings.findOne({ customer_id: customer.id });
-    const vapidPublicKey = settings?.vapid_public_key || process.env.VAPID_PUBLIC_KEY;
-    const vapidPrivateKey = settings?.vapid_private_key || process.env.VAPID_PRIVATE_KEY;
-    const vapidSubject = settings?.vapidSubject || process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
-    if (!vapidPublicKey || !vapidPrivateKey) return res.status(400).json({ error: 'Missing VAPID keys' });
+    let settings = await pushSettings.findOne({ customer_id: customer.id });
+    
+    // If no settings exist or VAPID keys are missing, generate them
+    // This ensures consistency with the /api/config endpoint
+    if (!settings || !settings.vapid_public_key || !settings.vapid_private_key) {
+      const keys = webpush.generateVAPIDKeys();
+      const doc = {
+        customer_id: customer.id,
+        vapid_public_key: keys.publicKey,
+        vapid_private_key: keys.privateKey,
+        vapid_subject: settings?.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@localhost',
+        default_title: settings?.default_title || `${customer.name || 'Notifications'}`,
+        default_icon_url: settings?.default_icon_url || null,
+        default_badge_url: settings?.default_badge_url || null,
+        default_url: settings?.default_url || null,
+        updated_at: new Date().toISOString()
+      };
+      if (settings) {
+        await pushSettings.update({ id: settings.id }, { $set: doc });
+        settings = { ...settings, ...doc };
+      } else {
+        settings = await pushSettings.insert({ ...doc, created_at: new Date().toISOString() });
+      }
+    }
+    
+    // Use the settings VAPID keys (never fall back to env vars)
+    const vapidPublicKey = settings.vapid_public_key;
+    const vapidPrivateKey = settings.vapid_private_key;
+    const vapidSubject = settings.vapid_subject || 'mailto:admin@localhost';
+    
+    if (!vapidPublicKey || !vapidPrivateKey) {
+      return res.status(400).json({ error: 'VAPID keys not configured' });
+    }
+    
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 
     const subs = await subscriptions.find({ customer_id: customer.id });

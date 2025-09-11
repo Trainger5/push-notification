@@ -232,14 +232,55 @@ router.post(
       });
     }
     
-    // If VAPID mismatch detected, return a more helpful error
+    // If VAPID mismatch detected, automatically fix it
     if (vapidMismatchDetected) {
-      return res.status(400).json({
-        error: 'VAPID key mismatch',
-        message: 'The push subscriptions were created with different VAPID keys. Please clear subscriptions and re-subscribe.',
-        code: 'VAPID_MISMATCH',
-        solution: 'Use DELETE /api/admin/customers/{id}/subscriptions to clear old subscriptions, then re-subscribe.'
-      });
+      console.log('[VAPID FIX] Mismatch detected, automatically fixing...');
+      
+      try {
+        // Clear all existing subscriptions with wrong keys
+        const deletedCount = await subscriptions.remove({ customer_id: customer.id }, { multi: true });
+        console.log(`[VAPID FIX] Cleared ${deletedCount} old subscriptions`);
+        
+        // Generate new VAPID keys
+        const keys = webpush.generateVAPIDKeys();
+        const newSettings = {
+          customer_id: customer.id,
+          vapid_public_key: keys.publicKey,
+          vapid_private_key: keys.privateKey,
+          vapid_subject: 'mailto:admin@localhost',
+          default_title: settings?.default_title || `${customer.name || 'Notifications'}`,
+          default_icon_url: settings?.default_icon_url || null,
+          default_badge_url: settings?.default_badge_url || null,
+          default_url: settings?.default_url || null,
+          updated_at: new Date().toISOString()
+        };
+        
+        // Update settings with new keys
+        if (settings) {
+          await pushSettings.update({ id: settings.id }, newSettings, { upsert: true });
+        } else {
+          await pushSettings.insert({ ...newSettings, created_at: new Date().toISOString() });
+        }
+        
+        console.log('[VAPID FIX] Generated new VAPID keys');
+        
+        // Return response indicating the fix
+        return res.status(200).json({
+          success: false,
+          code: 'VAPID_FIXED',
+          message: 'VAPID key mismatch detected and automatically fixed',
+          action: 'All subscriptions cleared and new VAPID keys generated',
+          instructions: 'Please refresh your browser and re-subscribe to push notifications',
+          newPublicKey: keys.publicKey
+        });
+      } catch (fixError) {
+        console.error('[VAPID FIX] Failed to auto-fix:', fixError);
+        return res.status(500).json({
+          error: 'VAPID fix failed',
+          message: 'Detected VAPID mismatch but could not automatically fix it',
+          code: 'VAPID_FIX_FAILED'
+        });
+      }
     }
     const notificationRecord = await notifications.insert({ 
       customer_id: customer.id, 

@@ -76,6 +76,8 @@ router.post('/fix-vapid', async (req, res) => {
     
     // Generate new VAPID keys
     const keys = webpush.generateVAPIDKeys();
+    // Format datetime for MySQL (YYYY-MM-DD HH:MM:SS)
+    const mysqlDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
     const doc = {
       customer_id: customer.id,
       vapid_public_key: keys.publicKey,
@@ -85,7 +87,7 @@ router.post('/fix-vapid', async (req, res) => {
       default_icon_url: null,
       default_badge_url: null,
       default_url: null,
-      updated_at: new Date().toISOString()
+      updated_at: mysqlDateTime
     };
     
     // Update or create settings with new keys
@@ -93,7 +95,7 @@ router.post('/fix-vapid', async (req, res) => {
     if (existing) {
       await pushSettings.update({ id: existing.id }, doc, { upsert: true });
     } else {
-      await pushSettings.insert({ ...doc, created_at: new Date().toISOString() });
+      await pushSettings.insert({ ...doc, created_at: mysqlDateTime });
     }
     
     res.json({
@@ -243,6 +245,8 @@ router.post(
         
         // Generate new VAPID keys
         const keys = webpush.generateVAPIDKeys();
+        // Format datetime for MySQL (YYYY-MM-DD HH:MM:SS)
+        const mysqlDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const newSettings = {
           customer_id: customer.id,
           vapid_public_key: keys.publicKey,
@@ -252,14 +256,14 @@ router.post(
           default_icon_url: settings?.default_icon_url || null,
           default_badge_url: settings?.default_badge_url || null,
           default_url: settings?.default_url || null,
-          updated_at: new Date().toISOString()
+          updated_at: mysqlDateTime
         };
         
         // Update settings with new keys
         if (settings) {
           await pushSettings.update({ id: settings.id }, newSettings, { upsert: true });
         } else {
-          await pushSettings.insert({ ...newSettings, created_at: new Date().toISOString() });
+          await pushSettings.insert({ ...newSettings, created_at: mysqlDateTime });
         }
         
         console.log('[VAPID FIX] Generated new VAPID keys');

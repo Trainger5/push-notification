@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Push Notification UI Triggers - Examples</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 42px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .examples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .example-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .example-card h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+        
+        .example-card p {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        /* 1. Simple Button */
+        .simple-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .simple-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .simple-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        /* 2. Floating Action Button */
+        .fab-container {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1000;
+        }
+        
+        .fab {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FA8BFF 0%, #2BD2FF 52%, #2BFF88 90%);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .fab:hover {
+            transform: scale(1.1) rotate(10deg);
+        }
+        
+        .fab-tooltip {
+            position: absolute;
+            bottom: 70px;
+            right: 0;
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            white-space: nowrap;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        
+        .fab:hover + .fab-tooltip {
+            opacity: 1;
+        }
+        
+        /* 3. Modal/Popup */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            animation: fadeIn 0.3s;
+        }
+        
+        .modal-overlay.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            animation: slideUp 0.3s;
+            text-align: center;
+        }
+        
+        .modal-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        .modal-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .modal-btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .modal-btn-secondary {
+            background: #f0f0f0;
+            color: #666;
+        }
+        
+        .modal-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        /* 4. Top Banner */
+        .notification-banner {
+            position: fixed;
+            top: -100px;
+            left: 0;
+            right: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            transition: top 0.5s;
+            z-index: 1500;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.2);
+        }
+        
+        .notification-banner.show {
+            top: 0;
+        }
+        
+        .banner-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        
+        .banner-text {
+            flex: 1;
+        }
+        
+        .banner-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .banner-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .banner-btn-accept {
+            background: white;
+            color: #667eea;
+        }
+        
+        .banner-btn-dismiss {
+            background: transparent;
+            color: white;
+            border: 1px solid white;
+        }
+        
+        /* 5. Slide-in Panel */
+        .slide-panel {
+            position: fixed;
+            right: -400px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: white;
+            border-radius: 20px 0 0 20px;
+            padding: 30px;
+            width: 350px;
+            box-shadow: -5px 0 30px rgba(0,0,0,0.2);
+            transition: right 0.5s;
+            z-index: 1500;
+        }
+        
+        .slide-panel.show {
+            right: 0;
+        }
+        
+        .slide-panel-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: transparent;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+        
+        /* 6. Corner Toast */
+        .toast-notification {
+            position: fixed;
+            bottom: -200px;
+            left: 30px;
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 5px 30px rgba(0,0,0,0.2);
+            transition: bottom 0.5s;
+            z-index: 1500;
+            max-width: 350px;
+        }
+        
+        .toast-notification.show {
+            bottom: 30px;
+        }
+        
+        .toast-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .toast-icon {
+            font-size: 32px;
+        }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+        
+        .success-message {
+            display: none;
+            background: #10b981;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            text-align: center;
+        }
+        
+        .success-message.show {
+            display: block;
+            animation: slideUp 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Push Notification UI Triggers</h1>
+        
+        <div class="examples-grid">
+            <!-- 1. Simple Button -->
+            <div class="example-card">
+                <h2>1. Simple Button</h2>
+                <p>Most straightforward approach - a clear call-to-action button.</p>
+                <button id="simpleButton" class="simple-button">
+                    🔔 Enable Notifications
+                </button>
+                <div id="simpleSuccess" class="success-message">
+                    ✅ Notifications Enabled!
+                </div>
+                <div class="code-block">
+// Using our SDK
+document.getElementById("simpleButton")
+  .addEventListener("click", async () => {
+    const result = await PN.subscribe();
+    if (result.success) {
+      // Show success state
+    }
+  });
+                </div>
+            </div>
+            
+            <!-- 2. Modal Trigger -->
+            <div class="example-card">
+                <h2>2. Modal Popup</h2>
+                <p>Shows after user spends time on page or performs an action.</p>
+                <button onclick="showModal()" class="simple-button">
+                    Show Modal Example
+                </button>
+            </div>
+            
+            <!-- 3. Banner Trigger -->
+            <div class="example-card">
+                <h2>3. Top Banner</h2>
+                <p>Non-intrusive banner that slides down from top.</p>
+                <button onclick="showBanner()" class="simple-button">
+                    Show Banner Example
+                </button>
+            </div>
+            
+            <!-- 4. Slide Panel -->
+            <div class="example-card">
+                <h2>4. Slide-in Panel</h2>
+                <p>Slides in from the side with more context.</p>
+                <button onclick="showSlidePanel()" class="simple-button">
+                    Show Panel Example
+                </button>
+            </div>
+            
+            <!-- 5. Toast Notification -->
+            <div class="example-card">
+                <h2>5. Corner Toast</h2>
+                <p>Small, unobtrusive notification in corner.</p>
+                <button onclick="showToast()" class="simple-button">
+                    Show Toast Example
+                </button>
+            </div>
+            
+            <!-- 6. After Action -->
+            <div class="example-card">
+                <h2>6. After User Action</h2>
+                <p>Ask after user completes an action (like a purchase).</p>
+                <button onclick="simulateAction()" class="simple-button">
+                    Simulate User Action
+                </button>
+            </div>
+        </div>
+        
+        <!-- Integration Code Example -->
+        <div class="example-card" style="max-width: 100%;">
+            <h2>🚀 Complete Integration Code</h2>
+            <p>Here's how to implement push notifications with proper UI triggers using our SDK:</p>
+            
+            <div class="code-block">
+&lt;!-- Step 1: Include our SDK --&gt;
+&lt;script src="https://pushads123.com/sdk.js"&gt;&lt;/script&gt;
+
+&lt;!-- Step 2: Add a trigger button --&gt;
+&lt;button id="enablePush"&gt;Enable Notifications 🔔&lt;/button&gt;
+
+&lt;script&gt;
+// Step 3: Initialize SDK (doesn't request permission)
+PN.init({ 
+  apiKey: 'YOUR_API_KEY',
+  baseUrl: 'https://pushads123.com'
+});
+
+// Step 4: Handle user click (requests permission)
+document.getElementById("enablePush").addEventListener("click", async () => {
+  try {
+    // This will request permission and subscribe
+    const result = await PN.subscribe();
+    
+    if (result.success) {
+      // Update UI to show success
+      document.getElementById("enablePush").innerHTML = "✅ Notifications Enabled";
+      document.getElementById("enablePush").disabled = true;
+      
+      // Optional: Send test notification
+      await fetch("https://pushads123.com/api/customer/notify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer YOUR_API_KEY"
+        },
+        body: JSON.stringify({
+          title: "Welcome! 🎉",
+          body: "You'll now receive important updates",
+          url: window.location.href
+        })
+      });
+    }
+  } catch (error) {
+    console.error("Subscription failed:", error);
+    alert(error.message);
+  }
+});
+
+// Step 5: Check if already subscribed on page load
+window.addEventListener('load', async () => {
+  const status = await PN.getSubscriptionStatus();
+  if (status.isSubscribed) {
+    document.getElementById("enablePush").innerHTML = "✅ Notifications Enabled";
+    document.getElementById("enablePush").disabled = true;
+  }
+});
+&lt;/script&gt;
+            </div>
+        </div>
+    </div>
+    
+    <!-- Floating Action Button -->
+    <div class="fab-container">
+        <button class="fab" onclick="handleFAB()">🔔</button>
+        <div class="fab-tooltip">Enable Notifications</div>
+    </div>
+    
+    <!-- Modal -->
+    <div id="modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-icon">🔔</div>
+            <h2>Stay Updated!</h2>
+            <p>Get instant notifications about important updates, new features, and exclusive offers.</p>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-primary" onclick="subscribeFromModal()">
+                    Enable Notifications
+                </button>
+                <button class="modal-btn modal-btn-secondary" onclick="closeModal()">
+                    Maybe Later
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Top Banner -->
+    <div id="banner" class="notification-banner">
+        <div class="banner-content">
+            <div class="banner-text">
+                <strong>🔔 Don't miss out!</strong> Enable push notifications to get instant updates.
+            </div>
+            <div class="banner-buttons">
+                <button class="banner-btn banner-btn-accept" onclick="subscribeFromBanner()">
+                    Enable
+                </button>
+                <button class="banner-btn banner-btn-dismiss" onclick="closeBanner()">
+                    Not Now
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Slide Panel -->
+    <div id="slidePanel" class="slide-panel">
+        <button class="slide-panel-close" onclick="closeSlidePanel()">×</button>
+        <h2>🔔 Never Miss an Update</h2>
+        <p style="margin: 20px 0; color: #666; line-height: 1.6;">
+            Enable push notifications to receive:
+        </p>
+        <ul style="color: #666; margin: 20px 0; padding-left: 20px;">
+            <li>Important announcements</li>
+            <li>New feature releases</li>
+            <li>Exclusive offers</li>
+            <li>Security updates</li>
+        </ul>
+        <button class="simple-button" style="width: 100%;" onclick="subscribeFromPanel()">
+            Enable Notifications
+        </button>
+    </div>
+    
+    <!-- Toast -->
+    <div id="toast" class="toast-notification">
+        <div class="toast-content">
+            <div class="toast-icon">🔔</div>
+            <div>
+                <strong>Enable Notifications?</strong>
+                <p style="color: #666; font-size: 14px; margin-top: 5px;">
+                    Stay updated with important messages
+                </p>
+                <button class="simple-button" style="margin-top: 10px;" onclick="subscribeFromToast()">
+                    Enable
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Load SDK -->
+    <script src="https://pushads123.com/sdk.js"></script>
+    
+    <script>
+        // Initialize SDK (doesn't request permission yet)
+        PN.init({ 
+            apiKey: 'demo-api-key',
+            baseUrl: 'https://pushads123.com'
+        });
+        
+        // Check subscription status on load
+        window.addEventListener('load', async () => {
+            const status = await PN.getSubscriptionStatus();
+            if (status.isSubscribed) {
+                document.getElementById('simpleButton').innerHTML = '✅ Notifications Enabled';
+                document.getElementById('simpleButton').disabled = true;
+            }
+        });
+        
+        // 1. Simple Button Handler
+        document.getElementById('simpleButton').addEventListener('click', async () => {
+            try {
+                const button = document.getElementById('simpleButton');
+                button.innerHTML = '⏳ Enabling...';
+                button.disabled = true;
+                
+                const result = await PN.subscribe();
+                
+                if (result.success) {
+                    button.innerHTML = '✅ Notifications Enabled';
+                    document.getElementById('simpleSuccess').classList.add('show');
+                }
+            } catch (error) {
+                document.getElementById('simpleButton').innerHTML = '❌ ' + error.message;
+                document.getElementById('simpleButton').disabled = false;
+            }
+        });
+        
+        // 2. Modal Functions
+        function showModal() {
+            document.getElementById('modal').classList.add('show');
+        }
+        
+        function closeModal() {
+            document.getElementById('modal').classList.remove('show');
+        }
+        
+        async function subscribeFromModal() {
+            try {
+                const result = await PN.subscribe();
+                if (result.success) {
+                    closeModal();
+                    alert('Notifications enabled successfully!');
+                }
+            } catch (error) {
+                alert('Failed: ' + error.message);
+            }
+        }
+        
+        // 3. Banner Functions
+        function showBanner() {
+            document.getElementById('banner').classList.add('show');
+        }
+        
+        function closeBanner() {
+            document.getElementById('banner').classList.remove('show');
+        }
+        
+        async function subscribeFromBanner() {
+            try {
+                const result = await PN.subscribe();
+                if (result.success) {
+                    closeBanner();
+                }
+            } catch (error) {
+                alert('Failed: ' + error.message);
+            }
+        }
+        
+        // 4. Slide Panel Functions
+        function showSlidePanel() {
+            document.getElementById('slidePanel').classList.add('show');
+        }
+        
+        function closeSlidePanel() {
+            document.getElementById('slidePanel').classList.remove('show');
+        }
+        
+        async function subscribeFromPanel() {
+            try {
+                const result = await PN.subscribe();
+                if (result.success) {
+                    closeSlidePanel();
+                }
+            } catch (error) {
+                alert('Failed: ' + error.message);
+            }
+        }
+        
+        // 5. Toast Functions
+        function showToast() {
+            document.getElementById('toast').classList.add('show');
+            setTimeout(() => {
+                document.getElementById('toast').classList.remove('show');
+            }, 10000);
+        }
+        
+        async function subscribeFromToast() {
+            try {
+                const result = await PN.subscribe();
+                if (result.success) {
+                    document.getElementById('toast').classList.remove('show');
+                }
+            } catch (error) {
+                alert('Failed: ' + error.message);
+            }
+        }
+        
+        // 6. After Action
+        function simulateAction() {
+            alert('User completed an action (e.g., made a purchase)');
+            setTimeout(() => {
+                if (confirm('Would you like to enable notifications to track your order?')) {
+                    PN.subscribe();
+                }
+            }, 500);
+        }
+        
+        // FAB Handler
+        async function handleFAB() {
+            try {
+                const result = await PN.subscribe();
+                if (result.success) {
+                    document.querySelector('.fab').innerHTML = '✅';
+                }
+            } catch (error) {
+                alert('Failed: ' + error.message);
+            }
+        }
+        
+        // Auto-show examples (for demo purposes)
+        // In production, you'd trigger these based on user behavior
+        setTimeout(() => {
+            // Example: Show toast after 5 seconds on page
+            // showToast();
+        }, 5000);
+    </script>
+</body>
+</html>

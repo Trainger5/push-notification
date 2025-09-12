@@ -257,7 +257,168 @@ Or for testing: Create a customer account in Admin Dashboard`}
                         </Box>
 
                         <Box>
-                          <Heading size="md" mb={4}>3. Customize Your Button (Optional)</Heading>
+                          <Heading size="md" mb={4}>3. Add Subscribe Button (User-Triggered)</Heading>
+                          <Text mb={4}>Important: Browsers require explicit user action to enable notifications. Add a button that users click:</Text>
+                          
+                          <Tabs variant="enclosed" mb={4}>
+                            <TabList>
+                              <Tab>Simple Button</Tab>
+                              <Tab>Styled Button</Tab>
+                              <Tab>Custom Integration</Tab>
+                            </TabList>
+                            <TabPanels>
+                              <TabPanel>
+                                <Text mb={3}>Basic button that requests permission on click:</Text>
+                                <CodeBlock language="html">
+{`<button id="enablePush">🔔 Enable Notifications</button>
+
+<script>
+document.getElementById("enablePush").addEventListener("click", async () => {
+  try {
+    // Only requests permission when user clicks!
+    const result = await PN.subscribe();
+    
+    if (result.success) {
+      document.getElementById("enablePush").innerHTML = "✅ Notifications Enabled";
+      document.getElementById("enablePush").disabled = true;
+      alert("Notifications enabled successfully!");
+    }
+  } catch (error) {
+    console.error("Subscription failed:", error);
+    alert("Failed to enable notifications: " + error.message);
+  }
+});
+</script>`}
+                                </CodeBlock>
+                              </TabPanel>
+                              
+                              <TabPanel>
+                                <Text mb={3}>Beautiful gradient button with loading states:</Text>
+                                <CodeBlock language="html">
+{`<style>
+  .push-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .push-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+  }
+  .push-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+</style>
+
+<button id="stylishPush" class="push-btn">
+  🔔 Enable Push Notifications
+</button>
+
+<script>
+document.getElementById("stylishPush").addEventListener("click", async () => {
+  const btn = document.getElementById("stylishPush");
+  btn.innerHTML = "⏳ Enabling...";
+  btn.disabled = true;
+  
+  try {
+    const result = await PN.subscribe();
+    if (result.success) {
+      btn.innerHTML = "✅ Notifications Active";
+      btn.style.background = "linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)";
+    }
+  } catch (error) {
+    btn.innerHTML = "❌ Failed - Try Again";
+    btn.disabled = false;
+    setTimeout(() => {
+      btn.innerHTML = "🔔 Enable Push Notifications";
+    }, 3000);
+  }
+});
+</script>`}
+                                </CodeBlock>
+                              </TabPanel>
+                              
+                              <TabPanel>
+                                <Text mb={3}>Full custom implementation with subscription check:</Text>
+                                <CodeBlock language="javascript">
+{`// Initialize SDK (doesn't request permission)
+await PN.init({ 
+  apiKey: 'YOUR_API_KEY',
+  baseUrl: 'https://pushads123.com'
+});
+
+// Check if already subscribed
+async function checkSubscription() {
+  const status = await PN.getSubscriptionStatus();
+  const btn = document.getElementById("pushBtn");
+  
+  if (status.isSubscribed) {
+    btn.innerHTML = "✅ Notifications Enabled";
+    btn.disabled = true;
+  } else if (status.permission === 'denied') {
+    btn.innerHTML = "❌ Notifications Blocked";
+    btn.disabled = true;
+  }
+}
+
+// Handle button click (requests permission)
+async function enablePushNotifications() {
+  try {
+    // This requests permission and subscribes
+    const result = await PN.subscribe();
+    
+    if (result.success) {
+      // Send welcome notification
+      await fetch('https://pushads123.com/api/customer/notify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer YOUR_API_KEY'
+        },
+        body: JSON.stringify({
+          title: '🎉 Welcome!',
+          body: 'You will now receive notifications',
+          url: window.location.href
+        })
+      });
+      
+      return true;
+    }
+  } catch (error) {
+    if (error.message.includes('denied')) {
+      alert('Please enable notifications in browser settings');
+    }
+    return false;
+  }
+}
+
+// Run on page load
+checkSubscription();`}
+                                </CodeBlock>
+                              </TabPanel>
+                            </TabPanels>
+                          </Tabs>
+                          
+                          <Alert status="info" borderRadius="md">
+                            <Alert />
+                            <Box>
+                              <Text fontWeight="bold">Why User Action is Required:</Text>
+                              <Text fontSize="sm">• Browsers block auto-subscription to prevent spam</Text>
+                              <Text fontSize="sm">• Permission must be triggered by user click</Text>
+                              <Text fontSize="sm">• Better UX - users choose when to subscribe</Text>
+                            </Box>
+                          </Alert>
+                        </Box>
+
+                        <Box>
+                          <Heading size="md" mb={4}>4. Customize Your Button (Optional)</Heading>
                           <Text mb={4}>Want to customize the button? Add these optional attributes:</Text>
                           
                           <CodeBlock language="html">
@@ -290,7 +451,7 @@ Or for testing: Create a customer account in Admin Dashboard`}
                         </Box>
 
                         <Box>
-                          <Heading size="md" mb={4}>4. Send Your First Notification (That's It!)</Heading>
+                          <Heading size="md" mb={4}>5. Send Your First Notification (That's It!)</Heading>
                           <Text mb={4}>Send notifications directly from your website (great for testing):</Text>
                           <CodeBlock language="javascript">
 {`async function sendTestNotification() {

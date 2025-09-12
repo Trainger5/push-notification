@@ -397,8 +397,8 @@ export default function NewDashboard() {
                   </div>
 
                   <div>
-                    <h4 className="font-semibold mb-2">Step 2: Add to Your HTML</h4>
-                    <p className="text-sm text-gray-600 mb-3">Add this before <code className="bg-gray-100 px-1 rounded">&lt;/body&gt;</code> in your HTML:</p>
+                    <h4 className="font-semibold mb-2">Step 2: Initialize SDK (No Auto-Permission)</h4>
+                    <p className="text-sm text-gray-600 mb-3">Add the SDK to your HTML. This only loads the SDK, it does NOT request permission:</p>
                     <div className="bg-gray-50 p-3 rounded border">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-xs text-gray-600">Add to your HTML file</span>
@@ -429,18 +429,170 @@ export default function NewDashboard() {
                   </div>
 
                   <div>
-                    <h4 className="font-semibold mb-2">Alternative: Programmatic API Key</h4>
-                    <div className="bg-gray-50 p-3 rounded border">
-                      <pre className="text-xs bg-white p-2 rounded border overflow-x-auto">
-{`<script src="https://pushads123.com/sdk.js"></script>
+                    <h4 className="font-semibold mb-2">Step 3: Add Subscribe Button (User Click Required!)</h4>
+                    <p className="text-sm text-gray-600 mb-3">
+                      <span className="text-red-600 font-semibold">⚠️ Important:</span> Browsers require user interaction to enable notifications. Add a button:
+                    </p>
+                    
+                    <div className="bg-yellow-50 border border-yellow-200 p-3 rounded mb-3">
+                      <p className="text-sm text-yellow-800">
+                        <strong>Why a button?</strong> Browsers block auto-subscription to prevent spam. Permission MUST be triggered by user click.
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {/* Simple Button Example */}
+                      <div className="bg-gray-50 p-3 rounded border">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs text-gray-600 font-semibold">Option A: Simple Button</span>
+                          <button 
+                            onClick={() => {
+                              const code = `<button id="enablePush">🔔 Enable Notifications</button>
+
 <script>
-  PN.init({ 
-    apiKey: '${me?.customer?.api_key || 'pn_YOUR_API_KEY_HERE'}', 
-    baseUrl: 'https://pushads123.com', 
-    serviceWorkerUrl: '/pn-sw.js' 
-  });
+document.getElementById("enablePush").addEventListener("click", async () => {
+  try {
+    const result = await PN.subscribe();
+    if (result.success) {
+      document.getElementById("enablePush").innerHTML = "✅ Notifications Enabled";
+      document.getElementById("enablePush").disabled = true;
+    }
+  } catch (error) {
+    alert("Failed: " + error.message);
+  }
+});
+</script>`;
+                              navigator.clipboard.writeText(code).then(() => {
+                                alert('Button code copied!');
+                              });
+                            }}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            📋 Copy Code
+                          </button>
+                        </div>
+                        <pre className="text-xs bg-white p-2 rounded border overflow-x-auto">
+{`<button id="enablePush">🔔 Enable Notifications</button>
+
+<script>
+document.getElementById("enablePush").addEventListener("click", async () => {
+  try {
+    // This requests permission when user clicks!
+    const result = await PN.subscribe();
+    if (result.success) {
+      document.getElementById("enablePush").innerHTML = "✅ Enabled";
+      document.getElementById("enablePush").disabled = true;
+    }
+  } catch (error) {
+    alert("Failed: " + error.message);
+  }
+});
 </script>`}
-                      </pre>
+                        </pre>
+                      </div>
+                      
+                      {/* Styled Button Example */}
+                      <div className="bg-gray-50 p-3 rounded border">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs text-gray-600 font-semibold">Option B: Beautiful Styled Button</span>
+                          <button 
+                            onClick={() => {
+                              const code = `<style>
+  .push-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .push-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+  }
+  .push-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+</style>
+
+<button id="notifyBtn" class="push-btn">
+  🔔 Enable Push Notifications
+</button>
+
+<script>
+document.getElementById("notifyBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("notifyBtn");
+  btn.innerHTML = "⏳ Enabling...";
+  btn.disabled = true;
+  
+  try {
+    const result = await PN.subscribe();
+    if (result.success) {
+      btn.innerHTML = "✅ Notifications Active";
+      btn.style.background = "linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)";
+    }
+  } catch (error) {
+    btn.innerHTML = "❌ Failed - Try Again";
+    btn.disabled = false;
+  }
+});
+</script>`;
+                              navigator.clipboard.writeText(code).then(() => {
+                                alert('Styled button code copied!');
+                              });
+                            }}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            📋 Copy Styled Code
+                          </button>
+                        </div>
+                        <pre className="text-xs bg-white p-2 rounded border overflow-x-auto">
+{`<style>
+  .push-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .push-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102,126,234,0.4);
+  }
+</style>
+
+<button id="notifyBtn" class="push-btn">
+  🔔 Enable Push Notifications
+</button>
+
+<script>
+document.getElementById("notifyBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("notifyBtn");
+  btn.innerHTML = "⏳ Enabling...";
+  btn.disabled = true;
+  
+  try {
+    const result = await PN.subscribe();
+    if (result.success) {
+      btn.innerHTML = "✅ Active";
+      btn.style.background = "linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)";
+    }
+  } catch (error) {
+    btn.innerHTML = "❌ Try Again";
+    btn.disabled = false;
+  }
+});
+</script>`}
+                        </pre>
+                      </div>
                     </div>
                   </div>
 
@@ -479,7 +631,7 @@ export default function NewDashboard() {
                   <div className="flex items-start gap-3">
                     <div className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">3</div>
                     <div>
-                      <strong>Requests Permission</strong> - Automatically asks user for notification permission
+                      <strong>User Clicks Button</strong> - Permission is requested ONLY when user clicks the button
                     </div>
                   </div>
                   <div className="flex items-start gap-3">

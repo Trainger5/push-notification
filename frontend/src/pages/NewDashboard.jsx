@@ -320,13 +320,42 @@ export default function NewDashboard() {
 
             <Card>
               <CardBody>
-                <h3 className="text-lg font-semibold mb-4">Working Integration Code</h3>
+                <h3 className="text-lg font-semibold mb-4">🚀 Quick Integration - ONE Line!</h3>
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 p-4 rounded-lg mb-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="text-2xl">✨</div>
+                    <span className="text-lg font-semibold text-purple-700">Simplest Option: Just ONE Line of Code!</span>
+                  </div>
+                  <p className="text-sm text-purple-600 mb-3">Add this single line to your website and you're done:</p>
+                  <div className="bg-white p-3 rounded border border-purple-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-gray-600">One-Line Integration</span>
+                      <button 
+                        className="text-xs text-purple-600 hover:underline font-semibold"
+                        onClick={() => {
+                          const code = `<script src="https://pushads123.com/instant-push.js" data-api-key="${me?.customer?.api_key || 'YOUR_API_KEY'}" data-auto-init></script>`;
+                          navigator.clipboard.writeText(code).then(() => {
+                            alert('One-line code copied! Just paste it in your HTML.');
+                          });
+                        }}
+                      >
+                        📋 Copy One-Line Code
+                      </button>
+                    </div>
+                    <pre className="text-xs bg-purple-50 p-2 rounded border overflow-x-auto">
+{`<script src="https://pushads123.com/instant-push.js" data-api-key="${me?.customer?.api_key || 'YOUR_API_KEY'}" data-auto-init></script>`}
+                    </pre>
+                  </div>
+                  <p className="text-xs text-purple-600 mt-2">This automatically creates a beautiful notification button and handles everything!</p>
+                </div>
+
+                <h3 className="text-lg font-semibold mb-4">Standard Integration (More Control)</h3>
                 <div className="bg-green-50 border border-green-200 p-4 rounded-lg mb-4">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <span className="text-sm text-green-700 font-medium">✅ Tested & Verified Working</span>
+                    <span className="text-sm text-green-700 font-medium">✅ Full control over implementation</span>
                   </div>
-                  <p className="text-sm text-green-600">Copy this exact code - it's been tested and works perfectly!</p>
+                  <p className="text-sm text-green-600">Use this approach if you want more control over the integration:</p>
                 </div>
 
                 <div className="space-y-6">
@@ -337,12 +366,32 @@ export default function NewDashboard() {
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-xs text-gray-600">File: /pn-sw.js</span>
                         <div className="flex gap-2">
-                          <a href="https://13.126.228.42/download/pn-sw.js" className="text-xs text-blue-600 hover:underline">📥 Download</a>
-                          <a href="https://13.126.228.42/pn-sw-download.js" download="pn-sw.js" className="text-xs text-blue-600 hover:underline">📥 Backup</a>
+                          <button 
+                            onClick={() => {
+                              const link = document.createElement('a');
+                              link.href = 'https://pushads123.com/download/pn-sw.js';
+                              link.download = 'pn-sw.js';
+                              link.click();
+                            }}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            📥 Download
+                          </button>
+                          <button 
+                            onClick={() => {
+                              const code = `importScripts('https://pushads123.com/pn-sw.js');`;
+                              navigator.clipboard.writeText(code).then(() => {
+                                alert('Code copied to clipboard!');
+                              });
+                            }}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            📋 Copy Code
+                          </button>
                         </div>
                       </div>
                       <pre className="text-xs bg-white p-2 rounded border">
-{`importScripts('http://13.126.228.42/pn-sw.js');`}
+{`importScripts('https://pushads123.com/pn-sw.js');`}
                       </pre>
                     </div>
                   </div>
@@ -357,17 +406,21 @@ export default function NewDashboard() {
                           className="text-xs text-blue-600 hover:underline"
                           onClick={() => {
                             const htmlCode = document.getElementById('html-integration-code').textContent;
-                            navigator.clipboard.writeText(htmlCode);
+                            navigator.clipboard.writeText(htmlCode).then(() => {
+                              alert('HTML code copied to clipboard!');
+                            }).catch(() => {
+                              alert('Failed to copy. Please select and copy manually.');
+                            });
                           }}
                         >
                           📋 Copy HTML
                         </button>
                       </div>
                       <pre id="html-integration-code" className="text-xs bg-white p-2 rounded border overflow-x-auto">
-{`<script src="http://13.126.228.42/sdk.js" data-api-key="${me?.customer?.api_key || 'pn_YOUR_API_KEY_HERE'}"></script>
+{`<script src="https://pushads123.com/sdk.js" data-api-key="${me?.customer?.api_key || 'pn_YOUR_API_KEY_HERE'}"></script>
 <script>
   PN.init({ 
-    baseUrl: 'http://13.126.228.42', 
+    baseUrl: 'https://pushads123.com', 
     serviceWorkerUrl: '/pn-sw.js' 
   });
 </script>`}
@@ -379,11 +432,11 @@ export default function NewDashboard() {
                     <h4 className="font-semibold mb-2">Alternative: Programmatic API Key</h4>
                     <div className="bg-gray-50 p-3 rounded border">
                       <pre className="text-xs bg-white p-2 rounded border overflow-x-auto">
-{`<script src="http://13.126.228.42/sdk.js"></script>
+{`<script src="https://pushads123.com/sdk.js"></script>
 <script>
   PN.init({ 
     apiKey: '${me?.customer?.api_key || 'pn_YOUR_API_KEY_HERE'}', 
-    baseUrl: 'http://13.126.228.42', 
+    baseUrl: 'https://pushads123.com', 
     serviceWorkerUrl: '/pn-sw.js' 
   });
 </script>`}

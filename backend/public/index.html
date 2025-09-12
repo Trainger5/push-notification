@@ -1,17 +1,62 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Push Notification Service</title>
-    <meta name="description" content="Host-your-own push notifications: admin-managed customers, SDK, VAPID keys, dashboard." />
-    <link rel="stylesheet" href="/styles.css" />
-    <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NotifyPro – Push Notification Service for the Web</title>
+    <meta name="description" content="NotifyPro helps you add GDPR-friendly web push notifications with auto-generated VAPID keys, SDK, and a dashboard for subscribers and broadcasts." />
+    <meta name="keywords" content="push notifications, web push, VAPID, notifications SDK, subscriber management, broadcast notifications" />
+    <link rel="canonical" href="/" />
+    <meta property="og:title" content="NotifyPro – Push Notification Service" />
+    <meta property="og:description" content="Add push notifications to your website in minutes. SDK, service worker, and a clean dashboard." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="/" />
+    <meta property="og:image" content="/vite.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NotifyPro – Push Notification Service" />
+    <meta name="twitter:description" content="Add push notifications to your website in minutes. SDK, service worker, and a clean dashboard." />
+    <meta name="twitter:image" content="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "NotifyPro",
+        "url": "/",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": "/?q={search_term_string}",
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
+    <script type="module" crossorigin src="/assets/index-Cc9q3qQA.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-xRMv2Vgs.js">
+    <link rel="modulepreload" crossorigin href="/assets/ui-CACUReyh.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-B1SY5pfP.css">
   </head>
   <body>
-    <div id="app"></div>
-    <script src="/ui.js"></script>
+    <div id="root"><div style="padding:20px;font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif">Loading app...</div></div>
+    <script>
+      (function(){
+        const original = fetch;
+        window.authHeaders = function() {
+          const t = localStorage.getItem('token');
+          return t ? { Authorization: 'Bearer ' + t } : {};
+        };
+        window.fetch = function(input, init) {
+          if (typeof input === 'string' && input.startsWith('/api')) {
+            init = init || {}; init.headers = Object.assign({}, init.headers || {}, window.authHeaders());
+          }
+          return original(input, init);
+        };
+        window.addEventListener('error', function(e){
+          const r = document.getElementById('root');
+          if (r && !r.__reactRendered) {
+            r.innerHTML = '<div style="padding:16px;font-family:monospace;white-space:pre-wrap;background:#fff3f3;border:1px solid #ffc9c9;border-radius:8px;">Runtime error: '+ (e.error && e.error.stack ? e.error.stack : (e.message || 'Unknown')) + '</div>';
+          }
+        });
+      })();
+    </script>
   </body>
-  </html>
-
-
+</html>

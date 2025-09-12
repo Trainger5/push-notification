@@ -102,12 +102,16 @@ if (!USE_MEMORY) {
   getScheduler();
 }
 
-// Serve SDK files
+// Serve SDK files with CORS headers
 app.get('/sdk.js', (_req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.type('application/javascript');
   res.send(fs.readFileSync(path.join(__dirname, 'sdk', 'snippet.js'), 'utf-8'));
 });
 app.get('/pn-sw.js', (_req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.type('application/javascript');
   res.send(fs.readFileSync(path.join(__dirname, 'sdk', 'service-worker.js'), 'utf-8'));
 });
@@ -118,7 +122,7 @@ app.get('/download/pn-sw.js', (_req, res) => {
 // Save this file as 'pn-sw.js' at your website root (same folder as index.html)
 
 // Import the full push notification service worker from the server
-importScripts('http://13.126.228.42/pn-sw.js');
+importScripts('https://pushads123.com/pn-sw.js');
 
 // Optional: Add your own service worker logic here
 // This file runs in the background and handles push notifications
@@ -130,8 +134,23 @@ console.log('Push notification service worker loaded');`;
   res.send(serviceWorkerContent);
 });
 
-// Serve static admin/customer UI
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// Serve static admin/customer UI with CORS headers
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  setHeaders: (res, path) => {
+    // Add CORS headers for all static files
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    
+    // Set appropriate cache headers for different file types
+    if (path.endsWith('.js')) {
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache for JS files
+    } else if (path.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache for CSS files
+    } else if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache'); // No cache for HTML files
+    }
+  }
+}));
 
 // Pretty UI demo page provided by user
 app.get('/notifypro', (_req, res) => {

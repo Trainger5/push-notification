@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Push Notification Button Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .demo-section {
+            margin: 30px 0;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border-left: 5px solid #667eea;
+        }
+        
+        .demo-section h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        
+        .button-demo {
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .note {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 Push Notification Button Test</h1>
+        
+        <div class="demo-section">
+            <h3>Auto-Init Button (Data Attributes)</h3>
+            <p>This button initializes automatically when the page loads:</p>
+            
+            <div class="button-demo">
+                <button 
+                    data-push-button
+                    data-auto-init
+                    data-api-key="demo-api-key"
+                    data-base-url="http://localhost:4000"
+                    data-theme="gradient"
+                    data-subscribe-text="🔔 Enable Push Notifications"
+                    data-subscribed-text="✅ Notifications Enabled"
+                >
+                    🔔 Enable Push Notifications
+                </button>
+            </div>
+            
+            <div class="code-block">
+&lt;script src="http://localhost:4000/push-button.js"&gt;&lt;/script&gt;
+&lt;button 
+  data-push-button
+  data-auto-init
+  data-api-key="demo-api-key"
+  data-base-url="http://localhost:4000"
+  data-theme="gradient"
+&gt;
+  🔔 Enable Push Notifications
+&lt;/button&gt;
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h3>Manual Init Button (JavaScript)</h3>
+            <p>This button is initialized with JavaScript:</p>
+            
+            <div class="button-demo">
+                <button id="manual-button">🔔 Manual Subscribe</button>
+            </div>
+            
+            <div class="code-block">
+new PushNotificationButton({
+  selector: '#manual-button',
+  apiKey: 'demo-api-key',
+  baseUrl: 'http://localhost:4000',
+  theme: 'primary',
+  onSuccess: function(result) {
+    console.log('Success!', result);
+  }
+});
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h3>Multiple Theme Examples</h3>
+            <p>Different styling themes available:</p>
+            
+            <div class="button-demo">
+                <button data-push-button data-theme="primary" style="margin: 5px;">Primary</button>
+                <button data-push-button data-theme="success" style="margin: 5px;">Success</button>
+                <button data-push-button data-theme="danger" style="margin: 5px;">Danger</button>
+                <button data-push-button data-theme="dark" style="margin: 5px;">Dark</button>
+                <button data-push-button data-theme="light" style="margin: 5px;">Light</button>
+            </div>
+        </div>
+        
+        <div class="note">
+            <strong>Note:</strong> This test page uses a demo API key. The buttons will show the interaction flow, 
+            but actual push notifications won't be sent without a valid customer API key.
+        </div>
+    </div>
+
+    <!-- Load SDK and Button Component -->
+    <script src="http://localhost:4000/sdk.js"></script>
+    <script src="http://localhost:4000/push-button.js"></script>
+    
+    <script>
+        // Manual button initialization
+        new PushNotificationButton({
+            selector: '#manual-button',
+            apiKey: 'demo-api-key',
+            baseUrl: 'http://localhost:4000',
+            theme: 'primary',
+            autoInit: false,
+            onSuccess: function(result) {
+                console.log('Manual button success!', result);
+                alert('Subscription successful!');
+            },
+            onError: function(error) {
+                console.error('Manual button error:', error);
+                alert('Subscription failed: ' + error.message);
+            }
+        });
+        
+        // Initialize multiple theme buttons
+        new PushNotificationButton({
+            selector: '[data-theme="success"]',
+            apiKey: 'demo-api-key',
+            baseUrl: 'http://localhost:4000',
+            autoInit: false
+        });
+        
+        new PushNotificationButton({
+            selector: '[data-theme="danger"]',
+            apiKey: 'demo-api-key',
+            baseUrl: 'http://localhost:4000',
+            autoInit: false
+        });
+        
+        new PushNotificationButton({
+            selector: '[data-theme="dark"]',
+            apiKey: 'demo-api-key',
+            baseUrl: 'http://localhost:4000',
+            autoInit: false
+        });
+        
+        new PushNotificationButton({
+            selector: '[data-theme="light"]',
+            apiKey: 'demo-api-key',
+            baseUrl: 'http://localhost:4000',
+            autoInit: false
+        });
+    </script>
+</body>
+</html>

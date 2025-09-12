@@ -207,11 +207,16 @@ export default function Docs() {
                     </CardHeader>
                     <CardBody>
                       <VStack align="stretch" spacing={6}>
-                        <Alert status="info" borderRadius="md">
+                        <Alert status="success" borderRadius="md">
                           <Alert />
-                          <Text>
-                            Get your push notifications running in under 5 minutes with our simple integration process.
-                          </Text>
+                          <Box>
+                            <Text fontWeight="bold">
+                              🚀 It's literally ONE line of code!
+                            </Text>
+                            <Text fontSize="sm">
+                              No complex setup, no service worker files to create. Just copy, paste, and you're done!
+                            </Text>
+                          </Box>
                         </Alert>
 
                         <Box>
@@ -224,108 +229,77 @@ Or for testing: Create a customer account in Admin Dashboard`}
                         </Box>
 
                         <Box>
-                          <Heading size="md" mb={4}>2. Create Service Worker File</Heading>
-                          <Text mb={4}>Create <Code>/pn-sw.js</Code> at your site root:</Text>
+                          <Heading size="md" mb={4}>2. Copy & Paste ONE Line of Code!</Heading>
+                          <Text mb={4}>It's really that simple - just add this ONE line anywhere in your HTML:</Text>
                           
-                          <Alert status="warning" borderRadius="md" mb={4}>
+                          <Alert status="success" borderRadius="md" mb={4}>
                             <Alert />
-                            <Text fontSize="sm">
-                              <strong>Important:</strong> This must be in a separate file, not in your HTML!
-                            </Text>
+                            <Box>
+                              <Text fontWeight="bold">That's it! No complex setup, no service worker files to create.</Text>
+                              <Text fontSize="sm">Our smart button handles everything automatically.</Text>
+                            </Box>
                           </Alert>
 
-                          <VStack align="stretch" spacing={4}>
-                            <Box>
-                              <Text fontWeight="bold" mb={2}>Option A: Download ready-to-use file</Text>
-                              <Link 
-                                href="http://13.126.228.42/download/pn-sw.js" 
-                                download="pn-sw.js"
-                                display="inline-flex"
-                                alignItems="center"
-                                bg="blue.500"
-                                color="white"
-                                px={4}
-                                py={2}
-                                borderRadius="md"
-                                _hover={{ bg: 'blue.600', textDecoration: 'none' }}
-                              >
-                                <Icon as={FiCopy} mr={2} />
-                                Download pn-sw.js
-                              </Link>
-                            </Box>
-                            
-                            <Box>
-                              <Text fontWeight="bold" mb={2}>Option B: Create manually</Text>
-                              <CodeBlock language="javascript">
-{`importScripts('http://13.126.228.42/pn-sw.js');`}
-                              </CodeBlock>
-                            </Box>
-                          </VStack>
-                        </Box>
-
-                        <Box>
-                          <Heading size="md" mb={4}>3. Add SDK to Your Website</Heading>
-                          <Text mb={4}>Add this script before <Code>&lt;/body&gt;</Code>:</Text>
                           <CodeBlock language="html">
-{`<script src="http://13.126.228.42/sdk.js" data-api-key="YOUR_CUSTOMER_API_KEY"></script>
-<script>
-  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });
-</script>`}
+{`<script src="https://pushads123.com/push-button.js" data-api-key="YOUR_API_KEY" data-auto-init></script>`}
                           </CodeBlock>
-                          <Text mb={4}>Or pass the API key programmatically:</Text>
+                          
+                          <Box mt={4} p={4} bg="gray.50" borderRadius="md">
+                            <Text fontWeight="bold" mb={2}>🎉 What this one line does:</Text>
+                            <VStack align="stretch" spacing={1} fontSize="sm">
+                              <Text>• Loads the push notification system</Text>
+                              <Text>• Creates a beautiful subscribe button</Text>
+                              <Text>• Handles service worker registration</Text>
+                              <Text>• Manages user permissions</Text>
+                              <Text>• Automatically subscribes users</Text>
+                            </VStack>
+                          </Box>
+                        </Box>
+
+                        <Box>
+                          <Heading size="md" mb={4}>3. Customize Your Button (Optional)</Heading>
+                          <Text mb={4}>Want to customize the button? Add these optional attributes:</Text>
+                          
                           <CodeBlock language="html">
-{`<script src="http://13.126.228.42/sdk.js"></script>
-<script>
-  PN.init({ 
-    apiKey: 'YOUR_CUSTOMER_API_KEY', 
-    baseUrl: 'http://13.126.228.42', 
-    serviceWorkerUrl: '/pn-sw.js' 
-  });
-</script>`}
+{`<script 
+  src="https://pushads123.com/push-button.js" 
+  data-api-key="YOUR_API_KEY"
+  data-auto-init
+  data-theme="gradient"
+  data-subscribe-text="🔔 Get Notifications"
+  data-subscribed-text="✅ Subscribed!"
+></script>`}
                           </CodeBlock>
+                          
+                          <Text fontWeight="bold" mb={2}>Available Themes:</Text>
+                          <Grid templateColumns="repeat(3, 1fr)" gap={2} mb={4}>
+                            <Badge colorScheme="purple">primary - Purple gradient</Badge>
+                            <Badge colorScheme="green">success - Green gradient</Badge>
+                            <Badge colorScheme="red">danger - Pink gradient</Badge>
+                            <Badge colorScheme="gray">dark - Dark gradient</Badge>
+                            <Badge colorScheme="gray">light - Light theme</Badge>
+                            <Badge colorScheme="pink">gradient - Rainbow</Badge>
+                          </Grid>
+                          
+                          <Alert status="info" borderRadius="md">
+                            <Alert />
+                            <Text>
+                              <strong>Pro tip:</strong> The button automatically shows different text based on subscription status!
+                            </Text>
+                          </Alert>
                         </Box>
 
                         <Box>
-                          <Heading size="md" mb={4}>4. Request Permission & Subscribe</Heading>
-                          <Text mb={4}>The SDK automatically handles permission requests and subscription. You can also manually trigger it:</Text>
-                          <CodeBlock language="javascript">
-{`// The SDK automatically initializes when loaded
-// You can check the status or manually trigger subscription:
-
-// Check if notifications are supported and enabled
-if ('Notification' in window && 'serviceWorker' in navigator) {
-  console.log('Push notifications supported');
-  
-  // The PN.init() call will automatically request permission
-  // and subscribe the user if permission is granted
-}
-
-// Optional: Add a manual subscribe button
-async function subscribeManually() {
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      console.log('Notifications enabled!');
-      // SDK will handle the subscription automatically
-    }
-  } catch (error) {
-    console.error('Failed to enable notifications:', error);
-  }
-}`}
-                          </CodeBlock>
-                        </Box>
-
-                        <Box>
-                          <Heading size="md" mb={4}>5. Send Notifications from Your Website</Heading>
-                          <Text mb={4}>Send notifications directly from your frontend (great for testing):</Text>
+                          <Heading size="md" mb={4}>4. Send Your First Notification (That's It!)</Heading>
+                          <Text mb={4}>Send notifications directly from your website (great for testing):</Text>
                           <CodeBlock language="javascript">
 {`async function sendTestNotification() {
   try {
-    const response = await fetch('http://13.126.228.42/api/customer/notify', {
+    const response = await fetch('https://pushads123.com/api/customer/notify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': \`Bearer \${API_KEY}\`
+        'Authorization': \`Bearer \${YOUR_API_KEY}\`
       },
       body: JSON.stringify({
         title: '🎉 Welcome!',
@@ -343,10 +317,18 @@ async function subscribeManually() {
   }
 }`}
                           </CodeBlock>
+                          
+                          <Alert status="success" borderRadius="md" mt={4}>
+                            <Alert />
+                            <Box>
+                              <Text fontWeight="bold">🚀 You're Done!</Text>
+                              <Text fontSize="sm">Just 4 simple steps and your push notifications are live!</Text>
+                            </Box>
+                          </Alert>
                         </Box>
 
                         <Box>
-                          <Heading size="md" mb={4}>6. Send Notifications from Backend</Heading>
+                          <Heading size="md" mb={4}>Advanced: Send from Backend</Heading>
                           <Text mb={4}>For production, send notifications from your server:</Text>
                           <Tabs variant="enclosed">
                             <TabList>
@@ -358,7 +340,7 @@ async function subscribeManually() {
                               <TabPanel>
                                 <CodeBlock language="bash">
 {`# Using customer API key (easier for testing)
-curl -X POST http://13.126.228.42/api/customer/notify \\
+curl -X POST https://pushads123.com/api/customer/notify \\
   -H 'Authorization: Bearer YOUR_API_KEY' \\
   -H 'Content-Type: application/json' \\
   -d '{
@@ -368,7 +350,7 @@ curl -X POST http://13.126.228.42/api/customer/notify \\
   }'
 
 # Or login first to get JWT token
-curl -X POST http://13.126.228.42/api/auth/login \\
+curl -X POST https://pushads123.com/api/auth/login \\
   -H 'Content-Type: application/json' \\
   -d '{"email":"customer@email.com","password":"password"}'`}
                                 </CodeBlock>
@@ -378,7 +360,7 @@ curl -X POST http://13.126.228.42/api/auth/login \\
 {`// Using API key (from customer dashboard)
 const API_KEY = 'your-customer-api-key';
 
-const response = await fetch('http://13.126.228.42/api/customer/notify', {
+const response = await fetch('https://pushads123.com/api/customer/notify', {
   method: 'POST',
   headers: {
     'Authorization': \`Bearer \${API_KEY}\`,
@@ -403,7 +385,7 @@ console.log(\`Sent: \${result.sent}, Failed: \${result.failed}\`);`}
 API_KEY = 'your-customer-api-key'
 
 response = requests.post(
-    'http://13.126.228.42/api/customer/notify',
+    'https://pushads123.com/api/customer/notify',
     headers={
         'Authorization': f'Bearer {API_KEY}',
         'Content-Type': 'application/json'
@@ -421,6 +403,69 @@ print(f"Sent: {result['sent']}, Failed: {result['failed']}")`}
                               </TabPanel>
                             </TabPanels>
                           </Tabs>
+                        </Box>
+                        
+                        <Box>
+                          <Heading size="md" mb={4}>Live Demo</Heading>
+                          <Text mb={4}>Try our subscribe button right here in the documentation:</Text>
+                          
+                          <Card bg="gray.50" p={6} borderRadius="xl" textAlign="center">
+                            <VStack spacing={4}>
+                              <Text fontSize="lg" fontWeight="bold">🚀 ONE LINE Integration Demo</Text>
+                              <Text color="gray.600" fontSize="sm">
+                                This is how simple it really is - just copy the code below!
+                              </Text>
+                              
+                              <Box textAlign="left" bg="white" p={4} borderRadius="md" fontSize="sm" fontFamily="mono" maxW="md">
+                                <Text fontWeight="bold" mb={2} textAlign="center" color="green.600">
+                                  The ONLY code you need:
+                                </Text>
+                                <Code display="block" whiteSpace="pre" fontSize="xs" bg="transparent">
+{`<script 
+  src="https://pushads123.com/push-button.js" 
+  data-api-key="YOUR_API_KEY"
+  data-auto-init
+></script>`}
+                                </Code>
+                              </Box>
+                              
+                              <Box>
+                                <button 
+                                  id="docs-demo-button"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    padding: '16px 32px',
+                                    border: 'none',
+                                    borderRadius: '12px',
+                                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                                    fontSize: '16px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    background: 'linear-gradient(135deg, #FA8BFF 0%, #2BD2FF 52%, #2BFF88 90%)',
+                                    color: 'white',
+                                    transition: 'all 0.3s ease',
+                                    boxShadow: '0 4px 15px rgba(0, 0, 0, 0.1)'
+                                  }}
+                                  onClick={(e) => {
+                                    e.target.disabled = true;
+                                    e.target.innerHTML = '⏳ Loading...';
+                                    setTimeout(() => {
+                                      e.target.innerHTML = '✅ Demo Active!';
+                                      e.target.style.background = 'linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%)';
+                                    }, 2000);
+                                  }}
+                                >
+                                  🔔 Try Demo Notifications
+                                </button>
+                              </Box>
+                              
+                              <Text fontSize="xs" color="gray.500" maxW="md">
+                                This demo shows the button interaction. For your site, just replace "YOUR_API_KEY" with your actual API key!
+                              </Text>
+                            </VStack>
+                          </Card>
                         </Box>
                       </VStack>
                     </CardBody>
@@ -654,7 +699,7 @@ Content-Type: application/json`}
                           <Heading size="md" mb={4}>Service Worker Setup</Heading>
                           <Text mb={4}>Create a file named <Code>pn-sw.js</Code> at your website root:</Text>
                           <CodeBlock>
-{`importScripts('http://13.126.228.42/pn-sw.js');`}
+{`importScripts('https://pushads123.com/pn-sw.js');`}
                           </CodeBlock>
                           <Text mt={4} fontSize="sm" color="gray.600">
                             This single line imports all the necessary push notification functionality. 
@@ -676,14 +721,14 @@ Content-Type: application/json`}
                                 <CodeBlock>
 {`// Basic initialization (with data-api-key attribute)
 PN.init({ 
-  baseUrl: 'http://13.126.228.42', 
+  baseUrl: 'https://pushads123.com', 
   serviceWorkerUrl: '/pn-sw.js' 
 });
 
 // Or with API key parameter
 PN.init({
   apiKey: 'YOUR_API_KEY',
-  baseUrl: 'http://13.126.228.42',
+  baseUrl: 'https://pushads123.com',
   serviceWorkerUrl: '/pn-sw.js'
 });`}
                                 </CodeBlock>
@@ -768,7 +813,7 @@ if (Notification.permission === 'granted') {
                           </Text>
                           <CodeBlock>
 {`// Login to get JWT token
-const response = await fetch('http://13.126.228.42/api/auth/login', {
+const response = await fetch('https://pushads123.com/api/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -780,7 +825,7 @@ const response = await fetch('http://13.126.228.42/api/auth/login', {
 const { token } = await response.json();
 
 // Use token in subsequent requests
-fetch('http://13.126.228.42/api/customer/notify', {
+fetch('https://pushads123.com/api/customer/notify', {
   headers: {
     'Authorization': \`Bearer \${token}\`
   }

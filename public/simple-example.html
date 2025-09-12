@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Push Notifications - One Line Integration</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 60px;
+            border-radius: 30px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            font-size: 48px;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 24px;
+            margin-bottom: 50px;
+        }
+        .code-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 30px;
+            border-radius: 15px;
+            margin: 40px 0;
+            position: relative;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            text-align: left;
+            overflow-x: auto;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        .copy-btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+        .feature {
+            display: inline-block;
+            margin: 10px;
+            padding: 10px 20px;
+            background: #f0f4ff;
+            border-radius: 20px;
+            color: #667eea;
+            font-weight: 600;
+        }
+        .demo-section {
+            margin-top: 60px;
+            padding-top: 40px;
+            border-top: 2px solid #f0f0f0;
+        }
+        .highlight {
+            background: linear-gradient(135deg, #FA8BFF 0%, #2BD2FF 52%, #2BFF88 90%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: bold;
+            font-size: 28px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Push Notifications</h1>
+        <p class="subtitle">Add to Any Website with <span class="highlight">ONE Line of Code!</span></p>
+        
+        <div style="margin: 40px 0;">
+            <div class="feature">✅ No Complex Setup</div>
+            <div class="feature">✅ Auto Service Worker</div>
+            <div class="feature">✅ Beautiful Button</div>
+            <div class="feature">✅ Instant Integration</div>
+        </div>
+        
+        <h2 style="color: #333; margin: 40px 0 20px;">Copy This ONE Line:</h2>
+        
+        <div class="code-box">
+            <button class="copy-btn" onclick="copyCode()">📋 Copy</button>
+            <code id="code-to-copy">&lt;script src="https://pushads123.com/instant-push.js" data-api-key="YOUR_API_KEY" data-auto-init&gt;&lt;/script&gt;</code>
+        </div>
+        
+        <p style="color: #666; font-size: 18px;">
+            That's it! This one line will:
+        </p>
+        <ul style="text-align: left; display: inline-block; color: #666; font-size: 16px; line-height: 1.8;">
+            <li>✨ Automatically create a beautiful notification button</li>
+            <li>🔧 Handle all service worker setup</li>
+            <li>🔐 Manage permission requests properly</li>
+            <li>📱 Subscribe users to push notifications</li>
+            <li>🎨 Style everything beautifully</li>
+        </ul>
+        
+        <div class="demo-section">
+            <h2 style="color: #333;">See It In Action:</h2>
+            <p style="color: #666; margin-bottom: 30px;">This page is using the exact same one-line integration!</p>
+            
+            <!-- THE ACTUAL ONE-LINE INTEGRATION -->
+            <script src="https://pushads123.com/instant-push.js" data-api-key="demo-api-key" data-auto-init></script>
+            
+            <p style="color: #999; font-size: 14px; margin-top: 40px;">
+                The floating button in the bottom-right corner was automatically added by our script!
+            </p>
+        </div>
+        
+        <div style="margin-top: 60px; padding: 30px; background: #f8f9fa; border-radius: 15px;">
+            <h3 style="color: #333;">Want Custom Styling?</h3>
+            <p style="color: #666;">Add your own button with data attributes:</p>
+            <div class="code-box" style="margin: 20px 0;">
+                <code>&lt;button data-push-button data-theme="gradient"&gt;🔔 Subscribe&lt;/button&gt;</code>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function copyCode() {
+            const code = document.getElementById('code-to-copy').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = '✅ Copied!';
+                btn.style.background = '#4caf50';
+                setTimeout(() => {
+                    btn.textContent = '📋 Copy';
+                    btn.style.background = '#667eea';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

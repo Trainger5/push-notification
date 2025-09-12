@@ -31,34 +31,41 @@
         // Important: do not change serviceWorkerUrl automatically to a remote origin.
         // Keep it same-origin unless explicitly overridden by the integrator.
       }
+      
+      // Fetch configuration and VAPID public key
       const cfgRes = await fetch(`${this.configEndpoint}?apiKey=${encodeURIComponent(this.apiKey)}`);
       const cfg = await cfgRes.json();
       this.vapidPublicKey = cfg.vapidPublicKey || cfg.vapid_public_key || null;
+      
+      // Check browser support
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
         console.warn('Push not supported in this browser');
-        return;
+        return { supported: false };
       }
-      if (Notification.permission === 'default') {
-        await Notification.requestPermission();
-      }
-      if (Notification.permission !== 'granted') {
-        console.warn('Notifications permission not granted');
-        return;
-      }
+      
+      // Register service worker (but don't request permission)
       const sw = await navigator.serviceWorker.register(this.serviceWorkerUrl);
-      const registration = await navigator.serviceWorker.ready;
-      let sub = await registration.pushManager.getSubscription();
-      if (!sub && this.vapidPublicKey) {
-        const converted = urlBase64ToUint8Array(this.vapidPublicKey);
-        sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: converted });
+      await navigator.serviceWorker.ready;
+      
+      // Check if already subscribed (without requesting permission)
+      if (Notification.permission === 'granted') {
+        const registration = await navigator.serviceWorker.ready;
+        const existingSub = await registration.pushManager.getSubscription();
+        if (existingSub) {
+          // Sync existing subscription with server
+          await fetch(this.subscribeEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: this.apiKey, subscription: existingSub })
+          });
+        }
       }
-      if (sub) {
-        await fetch(this.subscribeEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey: this.apiKey, subscription: sub })
-        });
-      }
+      
+      return { 
+        supported: true, 
+        permission: Notification.permission,
+        subscribed: !!(await this._getCurrentSubscription())
+      };
     },
 
     async subscribe() {
@@ -67,30 +74,42 @@
         throw new Error('Push notifications not supported in this browser');
       }
       
-      // Request permission if needed
+      // Request permission if needed (only when user triggers this)
       if (Notification.permission === 'default') {
-        await Notification.requestPermission();
-      }
-      if (Notification.permission !== 'granted') {
-        throw new Error('Notifications permission denied');
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          throw new Error('Notifications permission denied');
+        }
+      } else if (Notification.permission === 'denied') {
+        throw new Error('Notifications permission was previously denied');
       }
       
       const registration = await navigator.serviceWorker.ready;
       let sub = await registration.pushManager.getSubscription();
       
-      if (!sub && this.vapidPublicKey) {
+      if (!sub) {
+        if (!this.vapidPublicKey) {
+          throw new Error('VAPID public key not configured');
+        }
         const converted = urlBase64ToUint8Array(this.vapidPublicKey);
-        sub = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: converted });
-        
-        // Save new subscription
-        await fetch(this.subscribeEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ apiKey: this.apiKey, subscription: sub })
+        sub = await registration.pushManager.subscribe({ 
+          userVisibleOnly: true, 
+          applicationServerKey: converted 
         });
       }
       
-      return sub;
+      // Save subscription to server
+      const response = await fetch(this.subscribeEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: this.apiKey, subscription: sub })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save subscription to server');
+      }
+      
+      return { success: true, subscription: sub };
     },
 
     async unsubscribe() {
@@ -135,6 +154,15 @@
           permission: Notification.permission,
           error: error.message
         };
+      }
+    },
+
+    async _getCurrentSubscription() {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        return await registration.pushManager.getSubscription();
+      } catch {
+        return null;
       }
     },
 

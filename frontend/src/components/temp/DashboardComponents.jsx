@@ -345,10 +345,15 @@ export function SendNotification() {
       const response = await fetch(`${apiBase}/api/templates`, { headers: requestHeaders })
       if (response.ok) {
         const data = await response.json()
-        setTemplates(data)
+        // Backend returns { templates: [] } or just []
+        setTemplates(Array.isArray(data) ? data : (data?.templates || []))
+      } else {
+        console.error('Failed to load templates:', response.status)
+        setTemplates([])
       }
     } catch (error) {
       console.error('Error loading templates:', error)
+      setTemplates([])
     } finally {
       setLoadingTemplates(false)
     }

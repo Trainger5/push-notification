@@ -1931,37 +1931,6 @@ const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
                   <li>• Advanced timezone handling</li>
                 </ul>
               </div>
-                      <option value="monthly">Monthly</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                  </div>
-                  
-                  {formData.recurrence.frequency === 'custom' && (
-                    <div>
-                      <label className="form-label">Every X Days</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min="1"
-                        max="365"
-                        value={formData.recurrence.interval}
-                        onChange={(e) => handleInputChange('recurrence.interval', parseInt(e.target.value) || 1)}
-                      />
-                    </div>
-                  )}
-                  
-                  <div>
-                    <label className="form-label">End Date (Optional)</label>
-                    <input
-                      className="form-input"
-                      type="date"
-                      value={formData.recurrence.endDate}
-                      onChange={(e) => handleInputChange('recurrence.endDate', e.target.value)}
-                      min={new Date().toISOString().slice(0, 10)}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 

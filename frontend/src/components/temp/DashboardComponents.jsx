@@ -1243,7 +1243,7 @@ export function SubscriberManagement() {
     loadSubscribers()
   }, [])
 
-  const filteredSubscribers = subscribers.filter(sub => 
+  const filteredSubscribers = (Array.isArray(subscribers) ? subscribers : []).filter(sub => 
     (sub.endpoint?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (sub.userAgent?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (sub.tenant?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -1411,7 +1411,8 @@ export const NotificationScheduler = () => {
       const response = await fetch(`${apiBase}/api/scheduled`, { headers })
       if (response.ok) {
         const data = await response.json()
-        setSchedules(data)
+        // Backend returns { notifications: [], total: 0 }
+        setSchedules(Array.isArray(data) ? data : (data?.notifications || []))
       }
     } catch (error) {
       console.error('Error loading schedules:', error)
@@ -1428,7 +1429,7 @@ export const NotificationScheduler = () => {
     try {
       const token = localStorage.getItem('token')
       const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
-      const response = await fetch(`${apiBase}/api/scheduled`, {
+      const response = await fetch(`${apiBase}/api/scheduled/schedule`, {
         method: 'POST',
         headers,
         body: JSON.stringify(scheduleData)
@@ -1512,7 +1513,7 @@ export const NotificationScheduler = () => {
     return 'Recurring'
   }
 
-  const filteredSchedules = schedules.filter(schedule => {
+  const filteredSchedules = (Array.isArray(schedules) ? schedules : []).filter(schedule => {
     if (filterStatus === 'all') return true
     return schedule.status === filterStatus
   })
@@ -1558,7 +1559,7 @@ export const NotificationScheduler = () => {
           >
             {status.charAt(0).toUpperCase() + status.slice(1)}
             <span className="ml-2 text-xs bg-gray-200 px-2 py-0.5 rounded-full">
-              {status === 'all' ? schedules.length : schedules.filter(s => s.status === status).length}
+              {status === 'all' ? (Array.isArray(schedules) ? schedules : []).length : (Array.isArray(schedules) ? schedules : []).filter(s => s.status === status).length}
             </span>
           </button>
         ))}
@@ -1688,23 +1689,17 @@ export const NotificationScheduler = () => {
 // Schedule Create Modal Component
 const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    notification: {
-      title: '',
-      body: '',
-      url: '',
-      icon: '',
-      image: ''
-    },
-    scheduledFor: '',
-    recurring: false,
-    recurrence: {
-      frequency: 'daily',
-      interval: 1,
-      endDate: ''
-    },
-    targetSegment: 'all',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    title: schedule?.title || '',
+    body: schedule?.body || '',
+    url: schedule?.url || '',
+    icon: schedule?.icon || '',
+    badge: schedule?.badge || '',
+    image: schedule?.image || '',
+    scheduledFor: schedule?.scheduledFor || new Date(Date.now() + 3600000).toISOString().slice(0, 16), // Default 1 hour from now
+    tag: schedule?.tag || '',
+    timezone: schedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+    data: schedule?.data || {},
+    actions: schedule?.actions || []
   })
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
@@ -1712,23 +1707,17 @@ const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
   useEffect(() => {
     if (schedule) {
       setFormData({
-        name: schedule.name || '',
-        notification: schedule.notification || {
-          title: '',
-          body: '',
-          url: '',
-          icon: '',
-          image: ''
-        },
-        scheduledFor: schedule.scheduledFor ? new Date(schedule.scheduledFor).toISOString().slice(0, 16) : '',
-        recurring: schedule.recurring || false,
-        recurrence: schedule.recurrence || {
-          frequency: 'daily',
-          interval: 1,
-          endDate: ''
-        },
-        targetSegment: schedule.targetSegment || 'all',
-        timezone: schedule.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+        title: schedule.title || '',
+        body: schedule.body || '',
+        url: schedule.url || '',
+        icon: schedule.icon || '',
+        badge: schedule.badge || '',
+        image: schedule.image || '',
+        scheduledFor: schedule.scheduledFor ? new Date(schedule.scheduledFor).toISOString().slice(0, 16) : new Date(Date.now() + 3600000).toISOString().slice(0, 16),
+        tag: schedule.tag || '',
+        timezone: schedule.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+        data: schedule.data || {},
+        actions: schedule.actions || []
       })
     }
   }, [schedule])
@@ -1739,10 +1728,15 @@ const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
     
     // Validation
     const newErrors = {}
-    if (!formData.name.trim()) newErrors.name = 'Schedule name is required'
-    if (!formData.notification.title.trim()) newErrors.title = 'Notification title is required'
-    if (!formData.notification.body.trim()) newErrors.body = 'Notification body is required'
+    if (!formData.title.trim()) newErrors.title = 'Notification title is required'
+    if (!formData.body.trim()) newErrors.body = 'Notification body is required'
     if (!formData.scheduledFor) newErrors.scheduledFor = 'Schedule time is required'
+    
+    // Check if scheduled time is in the future
+    const scheduledTime = new Date(formData.scheduledFor)
+    if (scheduledTime <= new Date()) {
+      newErrors.scheduledFor = 'Scheduled time must be in the future'
+    }
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors)
@@ -1751,24 +1745,22 @@ const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
     
     setLoading(true)
     try {
-      await onSave(formData)
+      // Convert local datetime to ISO string with timezone
+      const submitData = {
+        ...formData,
+        scheduledFor: new Date(formData.scheduledFor).toISOString()
+      }
+      await onSave(submitData)
     } finally {
       setLoading(false)
     }
   }
 
   const handleInputChange = (field, value) => {
-    if (field.includes('.')) {
-      const [parent, child] = field.split('.')
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent],
-          [child]: value
-        }
-      }))
-    } else {
-      setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData(prev => ({ ...prev, [field]: value }))
+    // Clear error for this field
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: undefined }))
     }
   }
 
@@ -1806,16 +1798,26 @@ const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
                 </div>
                 Basic Information
               </h3>
-              <div className="grid grid-cols-1 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="form-label">Schedule Name</label>
+                  <label className="form-label">Schedule Date & Time</label>
                   <input
                     className="form-input"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange('name', e.target.value)}
-                    placeholder="e.g., Daily Newsletter, Weekly Update"
+                    type="datetime-local"
+                    value={formData.scheduledFor}
+                    onChange={(e) => handleInputChange('scheduledFor', e.target.value)}
+                    min={new Date().toISOString().slice(0, 16)}
                   />
-                  {errors.name && <div className="form-error">{errors.name}</div>}
+                  {errors.scheduledFor && <div className="form-error">{errors.scheduledFor}</div>}
+                </div>
+                <div>
+                  <label className="form-label">Timezone</label>
+                  <input
+                    className="form-input"
+                    value={formData.timezone}
+                    onChange={(e) => handleInputChange('timezone', e.target.value)}
+                    placeholder="e.g., America/New_York"
+                  />
                 </div>
               </div>
             </div>
@@ -1833,8 +1835,8 @@ const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
                   <label className="form-label">Title</label>
                   <input
                     className="form-input"
-                    value={formData.notification.title}
-                    onChange={(e) => handleInputChange('notification.title', e.target.value)}
+                    value={formData.title}
+                    onChange={(e) => handleInputChange('title', e.target.value)}
                     placeholder="Notification title"
                   />
                   {errors.title && <div className="form-error">{errors.title}</div>}
@@ -1845,8 +1847,8 @@ const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
                   <textarea
                     className="form-textarea"
                     rows={3}
-                    value={formData.notification.body}
-                    onChange={(e) => handleInputChange('notification.body', e.target.value)}
+                    value={formData.body}
+                    onChange={(e) => handleInputChange('body', e.target.value)}
                     placeholder="Notification message"
                   />
                   {errors.body && <div className="form-error">{errors.body}</div>}
@@ -1858,8 +1860,8 @@ const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
                     <input
                       className="form-input"
                       type="url"
-                      value={formData.notification.url}
-                      onChange={(e) => handleInputChange('notification.url', e.target.value)}
+                      value={formData.url}
+                      onChange={(e) => handleInputChange('url', e.target.value)}
                       placeholder="https://example.com"
                     />
                   </div>
@@ -1869,76 +1871,66 @@ const ScheduleCreateModal = ({ schedule, onClose, onSave }) => {
                     <input
                       className="form-input"
                       type="url"
-                      value={formData.notification.icon}
-                      onChange={(e) => handleInputChange('notification.icon', e.target.value)}
+                      value={formData.icon}
+                      onChange={(e) => handleInputChange('icon', e.target.value)}
                       placeholder="https://example.com/icon.png"
                     />
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Scheduling */}
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-3">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Clock className="w-4 h-4 text-purple-600" />
-                </div>
-                Scheduling Options
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="form-label">Schedule Date & Time</label>
-                  <input
-                    className="form-input"
-                    type="datetime-local"
-                    value={formData.scheduledFor}
-                    onChange={(e) => handleInputChange('scheduledFor', e.target.value)}
-                    min={new Date().toISOString().slice(0, 16)}
-                  />
-                  {errors.scheduledFor && <div className="form-error">{errors.scheduledFor}</div>}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="form-label">Badge URL (Optional)</label>
+                    <input
+                      className="form-input"
+                      type="url"
+                      value={formData.badge}
+                      onChange={(e) => handleInputChange('badge', e.target.value)}
+                      placeholder="https://example.com/badge.png"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="form-label">Image URL (Optional)</label>
+                    <input
+                      className="form-input"
+                      type="url"
+                      value={formData.image}
+                      onChange={(e) => handleInputChange('image', e.target.value)}
+                      placeholder="https://example.com/image.png"
+                    />
+                  </div>
                 </div>
                 
                 <div>
-                  <label className="form-label">Target Audience</label>
-                  <select
-                    className="form-select"
-                    value={formData.targetSegment}
-                    onChange={(e) => handleInputChange('targetSegment', e.target.value)}
-                  >
-                    <option value="all">All Subscribers</option>
-                    <option value="active">Active Users</option>
-                    <option value="new">New Subscribers</option>
-                    <option value="premium">Premium Users</option>
-                  </select>
+                  <label className="form-label">Tag (Optional)</label>
+                  <input
+                    className="form-input"
+                    value={formData.tag}
+                    onChange={(e) => handleInputChange('tag', e.target.value)}
+                    placeholder="e.g., news, alert, promo"
+                  />
                 </div>
               </div>
-              
-              {/* Recurring Options */}
-              <div className="flex items-center gap-3 mb-4">
-                <input
-                  type="checkbox"
-                  id="recurring"
-                  checked={formData.recurring}
-                  onChange={(e) => handleInputChange('recurring', e.target.checked)}
-                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="recurring" className="text-sm font-medium text-gray-900">
-                  Make this a recurring schedule
-                </label>
+            </div>
+
+            {/* Additional Options */}
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-3">
+                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <Settings className="w-4 h-4 text-purple-600" />
+                </div>
+                Additional Options (Coming Soon)
+              </h3>
+              <div className="bg-gray-50 rounded-lg p-4 text-gray-600">
+                <p className="text-sm mb-2">🚀 Future features will include:</p>
+                <ul className="text-sm space-y-1 ml-4">
+                  <li>• Recurring schedules (daily, weekly, monthly)</li>
+                  <li>• Target specific user segments</li>
+                  <li>• Custom actions and data payloads</li>
+                  <li>• Advanced timezone handling</li>
+                </ul>
               </div>
-              
-              {formData.recurring && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <label className="form-label">Frequency</label>
-                    <select
-                      className="form-select"
-                      value={formData.recurrence.frequency}
-                      onChange={(e) => handleInputChange('recurrence.frequency', e.target.value)}
-                    >
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
                       <option value="monthly">Monthly</option>
                       <option value="custom">Custom</option>
                     </select>
@@ -2020,7 +2012,7 @@ export const UserSegments = () => {
       const response = await fetch(`${apiBase}/api/segments`, { headers })
       if (response.ok) {
         const data = await response.json()
-        setSegments(data)
+        setSegments(Array.isArray(data) ? data : (data?.segments || []))
       }
     } catch (error) {
       console.error('Error loading segments:', error)
@@ -2037,7 +2029,7 @@ export const UserSegments = () => {
     try {
       const token = localStorage.getItem('token')
       const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
-      const response = await fetch(`${apiBase}/api/segments`, {
+      const response = await fetch(`${apiBase}/api/segments/create`, {
         method: 'POST',
         headers,
         body: JSON.stringify(segmentData)
@@ -2144,7 +2136,7 @@ export const UserSegments = () => {
               <Target className="w-6 h-6 text-green-600" />
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">
-              {segments.filter(s => s.status === 'active').length}
+              {(Array.isArray(segments) ? segments : []).filter(s => s.status === 'active').length}
             </div>
             <div className="text-gray-600 text-sm">Active Segments</div>
           </CardBody>
@@ -2353,7 +2345,7 @@ const SegmentCreateModal = ({ segment, onClose, onSave }) => {
   const removeCondition = (index) => {
     setFormData(prev => ({
       ...prev,
-      conditions: prev.conditions.filter((_, i) => i !== index)
+      conditions: (Array.isArray(prev.conditions) ? prev.conditions : []).filter((_, i) => i !== index)
     }))
   }
 
@@ -2764,7 +2756,7 @@ export const WebhookManagement = () => {
       const response = await fetch(`${apiBase}/api/webhooks`, { headers })
       if (response.ok) {
         const data = await response.json()
-        setWebhooks(data)
+        setWebhooks(Array.isArray(data) ? data : (data?.webhooks || []))
       }
     } catch (error) {
       console.error('Error loading webhooks:', error)
@@ -2781,7 +2773,7 @@ export const WebhookManagement = () => {
     try {
       const token = localStorage.getItem('token')
       const headers = token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' }
-      const url = editingWebhook ? `${apiBase}/api/webhooks/${editingWebhook._id}` : `${apiBase}/api/webhooks`
+      const url = editingWebhook ? `${apiBase}/api/webhooks/${editingWebhook._id}` : `${apiBase}/api/webhooks/create`
       const method = editingWebhook ? 'PUT' : 'POST'
       
       const response = await fetch(url, {
@@ -2915,7 +2907,7 @@ export const WebhookManagement = () => {
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">
-              {webhooks.filter(w => w.status === 'active').length}
+              {(Array.isArray(webhooks) ? webhooks : []).filter(w => w.status === 'active').length}
             </div>
             <div className="text-gray-600 text-sm">Active</div>
           </CardBody>
@@ -3122,9 +3114,9 @@ const WebhookCreateModal = ({ webhook, onClose, onSave }) => {
   const handleEventToggle = (eventValue) => {
     setFormData(prev => ({
       ...prev,
-      events: prev.events.includes(eventValue)
-        ? prev.events.filter(e => e !== eventValue)
-        : [...prev.events, eventValue]
+      events: (Array.isArray(prev.events) ? prev.events : []).includes(eventValue)
+        ? (Array.isArray(prev.events) ? prev.events : []).filter(e => e !== eventValue)
+        : [...(Array.isArray(prev.events) ? prev.events : []), eventValue]
     }))
   }
 
@@ -3526,11 +3518,11 @@ export const CampaignBuilder = () => {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="form-select w-48 text-sm"
             >
-              <option value="all">All Campaigns ({campaigns.length})</option>
-              <option value="active">Active ({campaigns.filter(c => c.status === 'active').length})</option>
-              <option value="draft">Draft ({campaigns.filter(c => c.status === 'draft').length})</option>
-              <option value="paused">Paused ({campaigns.filter(c => c.status === 'paused').length})</option>
-              <option value="completed">Completed ({campaigns.filter(c => c.status === 'completed').length})</option>
+              <option value="all">All Campaigns ({(Array.isArray(campaigns) ? campaigns : []).length})</option>
+              <option value="active">Active ({(Array.isArray(campaigns) ? campaigns : []).filter(c => c.status === 'active').length})</option>
+              <option value="draft">Draft ({(Array.isArray(campaigns) ? campaigns : []).filter(c => c.status === 'draft').length})</option>
+              <option value="paused">Paused ({(Array.isArray(campaigns) ? campaigns : []).filter(c => c.status === 'paused').length})</option>
+              <option value="completed">Completed ({(Array.isArray(campaigns) ? campaigns : []).filter(c => c.status === 'completed').length})</option>
             </select>
           </div>
         </div>
@@ -3826,7 +3818,7 @@ const CampaignCreateModal = ({ onClose, onSave }) => {
     if (formData.steps.length <= 1) return
     setFormData(prev => ({
       ...prev,
-      steps: prev.steps.filter((_, i) => i !== index)
+      steps: (Array.isArray(prev.steps) ? prev.steps : []).filter((_, i) => i !== index)
     }))
   }
 
@@ -4509,7 +4501,7 @@ export const NotificationTemplates = () => {
   }
 
   const categories = ['all', 'marketing', 'transactional', 'promotional', 'alert', 'welcome', 'reminder']
-  const filteredTemplates = templates.filter(template => {
+  const filteredTemplates = (Array.isArray(templates) ? templates : []).filter(template => {
     const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          template.description?.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = selectedCategory === 'all' || template.category === selectedCategory
@@ -4725,7 +4717,7 @@ export const ABTesting = () => {
       const response = await fetch(`${apiBase}/api/abtests`, { headers })
       if (response.ok) {
         const data = await response.json()
-        setTests(data)
+        setTests(Array.isArray(data) ? data : (data?.tests || []))
       }
     } catch (error) {
       console.error('Error loading A/B tests:', error)
@@ -4879,7 +4871,7 @@ export const ABTesting = () => {
               <PlayCircle className="w-6 h-6 text-green-600" />
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">
-              {tests.filter(t => t.status === 'running').length}
+              {(Array.isArray(tests) ? tests : []).filter(t => t.status === 'running').length}
             </div>
             <div className="text-gray-600 text-sm">Running Tests</div>
           </CardBody>
@@ -4891,7 +4883,7 @@ export const ABTesting = () => {
               <CheckCircle className="w-6 h-6 text-purple-600" />
             </div>
             <div className="text-2xl font-bold text-gray-900 mb-1">
-              {tests.filter(t => t.status === 'completed').length}
+              {(Array.isArray(tests) ? tests : []).filter(t => t.status === 'completed').length}
             </div>
             <div className="text-gray-600 text-sm">Completed Tests</div>
           </CardBody>
@@ -5171,7 +5163,7 @@ const ABTestCreateModal = ({ test, onClose, onSave }) => {
     
     setFormData(prev => ({
       ...prev,
-      variants: prev.variants.filter((_, i) => i !== index)
+      variants: (Array.isArray(prev.variants) ? prev.variants : []).filter((_, i) => i !== index)
     }))
   }
 

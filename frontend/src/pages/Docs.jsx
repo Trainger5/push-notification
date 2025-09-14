@@ -114,6 +114,7 @@ export default function Docs() {
   const borderColor = 'gray.200'
   const textColor = 'gray.800'
   const mutedColor = 'gray.600'
+  const cdnBase = import.meta.env.VITE_CDN_BASE || 'https://pushads123.com'
   const role = typeof localStorage !== 'undefined' ? localStorage.getItem('role') : null
 
   const sections = [
@@ -241,7 +242,7 @@ Or for testing: Create a customer account in Admin Dashboard`}
                           </Alert>
 
                           <CodeBlock language="html">
-{`<script src="https://pushads123.com/push-button.js" data-api-key="YOUR_API_KEY" data-auto-init></script>`}
+{`<script src="${cdnBase}/push-button.js" data-api-key="YOUR_API_KEY" data-auto-init></script>`}
                           </CodeBlock>
                           
                           <Box mt={4} p={4} bg="gray.50" borderRadius="md">
@@ -351,7 +352,7 @@ document.getElementById("stylishPush").addEventListener("click", async () => {
 {`// Initialize SDK (doesn't request permission)
 await PN.init({ 
   apiKey: 'YOUR_API_KEY',
-  baseUrl: 'https://pushads123.com'
+  baseUrl: '${cdnBase}'
 });
 
 // Check if already subscribed
@@ -376,7 +377,7 @@ async function enablePushNotifications() {
     
     if (result.success) {
       // Send welcome notification
-      await fetch('https://pushads123.com/api/customer/notify', {
+      await fetch('${cdnBase}/api/customer/notify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -423,7 +424,7 @@ checkSubscription();`}
                           
                           <CodeBlock language="html">
 {`<script 
-  src="https://pushads123.com/push-button.js" 
+  src="${cdnBase}/push-button.js" 
   data-api-key="YOUR_API_KEY"
   data-auto-init
   data-theme="gradient"
@@ -456,7 +457,7 @@ checkSubscription();`}
                           <CodeBlock language="javascript">
 {`async function sendTestNotification() {
   try {
-    const response = await fetch('https://pushads123.com/api/customer/notify', {
+    const response = await fetch('${cdnBase}/api/customer/notify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -501,7 +502,7 @@ checkSubscription();`}
                               <TabPanel>
                                 <CodeBlock language="bash">
 {`# Using customer API key (easier for testing)
-curl -X POST https://pushads123.com/api/customer/notify \\
+curl -X POST ${cdnBase}/api/customer/notify \\
   -H 'Authorization: Bearer YOUR_API_KEY' \\
   -H 'Content-Type: application/json' \\
   -d '{
@@ -511,7 +512,7 @@ curl -X POST https://pushads123.com/api/customer/notify \\
   }'
 
 # Or login first to get JWT token
-curl -X POST https://pushads123.com/api/auth/login \\
+curl -X POST ${cdnBase}/api/auth/login \\
   -H 'Content-Type: application/json' \\
   -d '{"email":"customer@email.com","password":"password"}'`}
                                 </CodeBlock>
@@ -521,7 +522,7 @@ curl -X POST https://pushads123.com/api/auth/login \\
 {`// Using API key (from customer dashboard)
 const API_KEY = 'your-customer-api-key';
 
-const response = await fetch('https://pushads123.com/api/customer/notify', {
+const response = await fetch('${cdnBase}/api/customer/notify', {
   method: 'POST',
   headers: {
     'Authorization': \`Bearer \${API_KEY}\`,
@@ -546,7 +547,7 @@ console.log(\`Sent: \${result.sent}, Failed: \${result.failed}\`);`}
 API_KEY = 'your-customer-api-key'
 
 response = requests.post(
-    'https://pushads123.com/api/customer/notify',
+    '${cdnBase}/api/customer/notify',
     headers={
         'Authorization': f'Bearer {API_KEY}',
         'Content-Type': 'application/json'
@@ -583,7 +584,7 @@ print(f"Sent: {result['sent']}, Failed: {result['failed']}")`}
                                 </Text>
                                 <Code display="block" whiteSpace="pre" fontSize="xs" bg="transparent">
 {`<script 
-  src="https://pushads123.com/push-button.js" 
+  src="${cdnBase}/push-button.js" 
   data-api-key="YOUR_API_KEY"
   data-auto-init
 ></script>`}
@@ -860,7 +861,7 @@ Content-Type: application/json`}
                           <Heading size="md" mb={4}>Service Worker Setup</Heading>
                           <Text mb={4}>Create a file named <Code>pn-sw.js</Code> at your website root:</Text>
                           <CodeBlock>
-{`importScripts('https://pushads123.com/pn-sw.js');`}
+{`importScripts('${cdnBase}/pn-sw.js');`}
                           </CodeBlock>
                           <Text mt={4} fontSize="sm" color="gray.600">
                             This single line imports all the necessary push notification functionality. 
@@ -882,14 +883,14 @@ Content-Type: application/json`}
                                 <CodeBlock>
 {`// Basic initialization (with data-api-key attribute)
 PN.init({ 
-  baseUrl: 'https://pushads123.com', 
+  baseUrl: '${cdnBase}', 
   serviceWorkerUrl: '/pn-sw.js' 
 });
 
 // Or with API key parameter
 PN.init({
   apiKey: 'YOUR_API_KEY',
-  baseUrl: 'https://pushads123.com',
+  baseUrl: '${cdnBase}',
   serviceWorkerUrl: '/pn-sw.js'
 });`}
                                 </CodeBlock>
@@ -974,7 +975,7 @@ if (Notification.permission === 'granted') {
                           </Text>
                           <CodeBlock>
 {`// Login to get JWT token
-const response = await fetch('https://pushads123.com/api/auth/login', {
+const response = await fetch('${cdnBase}/api/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -986,7 +987,7 @@ const response = await fetch('https://pushads123.com/api/auth/login', {
 const { token } = await response.json();
 
 // Use token in subsequent requests
-fetch('https://pushads123.com/api/customer/notify', {
+fetch('${cdnBase}/api/customer/notify', {
   headers: {
     'Authorization': \`Bearer \${token}\`
   }

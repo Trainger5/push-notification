@@ -44,7 +44,7 @@ const NavItem = ({ icon: Icon, label, isActive, onClick, badge, className = "" }
   )
 }
 
-const NavSection = ({ title, items, currentTab, setCurrentTab }) => {
+const NavSection = ({ title, items, currentTab, onTabChange }) => {
   return (
     <div className="mb-6">
       <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider px-4 mb-3">
@@ -57,7 +57,7 @@ const NavSection = ({ title, items, currentTab, setCurrentTab }) => {
             icon={item.icon}
             label={item.label}
             isActive={currentTab === item.key}
-            onClick={() => setCurrentTab(item.key)}
+            onClick={() => onTabChange(item.key)}
             badge={item.badge}
           />
         ))}
@@ -66,7 +66,7 @@ const NavSection = ({ title, items, currentTab, setCurrentTab }) => {
   )
 }
 
-const Sidebar = ({ currentTab, setCurrentTab, stats, isOpen, onClose, isAdmin, navSections }) => {
+const Sidebar = ({ currentTab, onTabChange, stats, isOpen, onClose, isAdmin, navSections }) => {
   const navigate = useNavigate()
 
   function logout() {
@@ -145,7 +145,7 @@ const Sidebar = ({ currentTab, setCurrentTab, stats, isOpen, onClose, isAdmin, n
             title={section.title}
             items={section.items}
             currentTab={currentTab}
-            setCurrentTab={setCurrentTab}
+            onTabChange={onTabChange}
           />
         ))}
       </div>
@@ -246,7 +246,7 @@ const TopBar = ({ user, onMenuClick, currentTab }) => {
   )
 }
 
-export default function SimpleDashboardLayout({ children, currentTab, setCurrentTab, user, stats, isAdmin, navSections }) {
+export default function SimpleDashboardLayout({ children, currentTab, onTabChange, user, stats, isAdmin, navSections }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const handleMenuClick = () => {
@@ -261,7 +261,7 @@ export default function SimpleDashboardLayout({ children, currentTab, setCurrent
     <div className="min-h-screen bg-gray-50">
       <Sidebar
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        onTabChange={onTabChange}
         stats={stats || {}}
         isOpen={sidebarOpen}
         onClose={handleSidebarClose}

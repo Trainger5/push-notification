@@ -122,7 +122,7 @@ app.get('/download/pn-sw.js', (_req, res) => {
 // Save this file as 'pn-sw.js' at your website root (same folder as index.html)
 
 // Import the full push notification service worker from the server
-importScripts('https://pushads123.com/pn-sw.js');
+importScripts('${process.env.CDN_BASE || 'https://pushads123.com'}/pn-sw.js');
 
 // Optional: Add your own service worker logic here
 // This file runs in the background and handles push notifications

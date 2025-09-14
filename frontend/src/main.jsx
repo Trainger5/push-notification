@@ -12,6 +12,19 @@ import Pricing from './pages/Pricing.jsx'
 import Register from './pages/Register.jsx'
 import DemoLogin from './pages/DemoLogin.jsx'
 import StandaloneDocs from './pages/StandaloneDocs.jsx'
+import DashboardLayout from './layouts/DashboardLayout.jsx'
+import OverviewPage from './pages/dashboard/OverviewPage.jsx'
+import SendNotificationPage from './pages/dashboard/SendNotificationPage.jsx'
+import AnalyticsPage from './pages/dashboard/AnalyticsPage.jsx'
+import SubscribersPage from './pages/dashboard/SubscribersPage.jsx'
+import CampaignsPage from './pages/dashboard/CampaignsPage.jsx'
+import TemplatesPage from './pages/dashboard/TemplatesPage.jsx'
+import SchedulerPage from './pages/dashboard/SchedulerPage.jsx'
+import SegmentsPage from './pages/dashboard/SegmentsPage.jsx'
+import WebhooksPage from './pages/dashboard/WebhooksPage.jsx'
+import ABTestingPage from './pages/dashboard/ABTestingPage.jsx'
+import SettingsPage from './pages/dashboard/SettingsPage.jsx'
+import DocumentationPage from './pages/dashboard/DocumentationPage.jsx'
 
 // Check if user should see professional dashboard
 function shouldUseProfessionalDashboard() {
@@ -53,21 +66,49 @@ class ErrorBoundary extends Component {
         }}>
           <div>
             <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Something went wrong</h1>
-            <p style={{ marginBottom: '2rem', opacity: 0.8 }}>Please refresh the page or try again later.</p>
-            <button 
-              onClick={() => window.location.reload()} 
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                border: '1px solid rgba(255,255,255,0.3)',
-                color: 'white',
-                padding: '0.75rem 2rem',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '1rem'
-              }}
-            >
-              Refresh Page
-            </button>
+            <p style={{ marginBottom: '1rem', opacity: 0.8 }}>There was an error rendering the application.</p>
+            <p style={{ marginBottom: '2rem', opacity: 0.6, fontSize: '0.875rem' }}>
+              This might be due to a navigation conflict. Please try refreshing the page.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+              <button 
+                onClick={() => {
+                  // Clear any cached navigation state
+                  sessionStorage.clear();
+                  localStorage.removeItem('navigationState');
+                  window.location.reload();
+                }} 
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  color: 'white',
+                  padding: '0.75rem 2rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '1rem'
+                }}
+              >
+                Refresh Page
+              </button>
+              <button 
+                onClick={() => {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  window.location.href = '/';
+                }} 
+                style={{
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  color: 'white',
+                  padding: '0.75rem 2rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '1rem'
+                }}
+              >
+                Go to Home
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -77,10 +118,10 @@ class ErrorBoundary extends Component {
   }
 }
 
-// Professional Dashboard Redirect Component
-function ProfessionalDashboardRedirect() {
+// Dashboard Authentication Guard
+function RequireAuth({ children }) {
   if (shouldUseProfessionalDashboard()) {
-    return <Dashboard />
+    return children
   }
   return <Navigate to="/login" replace />
 }
@@ -94,10 +135,34 @@ const router = createBrowserRouter([
   { path: '/docs', element: <StandaloneDocs /> },
   { path: '/register', element: <Register /> },
   
-  // Main customer dashboard routes - new modern UI
-  { path: '/app', element: <ProfessionalDashboardRedirect /> },
-  { path: '/dashboard', element: <ProfessionalDashboardRedirect /> },
-  { path: '/customer-dashboard', element: <ProfessionalDashboardRedirect /> },
+  // Main customer dashboard routes - new nested structure
+  {
+    path: '/app',
+    element: (
+      <RequireAuth>
+        <DashboardLayout />
+      </RequireAuth>
+    ),
+    children: [
+      { index: true, element: <Navigate to="/app/overview" replace /> },
+      { path: 'overview', element: <OverviewPage /> },
+      { path: 'send', element: <SendNotificationPage /> },
+      { path: 'analytics', element: <AnalyticsPage /> },
+      { path: 'subscribers', element: <SubscribersPage /> },
+      { path: 'campaigns', element: <CampaignsPage /> },
+      { path: 'templates', element: <TemplatesPage /> },
+      { path: 'scheduler', element: <SchedulerPage /> },
+      { path: 'segments', element: <SegmentsPage /> },
+      { path: 'webhooks', element: <WebhooksPage /> },
+      { path: 'ab-testing', element: <ABTestingPage /> },
+      { path: 'settings', element: <SettingsPage /> },
+      { path: 'documentation', element: <DocumentationPage /> }
+    ]
+  },
+  
+  // Legacy dashboard redirects
+  { path: '/dashboard', element: <Navigate to="/app" replace /> },
+  { path: '/customer-dashboard', element: <Navigate to="/app" replace /> },
   
   // Admin dashboard - isolated UI to prevent DOM errors
   { path: '/admin', element: <AdminDashboard /> },

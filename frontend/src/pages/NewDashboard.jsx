@@ -26,6 +26,10 @@ function useApiBase() {
   return apiBaseRaw.toString().replace(/\/?$/, '')
 }
 
+function useCdnBase() {
+  return (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_CDN_BASE) || 'https://pushads123.com'
+}
+
 // Settings component for the dashboard
 const SettingsPage = ({ me, setCurrentTab }) => {
   const [showApiKey, setShowApiKey] = useState(false)
@@ -189,6 +193,7 @@ export default function NewDashboard() {
   const [isLoadingRef] = useState({ current: false })
   const headers = useAuthHeaders()
   const apiBase = useApiBase()
+  const cdnBase = useCdnBase()
   const navigate = useNavigate()
 
   async function load(retryCount = 0) {
@@ -333,7 +338,7 @@ export default function NewDashboard() {
                       <button 
                         className="text-xs text-purple-600 hover:underline font-semibold"
                         onClick={() => {
-                          const code = `<script src="https://pushads123.com/instant-push.js" data-api-key="${me?.customer?.api_key || 'YOUR_API_KEY'}" data-auto-init></script>`;
+                          const code = `<script src="${cdnBase}/instant-push.js" data-api-key="${me?.customer?.api_key || 'YOUR_API_KEY'}" data-auto-init></script>`;
                           navigator.clipboard.writeText(code).then(() => {
                             alert('One-line code copied! Just paste it in your HTML.');
                           });
@@ -343,7 +348,7 @@ export default function NewDashboard() {
                       </button>
                     </div>
                     <pre className="text-xs bg-purple-50 p-2 rounded border overflow-x-auto">
-{`<script src="https://pushads123.com/instant-push.js" data-api-key="${me?.customer?.api_key || 'YOUR_API_KEY'}" data-auto-init></script>`}
+{`<script src="${cdnBase}/instant-push.js" data-api-key="${me?.customer?.api_key || 'YOUR_API_KEY'}" data-auto-init></script>`}
                     </pre>
                   </div>
                   <p className="text-xs text-purple-600 mt-2">This automatically creates a beautiful notification button and handles everything!</p>
@@ -369,7 +374,7 @@ export default function NewDashboard() {
                           <button 
                             onClick={() => {
                               const link = document.createElement('a');
-                              link.href = 'https://pushads123.com/download/pn-sw.js';
+                              link.href = `${cdnBase}/download/pn-sw.js`;
                               link.download = 'pn-sw.js';
                               link.click();
                             }}
@@ -379,7 +384,7 @@ export default function NewDashboard() {
                           </button>
                           <button 
                             onClick={() => {
-                              const code = `importScripts('https://pushads123.com/pn-sw.js');`;
+                              const code = `importScripts('${cdnBase}/pn-sw.js');`;
                               navigator.clipboard.writeText(code).then(() => {
                                 alert('Code copied to clipboard!');
                               });
@@ -391,7 +396,7 @@ export default function NewDashboard() {
                         </div>
                       </div>
                       <pre className="text-xs bg-white p-2 rounded border">
-{`importScripts('https://pushads123.com/pn-sw.js');`}
+{`importScripts('${cdnBase}/pn-sw.js');`}
                       </pre>
                     </div>
                   </div>
@@ -417,10 +422,10 @@ export default function NewDashboard() {
                         </button>
                       </div>
                       <pre id="html-integration-code" className="text-xs bg-white p-2 rounded border overflow-x-auto">
-{`<script src="https://pushads123.com/sdk.js" data-api-key="${me?.customer?.api_key || 'pn_YOUR_API_KEY_HERE'}"></script>
+{`<script src="${cdnBase}/sdk.js" data-api-key="${me?.customer?.api_key || 'pn_YOUR_API_KEY_HERE'}"></script>
 <script>
   PN.init({ 
-    baseUrl: 'https://pushads123.com', 
+    baseUrl: '${cdnBase}', 
     serviceWorkerUrl: '/pn-sw.js' 
   });
 </script>`}

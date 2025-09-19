@@ -40,17 +40,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS configuration - allow all origins for push notification service
+// CORS configuration - allow all origins without restrictions
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Allow all origins since this is a push notification service
-    // that needs to work from any website
-    return callback(null, true);
-  },
-  credentials: true, // Allow cookies and authorization headers
+  origin: '*', // Allow all origins
+  credentials: false, // Disable credentials to avoid conflicts with wildcard origin
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   exposedHeaders: ['X-Total-Count', 'X-Page-Count'],

@@ -102,16 +102,12 @@ if (!USE_MEMORY) {
   getScheduler();
 }
 
-// Serve SDK files with CORS headers
+// Serve SDK files (CORS handled by middleware)
 app.get('/sdk.js', (_req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.type('application/javascript');
   res.send(fs.readFileSync(path.join(__dirname, 'sdk', 'snippet.js'), 'utf-8'));
 });
 app.get('/pn-sw.js', (_req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.type('application/javascript');
   res.send(fs.readFileSync(path.join(__dirname, 'sdk', 'service-worker.js'), 'utf-8'));
 });
@@ -134,12 +130,9 @@ console.log('Push notification service worker loaded');`;
   res.send(serviceWorkerContent);
 });
 
-// Serve static admin/customer UI with CORS headers
+// Serve static admin/customer UI
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   setHeaders: (res, path) => {
-    // Add CORS headers for all static files
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     
     // Set appropriate cache headers for different file types
     if (path.endsWith('.js')) {

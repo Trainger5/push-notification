@@ -39,22 +39,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Manual CORS handling to avoid conflicts with reverse proxy
+// No CORS handling in Node.js - let reverse proxy handle it
+// Handle preflight requests only
 app.use((req, res, next) => {
-  // Only set CORS headers if they haven't been set already
-  if (!res.get('Access-Control-Allow-Origin')) {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
-    res.header('Access-Control-Expose-Headers', 'X-Total-Count, X-Page-Count');
-    res.header('Access-Control-Max-Age', '86400');
-  }
-
-  // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
-
   next();
 });
 

@@ -1,7 +1,6 @@
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
-const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 
@@ -40,18 +39,26 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS configuration - allow all origins without restrictions
-const corsOptions = {
-  origin: '*', // Allow all origins
-  credentials: false, // Disable credentials to avoid conflicts with wildcard origin
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
-  maxAge: 86400 // Cache preflight requests for 24 hours
-};
+// Manual CORS handling to avoid conflicts with reverse proxy
+app.use((req, res, next) => {
+  // Only set CORS headers if they haven't been set already
+  if (!res.get('Access-Control-Allow-Origin')) {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept');
+    res.header('Access-Control-Expose-Headers', 'X-Total-Count, X-Page-Count');
+    res.header('Access-Control-Max-Age', '86400');
+  }
+
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
 
 // Middleware
-app.use(cors(corsOptions));
 app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 

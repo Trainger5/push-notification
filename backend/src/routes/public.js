@@ -64,20 +64,20 @@ router.post(
     const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'] || '';
     
-    // Only remove old subscriptions with DIFFERENT endpoints from same device
+    // Only remove old subscriptions with DIFFERENT endpoints from same browser
     // This prevents removing the current valid subscription
-    if (ip && userAgent) {
-      const oldSubs = await subscriptions.find({ 
-        customer_id: customer.id, 
-        ip_address: ip,
-        user_agent: userAgent 
+    // We check user_agent only, not IP, to allow multiple devices on same network
+    if (userAgent) {
+      const oldSubs = await subscriptions.find({
+        customer_id: customer.id,
+        user_agent: userAgent
       });
-      
-      // Remove only subscriptions with different endpoints
+
+      // Remove only subscriptions with different endpoints from same browser
       for (const oldSub of oldSubs) {
         if (oldSub.endpoint !== subscription.endpoint) {
           await subscriptions.remove({ id: oldSub.id });
-          console.log(`Removed old subscription from same device with different endpoint`);
+          console.log(`Removed old subscription from same browser with different endpoint`);
         }
       }
     }

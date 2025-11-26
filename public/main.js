@@ -2,10 +2,14 @@ const subscribeBtn = document.getElementById('subscribe-btn');
 const unsubscribeBtn = document.getElementById('unsubscribe-btn');
 const sendBtn = document.getElementById('send-btn');
 const statusDiv = document.getElementById('status');
-const logDiv = document.getElementById('notification-log');
+const statusText = document.getElementById('status-text');
+const subscriberCount = document.getElementById('subscriber-count');
+const statusIndicator = document.getElementById('status-indicator');
+const notificationsSent = document.getElementById('notifications-sent');
 
 let swReg;
 let userSubscription;
+let sentCount = 0;
 
 // ============ CONFIGURATION ============
 const SERVER_ORIGIN = "http://localhost:3000"; // For localhost, leave ""; for remote, e.g. "https://your-server.com"
@@ -20,21 +24,21 @@ const SERVICE_WORKER_PATH = "service-worker.js"; // Ensure this matches your ser
 function urlBase64ToUint8Array(base64String) {
   try {
     console.log('Converting VAPID key:', base64String);
-    
+
     const padding = '='.repeat((4 - base64String.length % 4) % 4);
     const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
     const rawData = atob(base64);
     const uint8Array = Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
-    
+
     console.log('Key length:', uint8Array.length, 'bytes');
     console.log('First few bytes:', Array.from(uint8Array.slice(0, 5)));
-    
+
     // Validate the key length (should be 65 bytes for VAPID public key)
     if (uint8Array.length !== 65) {
       console.warn(`Warning: VAPID key length is ${uint8Array.length} (expected 65)`);
       // Don't throw error, just warn - some browsers might accept different lengths
     }
-    
+
     return uint8Array;
   } catch (error) {
     console.error('VAPID key conversion error:', error);
@@ -42,34 +46,59 @@ function urlBase64ToUint8Array(base64String) {
   }
 }
 
-function showStatus(msg, color='inherit') {
-  statusDiv.textContent = msg;
-  statusDiv.style.color = color;
+function showStatus(msg, type = 'info') {
+  const icons = {
+    info: 'ℹ️',
+    success: '✅',
+    error: '❌',
+    warning: '⚠️'
+  };
+
+  statusDiv.className = `status-box ${type}`;
+  statusDiv.querySelector('.status-icon').textContent = icons[type] || icons.info;
+  statusText.textContent = msg;
 }
 
 function log(msg) {
-  logDiv.textContent = msg;
+  // Just log to console since we removed the activity log UI
+  console.log('[Push Notification]', msg);
 }
 
 function setUiSubscribed(isSubscribed) {
   subscribeBtn.disabled = isSubscribed;
   unsubscribeBtn.disabled = !isSubscribed;
   sendBtn.disabled = !isSubscribed;
+
+  statusIndicator.textContent = isSubscribed ? 'Subscribed' : 'Ready';
+}
+
+// Update subscriber count from server
+async function updateStats() {
+  try {
+    const response = await fetch(SERVER_ORIGIN + '/api/stats');
+    if (response.ok) {
+      const data = await response.json();
+      subscriberCount.textContent = data.totalSubscribers || 0;
+    }
+  } catch (error) {
+    console.error('Failed to fetch stats:', error);
+  }
 }
 
 async function registerServiceWorker() {
   try {
     if ('serviceWorker' in navigator) {
       swReg = await navigator.serviceWorker.register(SERVICE_WORKER_PATH);
-      showStatus('✔ Service worker registered.', '#4b5563');
+      showStatus('Service worker registered successfully', 'success');
+      log('Service worker registered');
       navigator.serviceWorker.addEventListener('message', e => {
         log(`Service Worker: ${e.data}`);
       });
     } else {
-      showStatus('Service Workers not supported', 'red');
+      showStatus('Service Workers not supported in this browser', 'error');
     }
   } catch (error) {
-    showStatus('Failed to register service worker: ' + error.message, 'red');
+    showStatus('Failed to register service worker: ' + error.message, 'error');
     console.error('Service worker registration failed:', error);
   }
 }
@@ -78,18 +107,18 @@ async function fetchVAPIDKey() {
   try {
     console.log('Fetching VAPID key from:', PUBLIC_VAPID_KEY_ENDPOINT);
     const res = await fetch(PUBLIC_VAPID_KEY_ENDPOINT);
-    
+
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     }
-    
+
     const data = await res.json();
     console.log('VAPID key response:', data);
-    
+
     if (!data.publicKey) {
       throw new Error('No public key in response');
     }
-    
+
     return data.publicKey;
   } catch (error) {
     console.error('Failed to fetch VAPID key:', error);
@@ -108,11 +137,11 @@ async function subscribeUser() {
     // Test notification permissions first
     console.log('Testing notification permissions...');
     let permissionTest = await testNotificationPermission();
-    
+
     if (!permissionTest) {
       console.log('🔄 Trying to force enable notifications...');
       permissionTest = await forceEnableNotifications();
-      
+
       if (!permissionTest) {
         showStatus('Notification permissions blocked. Please enable in browser settings and refresh.', 'red');
         console.log('🔧 Quick Fix:');
@@ -122,26 +151,26 @@ async function subscribeUser() {
         return;
       }
     }
-    
+
     console.log('✅ Notification permissions are working');
 
     const vapidKey = await fetchVAPIDKey();
     console.log('VAPID Key received:', vapidKey);
-    
+
     // Convert VAPID key to Uint8Array
     const applicationServerKey = urlBase64ToUint8Array(vapidKey);
     console.log('Application server key length:', applicationServerKey.length);
-    
+
     // Check for existing subscription and unsubscribe first
     const existingSubscription = await swReg.pushManager.getSubscription();
     if (existingSubscription) {
       console.log('Found existing subscription, unsubscribing first...');
       await existingSubscription.unsubscribe();
     }
-    
+
     // Try subscription with proper error handling
     let userSubscription = null;
-    
+
     try {
       console.log('Attempting push subscription...');
       userSubscription = await swReg.pushManager.subscribe({
@@ -151,11 +180,11 @@ async function subscribeUser() {
       console.log('✅ Push subscription successful');
     } catch (error) {
       console.error('❌ Push subscription failed:', error);
-      
+
       // Check if it's a permission issue
       if (error.name === 'NotAllowedError' || error.message.includes('permission denied')) {
         console.log('🔧 Permission issue detected. Trying to fix...');
-        
+
         // Try to re-enable permissions
         const permissionFixed = await forceEnableNotifications();
         if (permissionFixed) {
@@ -184,11 +213,14 @@ async function subscribeUser() {
       body: JSON.stringify(userSubscription),
       headers: { 'Content-Type': 'application/json' }
     });
-    showStatus('Subscribed! Ready to receive notifications.', 'green');
+    showStatus('Subscribed! Ready to receive notifications.', 'success');
+    log('Successfully subscribed to notifications');
     setUiSubscribed(true);
+    await updateStats();
   } catch (e) {
     console.error('Subscription error details:', e);
-    showStatus('Error subscribing: ' + e.message, 'red');
+    showStatus('Error subscribing: ' + e.message, 'error');
+    log('Subscription failed: ' + e.message);
   }
 }
 
@@ -208,11 +240,13 @@ async function unsubscribeUser() {
         headers: { 'Content-Type': 'application/json' }
       });
       await sub.unsubscribe();
-      showStatus('Unsubscribed.', 'orange');
+      showStatus('Unsubscribed from notifications', 'warning');
+      log('Unsubscribed from notifications');
       setUiSubscribed(false);
+      await updateStats();
     }
   } catch (e) {
-    showStatus('Error unsubscribing: ' + e, 'red');
+    showStatus('Error unsubscribing: ' + e, 'error');
   }
 }
 
@@ -227,9 +261,13 @@ async function sendTestNotification() {
       }),
       headers: { 'Content-Type': 'application/json' }
     });
-    log('Sent a test notification. Check your browser.');
+    sentCount++;
+    notificationsSent.textContent = sentCount;
+    log('Test notification sent successfully');
+    showStatus('Notification sent! Check your system notifications.', 'success');
   } catch (e) {
     log('Error sending notification: ' + e);
+    showStatus('Failed to send notification', 'error');
   }
 }
 
@@ -287,7 +325,7 @@ function showNotificationHelp() {
 
 4. Refresh the page and try subscribing again
   `;
-  
+
   console.log(helpText);
   showStatus('Check browser console for notification help', 'orange');
 }
@@ -297,7 +335,7 @@ async function testNotificationPermission() {
   try {
     console.log('Testing notification permission...');
     console.log('Current permission status:', Notification.permission);
-    
+
     if (Notification.permission === 'granted') {
       console.log('✅ Notifications are already granted');
       new Notification('Test Notification', {
@@ -317,7 +355,7 @@ async function testNotificationPermission() {
       console.log('Requesting notification permission...');
       const permission = await Notification.requestPermission();
       console.log('Permission result:', permission);
-      
+
       if (permission === 'granted') {
         console.log('✅ Permission granted, testing notification...');
         new Notification('Test Notification', {
@@ -340,7 +378,7 @@ async function testNotificationPermission() {
 // Function to force enable notifications
 async function forceEnableNotifications() {
   console.log('🔄 Attempting to force enable notifications...');
-  
+
   // Try to request permission with a more direct approach
   try {
     // First, try to show a test notification to trigger permission request
@@ -351,11 +389,11 @@ async function forceEnableNotifications() {
         requireInteraction: true
       });
     }
-    
+
     // Request permission explicitly
     const permission = await Notification.requestPermission();
     console.log('Permission result:', permission);
-    
+
     if (permission === 'granted') {
       console.log('✅ Notifications enabled successfully!');
       return true;
@@ -378,12 +416,12 @@ async function forceEnableNotifications() {
 // Function to reset notification permissions (for testing)
 async function resetNotificationPermissions() {
   console.log('🔄 Attempting to reset notification permissions...');
-  
+
   // Try to request permission again
   try {
     const permission = await Notification.requestPermission();
     console.log('New permission status:', permission);
-    
+
     if (permission === 'granted') {
       console.log('✅ Permissions reset successfully');
       return true;
@@ -402,4 +440,8 @@ async function resetNotificationPermissions() {
   checkBrowserSupport();
   await registerServiceWorker();
   await checkSubscribed();
+  await updateStats();
+
+  // Update stats every 30 seconds
+  setInterval(updateStats, 30000);
 })();

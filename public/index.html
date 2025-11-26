@@ -1,26 +1,115 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Push Notification Test Site</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Push Notification System | Real-time Notifications</title>
+  <meta name="description" content="Modern web push notification system with real-time delivery">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
-  <div class="container">
-    <h1>🔔 Push Notification Test</h1>
-    <div class="controls">
-      <button id="subscribe-btn">Subscribe to Notifications</button>
-      <button id="unsubscribe-btn" disabled>Unsubscribe</button>
-      <button id="send-btn" disabled>Send Test Notification</button>
-    </div>
-    <div id="status" class="status"></div>
-    <div id="notification-log" class="notification-log"></div>
-    <p class="desc">
-      This demo lets you subscribe (or unsubscribe) your browser, then send a test notification.<br>
-      You must connect it to your own Node.js backend as described earlier.
-    </p>
+  <!-- Animated Background -->
+  <div class="bg-animation">
+    <div class="circle circle-1"></div>
+    <div class="circle circle-2"></div>
+    <div class="circle circle-3"></div>
   </div>
+
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Header Section -->
+    <header class="header">
+      <div class="logo">
+        <div class="logo-icon">🔔</div>
+        <h1>Push Notification System</h1>
+      </div>
+      <p class="subtitle">Real-time browser notifications powered by Web Push API</p>
+    </header>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-content">
+          <div class="stat-label">Total Subscribers</div>
+          <div class="stat-value" id="subscriber-count">0</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-content">
+          <div class="stat-label">Status</div>
+          <div class="stat-value" id="status-indicator">Ready</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📬</div>
+        <div class="stat-content">
+          <div class="stat-label">Sent Notifications</div>
+          <div class="stat-value" id="notifications-sent">0</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+      <h2>Control Center</h2>
+      <p class="panel-desc">Manage your notification preferences and test the system</p>
+
+      <div class="controls">
+        <button id="subscribe-btn" class="btn btn-primary">
+          <span class="btn-icon">🔔</span>
+          <span class="btn-text">Enable Notifications</span>
+        </button>
+        <button id="unsubscribe-btn" class="btn btn-secondary" disabled>
+          <span class="btn-icon">🔕</span>
+          <span class="btn-text">Disable Notifications</span>
+        </button>
+        <button id="send-btn" class="btn btn-accent" disabled>
+          <span class="btn-icon">🚀</span>
+          <span class="btn-text">Send Test Notification</span>
+        </button>
+      </div>
+
+      <!-- Status Display -->
+      <div id="status" class="status-box">
+        <div class="status-icon">ℹ️</div>
+        <div id="status-text" class="status-text">Click "Enable Notifications" to get started</div>
+      </div>
+    </div>
+
+    <!-- Info Section -->
+    <div class="info-section">
+      <div class="info-card">
+        <div class="info-icon">🛡️</div>
+        <h3>Secure & Private</h3>
+        <p>Your subscription data is stored securely and never shared with third parties.</p>
+      </div>
+      <div class="info-card">
+        <div class="info-icon">⚡</div>
+        <h3>Instant Delivery</h3>
+        <p>Receive notifications in real-time across all your devices and browsers.</p>
+      </div>
+      <div class="info-card">
+        <div class="info-icon">🌐</div>
+        <h3>Cross-Platform</h3>
+        <p>Works on Chrome, Firefox, Edge, Safari, and all modern browsers.</p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Powered by Push Notification System</p>
+      <p class="footer-note">Make sure notifications are allowed in your browser settings</p>
+    </footer>
+  </div>
+
   <script src="main.js"></script>
 </body>
+
 </html>

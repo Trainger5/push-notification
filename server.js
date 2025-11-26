@@ -3,10 +3,12 @@ const webpush = require('web-push');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const DATA_FILE = path.join(__dirname, 'subscriptions.json');
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -33,7 +35,29 @@ webpush.setVapidDetails(
   vapidKeys.privateKey
 );
 
+// Load subscriptions from file
 let subscriptions = [];
+try {
+  if (fs.existsSync(DATA_FILE)) {
+    const data = fs.readFileSync(DATA_FILE, 'utf8');
+    subscriptions = JSON.parse(data);
+    console.log(`✅ Loaded ${subscriptions.length} subscriptions from file.`);
+  } else {
+    console.log('ℹ️ No existing subscriptions file found. Starting fresh.');
+  }
+} catch (error) {
+  console.error('❌ Error loading subscriptions:', error);
+}
+
+// Helper to save subscriptions
+const saveSubscriptions = () => {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(subscriptions, null, 2));
+    console.log('💾 Subscriptions saved to file.');
+  } catch (error) {
+    console.error('❌ Error saving subscriptions:', error);
+  }
+};
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -48,12 +72,19 @@ app.post('/api/subscribe', (req, res) => {
     return res.status(400).json({ error: 'Invalid subscription' });
   }
   const exists = subscriptions.find(sub => sub.endpoint === subscription.endpoint);
-  if (!exists) subscriptions.push(subscription);
+  if (!exists) {
+    subscriptions.push(subscription);
+    saveSubscriptions();
+  }
   res.status(201).json({ message: 'Subscription added successfully' });
 });
 app.post('/api/unsubscribe', (req, res) => {
   const { endpoint } = req.body;
+  const initialLength = subscriptions.length;
   subscriptions = subscriptions.filter(sub => sub.endpoint !== endpoint);
+  if (subscriptions.length !== initialLength) {
+    saveSubscriptions();
+  }
   res.json({ message: 'Unsubscribed successfully' });
 });
 app.post('/api/send-notification', async (req, res) => {
@@ -67,11 +98,18 @@ app.post('/api/send-notification', async (req, res) => {
     url: url || '/',
     badge: '/badge-72x72.png'
   });
+
   const results = await Promise.all(subscriptions.map(async (subscription) => {
     try {
       await webpush.sendNotification(subscription, payload);
       return { success: true, endpoint: subscription.endpoint };
     } catch (error) {
+      // Optional: Remove invalid subscriptions automatically
+      if (error.statusCode === 410 || error.statusCode === 404) {
+        console.log(`Removing invalid subscription: ${subscription.endpoint}`);
+        subscriptions = subscriptions.filter(s => s.endpoint !== subscription.endpoint);
+        saveSubscriptions();
+      }
       return { success: false, endpoint: subscription.endpoint, error: error.message };
     }
   }));

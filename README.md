@@ -42,32 +42,36 @@ Add this script to any website to enable push notifications (recommended setup):
 
 **Step 1:** Create `/pn-sw.js` at your website root *(separate file, not in HTML!)*
 
-**Option A:** [📥 Download pn-sw.js](http://13.126.228.42/download/pn-sw.js)
+**Option A:** [📥 Download pn-sw.js](https://YOUR_SERVER_URL/download/pn-sw.js)
 
 **Option B:** Create manually with this content:
 ```javascript
-importScripts('http://13.126.228.42/pn-sw.js');
+importScripts('https://YOUR_SERVER_URL/pn-sw.js');
 ```
+
+> **⚠️ IMPORTANT**: Replace `YOUR_SERVER_URL` with your actual server URL (must be HTTPS in production).
 
 **Step 2:** Add SDK + init before `</body>`:
 ```html
-<script src="http://13.126.228.42/sdk.js" data-api-key="YOUR_CUSTOMER_API_KEY"></script>
+<script src="https://YOUR_SERVER_URL/sdk.js" data-api-key="YOUR_CUSTOMER_API_KEY"></script>
 <script>
-  PN.init({ baseUrl: 'http://13.126.228.42', serviceWorkerUrl: '/pn-sw.js' });
+  PN.init({ baseUrl: 'https://YOUR_SERVER_URL', serviceWorkerUrl: '/pn-sw.js' });
 </script>
 ```
 
 **Alternative:** Pass the API key programmatically:
 ```html
-<script src="http://13.126.228.42/sdk.js"></script>
+<script src="https://YOUR_SERVER_URL/sdk.js"></script>
 <script>
   PN.init({ 
     apiKey: 'YOUR_CUSTOMER_API_KEY', 
-    baseUrl: 'http://13.126.228.42', 
+    baseUrl: 'https://YOUR_SERVER_URL', 
     serviceWorkerUrl: '/pn-sw.js' 
   });
 </script>
 ```
+
+> **🔒 Security Note**: Production deployments **must use HTTPS**. HTTP is only allowed for localhost development.
 
 The SDK automatically:
 - Requests notification permission
@@ -105,13 +109,13 @@ Troubleshooting:
 #### 4. Sending Notifications
 
 Via Admin Dashboard:
-- Visit `http://13.126.228.42/admin` 
+- Visit `https://YOUR_SERVER_URL/admin` 
 - Login with admin credentials
 - Use the notification interface to send to all or targeted subscribers
 
 Via API:
 ```bash
-curl -X POST http://13.126.228.42/api/admin/notify \
+curl -X POST https://YOUR_SERVER_URL/api/admin/notify \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
@@ -125,7 +129,16 @@ curl -X POST http://13.126.228.42/api/admin/notify \
 
 - **Node.js** 18+ 
 - **MySQL/MariaDB** 8.0+
-- **HTTPS** in production (required for push notifications)
+- **HTTPS** in production (⚠️ **REQUIRED** for push notifications - see below)
+
+> **🔒 CRITICAL: HTTPS Requirement**
+>
+> Push notifications **require HTTPS** in production. Browsers will block push notification registration on HTTP sites (except localhost for development).
+> 
+> - ✅ **Development**: `http://localhost` is allowed
+> - ❌ **Production**: Must use `https://` URLs
+> - Configure SSL certificates via Let's Encrypt, Cloudflare, or your hosting provider
+> - Service workers will not register on insecure origins
 
 ### Environment Configuration
 

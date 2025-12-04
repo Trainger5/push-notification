@@ -17,8 +17,8 @@ router.get('/', async (req, res) => {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    const webhookList = await webhooks.find({ customer_id: customer.id }, { 
-      sort: { created_at: -1 } 
+    const webhookList = await webhooks.find({ customer_id: customer.id }, {
+      sort: { created_at: -1 }
     });
 
     res.json({
@@ -60,7 +60,7 @@ router.post(
         customer_id: customer.id,
         name: req.body.name
       });
-      
+
       if (existingWebhook) {
         return res.status(409).json({ error: 'Webhook with this name already exists' });
       }
@@ -68,7 +68,7 @@ router.post(
       // Validate event types
       const validEvents = ['notification.sent', 'notification.delivered', 'notification.clicked', 'notification.failed', 'subscription.created', 'subscription.deleted'];
       const invalidEvents = req.body.events.filter(event => !validEvents.includes(event));
-      
+
       if (invalidEvents.length > 0) {
         return res.status(400).json({ error: `Invalid events: ${invalidEvents.join(', ')}` });
       }
@@ -98,15 +98,15 @@ router.post(
       };
 
       const newWebhook = await webhooks.insert(webhook);
-      
+
       // Don't return the secret in the response for security
-      const responseWebhook = { 
-        ...newWebhook, 
+      const responseWebhook = {
+        ...newWebhook,
         events: JSON.parse(newWebhook.events),
         headers: newWebhook.headers ? JSON.parse(newWebhook.headers) : null
       };
       delete responseWebhook.secret;
-      
+
       res.status(201).json({
         webhook: responseWebhook,
         message: 'Webhook created successfully'
@@ -128,10 +128,10 @@ router.get('/list', async (req, res) => {
     }
 
     const customerWebhooks = await webhooks.find(
-      { customer_id: customer.id }, 
+      { customer_id: customer.id },
       { sort: { updated_at: -1 } }
     );
-    
+
     // Don't return secrets in the list and parse JSON fields
     const safeWebhooks = customerWebhooks.map(webhook => {
       const { secret, ...safeWebhook } = webhook;
@@ -177,7 +177,7 @@ router.get('/:id', async (req, res) => {
       events: JSON.parse(webhook.events),
       headers: webhook.headers ? JSON.parse(webhook.headers) : null
     };
-    
+
     res.json(responseWebhook);
   } catch (error) {
     console.error('Get webhook error:', error);
@@ -225,7 +225,7 @@ router.put(
           name: req.body.name,
           id: { $ne: req.params.id }
         });
-        
+
         if (existingWebhook) {
           return res.status(409).json({ error: 'Webhook with this name already exists' });
         }
@@ -235,14 +235,14 @@ router.put(
       if (req.body.events) {
         const validEvents = ['notification.sent', 'notification.delivered', 'notification.clicked', 'notification.failed', 'subscription.created', 'subscription.deleted'];
         const invalidEvents = req.body.events.filter(event => !validEvents.includes(event));
-        
+
         if (invalidEvents.length > 0) {
           return res.status(400).json({ error: `Invalid events: ${invalidEvents.join(', ')}` });
         }
       }
 
       const updateData = {};
-      
+
       if (req.body.name) updateData.name = req.body.name;
       if (req.body.url) updateData.url = req.body.url;
       if (req.body.events) updateData.events = JSON.stringify(req.body.events);
@@ -250,7 +250,7 @@ router.put(
       if (req.body.timeout) updateData.timeout = req.body.timeout;
       if (req.body.maxRetries !== undefined) updateData.max_retries = req.body.maxRetries;
       if (req.body.status) updateData.status = req.body.status;
-      
+
       updateData.updated_at = new Date();
 
       await webhooks.update(
@@ -259,7 +259,7 @@ router.put(
       );
 
       const updatedWebhook = await webhooks.findOne({ id: req.params.id });
-      
+
       // Don't return the secret and parse JSON fields
       const { secret, ...safeWebhook } = updatedWebhook;
       const responseWebhook = {
@@ -383,12 +383,12 @@ router.get('/:id/deliveries', async (req, res) => {
 
     // Get total count
     const totalCount = await webhookDeliveries.count(query);
-    
+
     // Get paginated deliveries
-    const deliveries = await webhookDeliveries.find(query, { 
-      sort: { created_at: -1 }, 
-      limit: limit, 
-      skip: skip 
+    const deliveries = await webhookDeliveries.find(query, {
+      sort: { created_at: -1 },
+      limit: limit,
+      skip: skip
     });
 
     res.json({
@@ -426,7 +426,7 @@ router.get('/:id/stats', async (req, res) => {
 
     // Get delivery statistics for the last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    
+
     const recentDeliveries = await webhookDeliveries.find({
       webhook_id: webhook.id,
       created_at: { $gte: thirtyDaysAgo }
@@ -465,11 +465,12 @@ router.get('/:id/stats', async (req, res) => {
   }
 });
 
-// Helper function to send webhooks
-async function sendWebhook(webhook, payload) {
+// Helper function to send webhooks with retry logic
+async function sendWebhook(webhook, payload, retryCount = 0) {
   const { webhookDeliveries } = getDatastores();
   const startTime = Date.now();
-  
+  const maxRetries = webhook.max_retries || 3;
+
   try {
     // Create signature
     const signature = crypto
@@ -483,7 +484,8 @@ async function sendWebhook(webhook, payload) {
       'X-Webhook-Signature': `sha256=${signature}`,
       'User-Agent': 'PushNotificationService/1.0',
       'X-Webhook-ID': webhook.id,
-      'X-Webhook-Event': payload.event
+      'X-Webhook-Event': payload.event,
+      'X-Retry-Count': retryCount.toString()
     };
 
     // Add custom headers if provided
@@ -513,7 +515,7 @@ async function sendWebhook(webhook, payload) {
       http_status: response.status,
       response_body: responseText.substring(0, 1000), // Limit response size
       response_time_ms: responseTime,
-      retry_count: 0,
+      retry_count: retryCount,
       sent_at: new Date(),
       completed_at: new Date(),
       created_at: new Date()
@@ -523,61 +525,98 @@ async function sendWebhook(webhook, payload) {
     const { webhooks } = getDatastores();
     if (success) {
       await webhooks.update({ id: webhook.id }, {
-        $set: { 
+        $set: {
           last_success: new Date(),
           success_count: webhook.success_count + 1,
           success_rate: ((webhook.success_count + 1) / (webhook.success_count + webhook.failure_count + 1) * 100).toFixed(2)
         }
       });
+      return { success, status: response.status, responseTime, error: null };
     } else {
+      // Retry logic with exponential backoff
+      if (retryCount < maxRetries) {
+        const retryDelay = (webhook.retry_delay || 60) * Math.pow(2, retryCount) * 1000; // Exponential backoff
+        console.log(`⏱️ Webhook delivery failed (${response.status}), retrying in ${retryDelay / 1000}s (attempt ${retryCount + 1}/${maxRetries})`);
+
+        // Schedule retry
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+        return await sendWebhook(webhook, payload, retryCount + 1);
+      } else {
+        // Max retries exceeded
+        await webhooks.update({ id: webhook.id }, {
+          $set: {
+            last_failure: new Date(),
+            failure_count: webhook.failure_count + 1,
+            success_rate: (webhook.success_count / (webhook.success_count + webhook.failure_count + 1) * 100).toFixed(2)
+          }
+        });
+        return { success: false, status: response.status, responseTime, error: `Max retries (${maxRetries}) exceeded. Last status: ${response.status}` };
+      }
+    }
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+    console.error('Webhook delivery error:', error);
+
+    // Retry logic for network errors
+    if (retryCount < maxRetries) {
+      const retryDelay = (webhook.retry_delay || 60) * Math.pow(2, retryCount) * 1000;
+      console.log(`⏱️ Webhook delivery failed (${error.message}), retrying in ${retryDelay / 1000}s (attempt ${retryCount + 1}/${maxRetries})`);
+
+      // Log the retry attempt
+      await webhookDeliveries.insert({
+        webhook_id: webhook.id,
+        event_type: payload.event,
+        payload: JSON.stringify(payload),
+        status: 'retrying',
+        http_status: 0,
+        response_body: error.message,
+        response_time_ms: responseTime,
+        error_message: error.message,
+        retry_count: retryCount,
+        sent_at: new Date(),
+        completed_at: new Date(),
+        created_at: new Date()
+      });
+
+      // Schedule retry
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      return await sendWebhook(webhook, payload, retryCount + 1);
+    } else {
+      // Log the failed delivery
+      await webhookDeliveries.insert({
+        webhook_id: webhook.id,
+        event_type: payload.event,
+        payload: JSON.stringify(payload),
+        status: 'failed',
+        http_status: 0,
+        response_body: error.message,
+        response_time_ms: responseTime,
+        error_message: error.message,
+        retry_count: retryCount,
+        sent_at: new Date(),
+        completed_at: new Date(),
+        created_at: new Date()
+      });
+
+      // Update webhook stats
+      const { webhooks } = getDatastores();
       await webhooks.update({ id: webhook.id }, {
-        $set: { 
+        $set: {
           last_failure: new Date(),
           failure_count: webhook.failure_count + 1,
           success_rate: (webhook.success_count / (webhook.success_count + webhook.failure_count + 1) * 100).toFixed(2)
         }
       });
+
+      return { success: false, status: 0, responseTime, error: `Max retries (${maxRetries}) exceeded. Error: ${error.message}` };
     }
-
-    return { success, status: response.status, responseTime, error: success ? null : responseText };
-  } catch (error) {
-    const responseTime = Date.now() - startTime;
-    console.error('Webhook delivery error:', error);
-    
-    // Log the failed delivery
-    await webhookDeliveries.insert({
-      webhook_id: webhook.id,
-      event_type: payload.event,
-      payload: JSON.stringify(payload),
-      status: 'failed',
-      http_status: 0,
-      response_body: error.message,
-      response_time_ms: responseTime,
-      error_message: error.message,
-      retry_count: 0,
-      sent_at: new Date(),
-      completed_at: new Date(),
-      created_at: new Date()
-    });
-
-    // Update webhook stats
-    const { webhooks } = getDatastores();
-    await webhooks.update({ id: webhook.id }, {
-      $set: { 
-        last_failure: new Date(),
-        failure_count: webhook.failure_count + 1,
-        success_rate: (webhook.success_count / (webhook.success_count + webhook.failure_count + 1) * 100).toFixed(2)
-      }
-    });
-
-    return { success: false, status: 0, responseTime, error: error.message };
   }
 }
 
 // Function to trigger webhook events (used by other parts of the application)
 async function triggerWebhookEvent(customer_id, event, data) {
   const { webhooks } = getDatastores();
-  
+
   try {
     // Find all active webhooks for this customer that listen for this event
     const customerWebhooks = await webhooks.find({

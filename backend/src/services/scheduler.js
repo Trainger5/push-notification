@@ -13,13 +13,19 @@ class NotificationScheduler {
     cron.schedule('* * * * *', () => {
       this.processScheduledNotifications();
     });
-    
-    console.log('Notification scheduler started');
+
+    // Clean up expired subscriptions daily at 2 AM
+    cron.schedule('0 2 * * *', () => {
+      this.cleanupExpiredSubscriptions();
+    });
+
+    console.log('✅ Notification scheduler started');
+    console.log('✅ Subscription cleanup job scheduled (daily 2 AM)');
   }
 
   async scheduleNotification(notificationData) {
     const { scheduledNotifications } = getDatastores();
-    
+
     const scheduledNotification = {
       customer_id: notificationData.customerId,
       name: notificationData.name || notificationData.title,
@@ -42,10 +48,10 @@ class NotificationScheduler {
       created_at: new Date(),
       updated_at: new Date()
     };
-    
+
     const doc = await scheduledNotifications.insert(scheduledNotification);
     console.log(`Notification scheduled for ${scheduledNotification.scheduled_for}:`, doc._id);
-    
+
     return doc;
   }
 
@@ -53,7 +59,7 @@ class NotificationScheduler {
     try {
       const { scheduledNotifications } = getDatastores();
       const now = new Date().toISOString();
-      
+
       // Find notifications that should be sent now
       const dueNotifications = await scheduledNotifications.find({
         scheduled_for: { $lte: now },
@@ -63,26 +69,26 @@ class NotificationScheduler {
       for (const notification of dueNotifications) {
         try {
           await this.sendScheduledNotification(notification);
-          
+
           // Update status to sent
           await scheduledNotifications.update(
             { id: notification.id },
             { $set: { status: 'sent', sent_at: new Date() } }
           );
-          
+
           console.log(`Scheduled notification sent: ${notification._id}`);
         } catch (error) {
           console.error(`Failed to send scheduled notification ${notification._id}:`, error);
-          
+
           // Update status to failed
           await scheduledNotifications.update(
             { id: notification.id },
-            { 
-              $set: { 
-                status: 'failed', 
+            {
+              $set: {
+                status: 'failed',
                 failed_at: new Date(),
-                error_message: error.message 
-              } 
+                error_message: error.message
+              }
             }
           );
         }
@@ -94,7 +100,7 @@ class NotificationScheduler {
 
   async sendScheduledNotification(scheduledNotification) {
     const { customers, subscriptions, pushSettings, notifications } = getDatastores();
-    
+
     // Get customer and settings
     const customer = await customers.findOne({ id: scheduledNotification.customer_id });
     if (!customer) {
@@ -120,8 +126,8 @@ class NotificationScheduler {
     );
 
     // Parse notification data
-    const notificationData = typeof scheduledNotification.notification_data === 'string' 
-      ? JSON.parse(scheduledNotification.notification_data) 
+    const notificationData = typeof scheduledNotification.notification_data === 'string'
+      ? JSON.parse(scheduledNotification.notification_data)
       : scheduledNotification.notification_data;
 
     // Prepare notification payload
@@ -161,12 +167,12 @@ class NotificationScheduler {
         results.push({ endpoint: subscriptionData.endpoint, status: 'sent' });
       } catch (error) {
         failed++;
-        results.push({ 
-          endpoint: subscriptionData ? subscriptionData.endpoint : 'unknown', 
-          status: 'failed', 
-          error: error.message 
+        results.push({
+          endpoint: subscriptionData ? subscriptionData.endpoint : 'unknown',
+          status: 'failed',
+          error: error.message
         });
-        
+
         // Remove invalid subscriptions (410 = Gone, 404 = Not Found)
         if (error.statusCode === 410 || error.statusCode === 404) {
           await subscriptions.remove({ id: sub.id });
@@ -197,73 +203,122 @@ class NotificationScheduler {
 
   async cancelScheduledNotification(notificationId, customerId) {
     const { scheduledNotifications } = getDatastores();
-    
-    const notification = await scheduledNotifications.findOne({ 
-      id: notificationId, 
+
+    const notification = await scheduledNotifications.findOne({
+      id: notificationId,
       customer_id: customerId,
       status: 'active'
     });
-    
+
     if (!notification) {
       throw new Error('Scheduled notification not found or already processed');
     }
-    
+
     await scheduledNotifications.update(
       { id: notificationId },
-      { 
-        $set: { 
-          status: 'cancelled', 
-          updated_at: new Date() 
-        } 
+      {
+        $set: {
+          status: 'cancelled',
+          updated_at: new Date()
+        }
       }
     );
-    
+
     console.log(`Scheduled notification cancelled: ${notificationId}`);
     return notification;
   }
 
   async getScheduledNotifications(customerId, status = null) {
     const { scheduledNotifications } = getDatastores();
-    
+
     const query = { customer_id: customerId };
     if (status) {
       query.status = status;
     }
-    
+
     return await scheduledNotifications.find(query, { sort: { scheduled_for: 1 } });
   }
 
   async updateScheduledNotification(notificationId, customerId, updates) {
     const { scheduledNotifications } = getDatastores();
-    
-    const notification = await scheduledNotifications.findOne({ 
-      id: notificationId, 
+
+    const notification = await scheduledNotifications.findOne({
+      id: notificationId,
       customer_id: customerId,
       status: 'active'
     });
-    
+
     if (!notification) {
       throw new Error('Scheduled notification not found or cannot be updated');
     }
-    
+
     // Only allow updates to certain fields
     const allowedUpdates = ['name', 'description', 'notification_data', 'scheduled_for', 'timezone'];
     const updateData = {};
-    
+
     for (const key of allowedUpdates) {
       if (updates.hasOwnProperty(key)) {
         updateData[key] = updates[key];
       }
     }
-    
+
     updateData.updated_at = new Date();
-    
+
     await scheduledNotifications.update(
       { id: notificationId },
       { $set: updateData }
     );
-    
+
     return await scheduledNotifications.findOne({ id: notificationId });
+  }
+
+  async cleanupExpiredSubscriptions() {
+    try {
+      console.log('🧹 Starting subscription cleanup job...');
+      const { subscriptions } = getDatastores();
+
+      // Calculate cutoff dates
+      const now = new Date();
+      const staleDate = new Date(now.getTime() - (90 * 24 * 60 * 60 * 1000)); // 90 days ago
+      const potentiallyExpiredDate = new Date(now.getTime() - (60 * 24 * 60 * 60 * 1000)); // 60 days ago
+
+      // Find and mark potentially expired subscriptions (inactive for 60+ days)
+      const potentiallyExpired = await subscriptions.find({
+        last_active: { $lt: potentiallyExpiredDate.toISOString() },
+        status: { $ne: 'potentially_expired' }
+      });
+
+      for (const sub of potentiallyExpired) {
+        await subscriptions.update(
+          { id: sub.id },
+          { $set: { status: 'potentially_expired', updated_at: new Date() } }
+        );
+      }
+
+      if (potentiallyExpired.length > 0) {
+        console.log(`⚠️ Marked ${potentiallyExpired.length} subscriptions as potentially expired`);
+      }
+
+      // Remove very old subscriptions (90+ days inactive)
+      const deleted = await subscriptions.remove({
+        last_active: { $lt: staleDate.toISOString() }
+      });
+
+      if (deleted > 0) {
+        console.log(`🗑️ Deleted ${deleted} stale subscriptions (90+ days inactive)`);
+      }
+
+      console.log('✅ Subscription cleanup completed');
+
+      return {
+        markedPotentiallyExpired: potentiallyExpired.length,
+        deletedStale: deleted
+      };
+
+    } catch (error) {
+      console.error('❌ Error during subscription cleanup:', error);
+      return { error: error.message };
+    }
   }
 }
 

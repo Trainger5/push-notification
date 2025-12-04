@@ -53,7 +53,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(morgan('dev'));
 
 // Apply general rate limiting to all API routes
-// app.use('/api/', apiLimiter); // TODO: Re-enable rate limiting later
+app.use('/api/', apiLimiter);
 
 // Initialize storage (MySQL or in-memory)
 const USE_MEMORY = String(process.env.USE_MEMORY_STORE || 'false').toLowerCase() === 'true';
@@ -92,12 +92,20 @@ if (!USE_MEMORY) {
   getScheduler();
 }
 
-// Serve SDK files (CORS handled by middleware)
+// Serve SDK files with proper CORS headers for cross-origin loading
 app.get('/sdk.js', (_req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
   res.type('application/javascript');
   res.send(fs.readFileSync(path.join(__dirname, 'sdk', 'snippet.js'), 'utf-8'));
 });
+
 app.get('/pn-sw.js', (_req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Service-Worker-Allowed', '/'); // Allow service worker to control all pages
   res.type('application/javascript');
   res.send(fs.readFileSync(path.join(__dirname, 'sdk', 'service-worker.js'), 'utf-8'));
 });
@@ -114,16 +122,18 @@ importScripts('${process.env.CDN_BASE || 'https://pushads123.com'}/pn-sw.js');
 // This file runs in the background and handles push notifications
 
 console.log('Push notification service worker loaded');`;
-  
+
   res.setHeader('Content-Type', 'application/javascript');
   res.setHeader('Content-Disposition', 'attachment; filename="pn-sw.js"');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cache-Control', 'no-cache');
   res.send(serviceWorkerContent);
 });
 
 // Serve static admin/customer UI
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   setHeaders: (res, path) => {
-    
+
     // Set appropriate cache headers for different file types
     if (path.endsWith('.js')) {
       res.setHeader('Cache-Control', 'public, max-age=3600'); // 1 hour cache for JS files
@@ -178,7 +188,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Push Notification Service running on http://localhost:${PORT}`);
-  
+
   // Start campaign executor
   const campaignExecutor = getCampaignExecutor();
   campaignExecutor.start();

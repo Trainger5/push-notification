@@ -15,37 +15,101 @@ const router = express.Router();
 router.get('/config', async (req, res) => {
   const apiKey = req.query.apiKey;
   if (!apiKey) return res.status(400).json({ error: 'Missing apiKey' });
+
   const { customers, pushSettings } = getDatastores();
   const customer = await customers.findOne({ api_key: apiKey, status: 'active' });
   if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
-  let settings = await pushSettings.findOne({ customer_id: customer.id });
-  if (!settings || !settings.vapid_public_key || !settings.vapid_private_key) {
-    const keys = webpush.generateVAPIDKeys();
-    const doc = {
-      customer_id: customer.id,
-      vapid_public_key: keys.publicKey,
-      vapid_private_key: keys.privateKey,
-      vapid_subject: settings?.vapid_subject || process.env.VAPID_SUBJECT || 'mailto:admin@localhost',
-      default_title: settings?.default_title || `${customer.name || 'Notifications'}`,
-      default_icon_url: settings?.default_icon_url || null,
-      default_badge_url: settings?.default_badge_url || null,
-      default_url: settings?.default_url || null,
-      updated_at: new Date().toISOString()
-    };
-    if (settings) {
-      await pushSettings.update({ id: settings.id }, { $set: doc });
-      settings = { ...settings, ...doc };
-    } else {
-      settings = await pushSettings.insert({ ...doc, created_at: new Date().toISOString() });
+
+  // Use database locking to prevent race conditions in VAPID key generation
+  const { getConnection } = require('../config/database');
+  const connection = await getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // Lock the row for this customer to prevent concurrent updates
+    const [rows] = await connection.execute(
+      'SELECT * FROM push_settings WHERE customer_id = ? FOR UPDATE',
+      [customer.id]
+    );
+
+    let settings = rows.length > 0 ? rows[0] : null;
+
+    // Generate VAPID keys only if they don't exist
+    if (!settings || !settings.vapid_public_key || !settings.vapid_private_key) {
+      const keys = webpush.generateVAPIDKeys();
+
+      // Validate VAPID subject - must be valid email or URL
+      let vapidSubject = settings?.vapid_subject || process.env.VAPID_SUBJECT;
+      if (!vapidSubject || vapidSubject === 'mailto:admin@localhost') {
+        // Use customer email as fallback
+        vapidSubject = `mailto:${customer.email}`;
+      }
+
+      const doc = {
+        customer_id: customer.id,
+        vapid_public_key: keys.publicKey,
+        vapid_private_key: keys.privateKey,
+        vapid_subject: vapidSubject,
+        default_title: settings?.default_title || `${customer.name || 'Notifications'}`,
+        default_icon_url: settings?.default_icon_url || null,
+        default_badge_url: settings?.default_badge_url || null,
+        default_url: settings?.default_url || null,
+        updated_at: new Date().toISOString()
+      };
+
+      if (settings) {
+        // Update existing record
+        await connection.execute(
+          `UPDATE push_settings SET vapid_public_key = ?, vapid_private_key = ?, vapid_subject = ?, 
+           default_title = ?, default_icon_url = ?, default_badge_url = ?, default_url = ?, updated_at = ? 
+           WHERE customer_id = ?`,
+          [doc.vapid_public_key, doc.vapid_private_key, doc.vapid_subject, doc.default_title,
+          doc.default_icon_url, doc.default_badge_url, doc.default_url, doc.updated_at, customer.id]
+        );
+        settings = { ...settings, ...doc };
+      } else {
+        // Insert new record
+        await connection.execute(
+          `INSERT INTO push_settings (id, customer_id, vapid_public_key, vapid_private_key, vapid_subject, 
+           default_title, default_icon_url, default_badge_url, default_url, created_at, updated_at) 
+           VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [customer.id, doc.vapid_public_key, doc.vapid_private_key, doc.vapid_subject, doc.default_title,
+          doc.default_icon_url, doc.default_badge_url, doc.default_url, doc.updated_at, doc.updated_at]
+        );
+
+        // Re-fetch to get the generated ID
+        const [newRows] = await connection.execute(
+          'SELECT * FROM push_settings WHERE customer_id = ?',
+          [customer.id]
+        );
+        settings = newRows[0];
+      }
     }
+
+    await connection.commit();
+
+    res.json({
+      vapid_public_key: settings.vapid_public_key,
+      title: settings.default_title || null,
+      iconUrl: settings.default_icon_url || null,
+      badgeUrl: settings.default_badge_url || null,
+      defaultUrl: settings.default_url || null
+    });
+
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error in /config endpoint:', error);
+    res.status(500).json({ error: 'Failed to retrieve configuration' });
+  } finally {
+    connection.release();
   }
-  res.json({ vapid_public_key: settings?.vapid_public_key || process.env.VAPID_PUBLIC_KEY || null, title: settings?.default_title || null, iconUrl: settings?.default_icon_url || null, badgeUrl: settings?.default_badge_url || null, defaultUrl: settings?.default_url || null });
 });
 
 // Save a new subscription from the client SDK
 router.post(
   '/subscribe',
-  // subscriptionLimiter, // TODO: Re-enable rate limiting later
+  subscriptionLimiter,
   body('apiKey').isString(),
   body('subscription').isObject(),
   async (req, res) => {
@@ -55,55 +119,70 @@ router.post(
     const { customers, subscriptions } = getDatastores();
     const customer = await customers.findOne({ api_key: apiKey, status: 'active' });
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
-    
+
     // Check if exact same endpoint already exists
     const exists = await subscriptions.findOne({ customer_id: customer.id, endpoint: subscription.endpoint });
     if (exists) return res.json({ status: 'exists', id: exists.id });
-    
+
     // Get IP and user agent for duplicate detection and metadata
     const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'] || '';
-    
-    // Only remove old subscriptions with DIFFERENT endpoints from same browser
-    // This prevents removing the current valid subscription
-    // We check user_agent only, not IP, to allow multiple devices on same network
+
+    // Improved duplicate detection using subscription fingerprinting
+    // Create a unique fingerprint for this device/browser combination
     if (userAgent) {
+      // Extract endpoint prefix (excludes unique token) for fuzzy matching
+      const endpointPrefix = subscription.endpoint.split('/').slice(0, -1).join('/');
+
+      // Create fingerprint hash using multiple factors
+      const crypto = require('crypto');
+      const fingerprintData = `${endpointPrefix}-${userAgent}-${ip}`;
+      const fingerprint = crypto.createHash('md5').update(fingerprintData).digest('hex');
+
+      // Find subscriptions with similar fingerprint OR exact user agent + close timestamp
       const oldSubs = await subscriptions.find({
-        customer_id: customer.id,
-        user_agent: userAgent
+        customer_id: customer.id
       });
 
-      // Remove only subscriptions with different endpoints from same browser
+      // Remove old subscriptions that match our fingerprint criteria
       for (const oldSub of oldSubs) {
-        if (oldSub.endpoint !== subscription.endpoint) {
+        // Skip if it's the exact same endpoint
+        if (oldSub.endpoint === subscription.endpoint) continue;
+
+        // Remove if:
+        // 1. Exact user agent match AND endpoint has same prefix (browser refresh/update case)
+        // 2. Same subscription endpoint prefix (FCM endpoint format change)
+        const oldEndpointPrefix = oldSub.endpoint.split('/').slice(0, -1).join('/');
+
+        if (oldSub.user_agent === userAgent && oldEndpointPrefix === endpointPrefix) {
           await subscriptions.remove({ id: oldSub.id });
-          console.log(`Removed old subscription from same browser with different endpoint`);
+          console.log(`Removed old subscription from same browser: fingerprint match`);
         }
       }
     }
-    
+
     // Enhanced subscription document with metadata for analytics and segmentation
     const geo = geoip.lookup(ip);
-    
+
     // Parse user agent for device/browser info
     const deviceInfo = {
       browser: 'Unknown',
       os: 'Unknown',
       device: 'Unknown'
     };
-    
+
     if (userAgent) {
       if (userAgent.includes('Chrome')) deviceInfo.browser = 'Chrome';
       else if (userAgent.includes('Firefox')) deviceInfo.browser = 'Firefox';
       else if (userAgent.includes('Safari')) deviceInfo.browser = 'Safari';
       else if (userAgent.includes('Edge')) deviceInfo.browser = 'Edge';
-      
+
       if (userAgent.includes('Windows')) deviceInfo.os = 'Windows';
       else if (userAgent.includes('Mac')) deviceInfo.os = 'macOS';
       else if (userAgent.includes('Linux')) deviceInfo.os = 'Linux';
       else if (userAgent.includes('Android')) deviceInfo.os = 'Android';
       else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) deviceInfo.os = 'iOS';
-      
+
       if (userAgent.includes('Mobile') || userAgent.includes('Android') || userAgent.includes('iPhone')) {
         deviceInfo.device = 'Mobile';
       } else if (userAgent.includes('Tablet') || userAgent.includes('iPad')) {
@@ -112,7 +191,7 @@ router.post(
         deviceInfo.device = 'Desktop';
       }
     }
-    
+
     const subscriptionDoc = {
       customer_id: customer.id,
       endpoint: subscription.endpoint,
@@ -133,21 +212,26 @@ router.post(
       last_active: new Date(),
       subscribed_at: new Date()
     };
-    
+
     const doc = await subscriptions.insert(subscriptionDoc);
-    
-    // Trigger webhook event
-    await triggerWebhookEvent(customer.id, 'subscription.created', {
-      subscription_id: doc.id,
-      endpoint: subscription.endpoint,
-      country: doc.country,
-      city: doc.city,
-      browser: doc.browser,
-      os: doc.os,
-      device: doc.device,
-      created_at: doc.subscribed_at
-    });
-    
+
+    // Trigger webhook event with error handling (don't let webhook failures break the subscription)
+    try {
+      await triggerWebhookEvent(customer.id, 'subscription.created', {
+        subscription_id: doc.id,
+        endpoint: subscription.endpoint,
+        country: doc.country,
+        city: doc.city,
+        browser: doc.browser,
+        os: doc.os,
+        device: doc.device,
+        created_at: doc.subscribed_at
+      });
+    } catch (webhookError) {
+      console.error('⚠️ Webhook trigger failed, but subscription was saved:', webhookError.message);
+      // Continue anyway - webhook failure shouldn't break subscription
+    }
+
     res.status(201).json({ id: doc.id, status: 'subscribed' });
   }
 );
@@ -165,7 +249,7 @@ router.post(
     const customer = await customers.findOne({ api_key: apiKey, status: 'active' });
     if (!customer) return res.status(404).json({ error: 'Invalid apiKey' });
     const removedCount = await subscriptions.remove({ customer_id: customer.id, endpoint: endpoint }, { multi: true });
-    
+
     // Trigger webhook event if subscription was found and removed
     if (removedCount > 0) {
       await triggerWebhookEvent(customer.id, 'subscription.deleted', {
@@ -174,7 +258,7 @@ router.post(
         removed_at: new Date().toISOString()
       });
     }
-    
+
     res.json({ status: 'unsubscribed' });
   }
 );

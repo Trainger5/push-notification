@@ -13,18 +13,18 @@ router.post('/open', async (req, res) => {
     const cid = req.query && req.query.cid ? String(req.query.cid) : null;
     const abTestId = req.query && req.query.abtestId ? String(req.query.abtestId) : null;
     const variantId = req.query && req.query.variantId ? String(req.query.variantId) : null;
-    
-    const metricData = { 
-      event_type: 'opened', 
-      customer_id: cid, 
-      timestamp: new Date() 
+
+    const metricData = {
+      event_type: 'opened',
+      customer_id: cid,
+      timestamp: new Date()
     };
-    
+
     if (abTestId) metricData.ab_test_id = abTestId;
     if (variantId) metricData.event_data = { variant_id: variantId };
-    
+
     await metrics.insert(metricData);
-  } catch (_) {}
+  } catch (_) { }
   res.status(204).end();
 });
 
@@ -35,25 +35,25 @@ router.post('/click', async (req, res) => {
     const abTestId = req.query && req.query.abtestId ? String(req.query.abtestId) : null;
     const variantId = req.query && req.query.variantId ? String(req.query.variantId) : null;
     const action = req.query && req.query.action ? String(req.query.action) : 'default';
-    
-    const metricData = { 
-      event_type: 'clicked', 
-      customer_id: cid, 
+
+    const metricData = {
+      event_type: 'clicked',
+      customer_id: cid,
       timestamp: new Date(),
       event_data: { action: action }
     };
-    
+
     if (abTestId) metricData.ab_test_id = abTestId;
     if (variantId) metricData.event_data = { ...metricData.event_data, variant_id: variantId };
-    
+
     // Parse request body for additional data
     if (req.body && typeof req.body === 'object') {
       if (req.body.customData) metricData.event_data = { ...metricData.event_data, custom_data: req.body.customData };
       if (req.body.timestamp) metricData.event_data = { ...metricData.event_data, client_timestamp: req.body.timestamp };
     }
-    
+
     await metrics.insert(metricData);
-  } catch (_) {}
+  } catch (_) { }
   res.status(204).end();
 });
 
@@ -63,23 +63,45 @@ router.post('/dismiss', async (req, res) => {
     const cid = req.query && req.query.cid ? String(req.query.cid) : null;
     const abTestId = req.query && req.query.abtestId ? String(req.query.abtestId) : null;
     const variantId = req.query && req.query.variantId ? String(req.query.variantId) : null;
-    
-    const metricData = { 
-      event_type: 'closed', 
-      customer_id: cid, 
-      timestamp: new Date() 
+
+    const metricData = {
+      event_type: 'closed',
+      customer_id: cid,
+      timestamp: new Date()
     };
-    
+
     if (abTestId) metricData.ab_test_id = abTestId;
     if (variantId) metricData.event_data = { variant_id: variantId };
-    
+
     // Parse request body for additional data
     if (req.body && typeof req.body === 'object') {
       if (req.body.timestamp) metricData.event_data = { ...metricData.event_data, client_timestamp: req.body.timestamp };
     }
-    
+
     await metrics.insert(metricData);
-  } catch (_) {}
+  } catch (_) { }
+  res.status(204).end();
+});
+
+// Track when user denies notification permission
+router.post('/permission-denied', async (req, res) => {
+  try {
+    const { metrics } = getDatastores();
+    const apiKey = req.query && req.query.apiKey ? String(req.query.apiKey) : null;
+    const reason = req.body && req.body.reason ? String(req.body.reason) : 'user_denied';
+
+    const metricData = {
+      event_type: 'permission_denied',
+      customer_id: apiKey, // Will be correlated later if needed
+      timestamp: new Date(),
+      event_data: {
+        reason: reason,
+        browser: req.headers['user-agent'] || 'unknown'
+      }
+    };
+
+    await metrics.insert(metricData);
+  } catch (_) { }
   res.status(204).end();
 });
 
@@ -100,37 +122,37 @@ router.get('/analytics/overview', async (req, res) => {
 
     // Get subscriber count and growth
     const totalSubscribers = await subscriptions.count({ customer_id: customer_id });
-    const newSubscribers7d = await subscriptions.count({ 
-      customer_id: customer_id, 
+    const newSubscribers7d = await subscriptions.count({
+      customer_id: customer_id,
       created_at: { $gte: sevenDaysAgo }
     });
-    const newSubscribers30d = await subscriptions.count({ 
-      customer_id: customer_id, 
+    const newSubscribers30d = await subscriptions.count({
+      customer_id: customer_id,
       created_at: { $gte: thirtyDaysAgo }
     });
 
     // Get notification stats
     const totalNotifications = await notifications.count({ customer_id: customer_id });
-    const notifications7d = await notifications.count({ 
-      customer_id: customer_id, 
+    const notifications7d = await notifications.count({
+      customer_id: customer_id,
       created_at: { $gte: sevenDaysAgo }
     });
-    const notifications30d = await notifications.count({ 
-      customer_id: customer_id, 
+    const notifications30d = await notifications.count({
+      customer_id: customer_id,
       created_at: { $gte: thirtyDaysAgo }
     });
 
     // Get engagement metrics
     const totalOpens = await metrics.count({ customer_id: customer_id, event_type: 'opened' });
     const totalClicks = await metrics.count({ customer_id: customer_id, event_type: 'clicked' });
-    const opens7d = await metrics.count({ 
-      customer_id: customer_id, 
-      event_type: 'opened', 
+    const opens7d = await metrics.count({
+      customer_id: customer_id,
+      event_type: 'opened',
       timestamp: { $gte: sevenDaysAgo }
     });
-    const clicks7d = await metrics.count({ 
-      customer_id: customer_id, 
-      event_type: 'clicked', 
+    const clicks7d = await metrics.count({
+      customer_id: customer_id,
+      event_type: 'clicked',
       timestamp: { $gte: sevenDaysAgo }
     });
 
@@ -186,20 +208,20 @@ router.get('/analytics/timeseries', async (req, res) => {
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     // Get daily notification counts
-    const dailyNotifications = await notifications.find({ 
-      customer_id: customer_id, 
+    const dailyNotifications = await notifications.find({
+      customer_id: customer_id,
       created_at: { $gte: startDate }
     });
 
     // Get daily engagement metrics
-    const dailyMetrics = await metrics.find({ 
-      customer_id: customer_id, 
+    const dailyMetrics = await metrics.find({
+      customer_id: customer_id,
       timestamp: { $gte: startDate }
     });
 
     // Group by date
     const dateMap = new Map();
-    
+
     // Initialize all dates with zero values
     for (let i = 0; i < days; i++) {
       const date = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
@@ -260,20 +282,20 @@ router.get('/analytics/demographics', async (req, res) => {
     const deviceStats = {};
     const countryStats = {};
     const cityStats = {};
-    
+
     subs.forEach(sub => {
       // Browser stats (use stored data if available)
       const browser = sub.browser || (sub.userAgent ? detectBrowser(sub.userAgent) : 'Other');
       browserStats[browser] = (browserStats[browser] || 0) + 1;
-      
+
       // Platform/OS stats
       const platform = sub.os || (sub.userAgent ? detectPlatform(sub.userAgent) : 'Other');
       platformStats[platform] = (platformStats[platform] || 0) + 1;
-      
+
       // Device stats
       const device = sub.device || 'Unknown';
       deviceStats[device] = (deviceStats[device] || 0) + 1;
-      
+
       // Location stats
       if (sub.country) {
         countryStats[sub.country] = (countryStats[sub.country] || 0) + 1;
@@ -337,7 +359,7 @@ router.get('/', requireAuth, requireRole('customer'), async (req, res) => {
 
     const customer_id = customer.id;
     const range = req.query.range || '7d';
-    
+
     // Parse range to get date
     let startDate = new Date();
     if (range === '24h') {
@@ -349,7 +371,7 @@ router.get('/', requireAuth, requireRole('customer'), async (req, res) => {
     }
 
     // Get metrics for the period
-    const periodMetrics = await metrics.find({ 
+    const periodMetrics = await metrics.find({
       customer_id: customer_id,
       timestamp: { $gte: startDate }
     });
@@ -364,7 +386,7 @@ router.get('/', requireAuth, requireRole('customer'), async (req, res) => {
     const totalFailed = periodNotifications.reduce((sum, n) => sum + (n.failed || 0), 0);
     const totalOpens = periodMetrics.filter(m => m.event_type === 'opened').length;
     const totalClicks = periodMetrics.filter(m => m.event_type === 'clicked').length;
-    
+
     const deliveryRate = totalSent + totalFailed > 0 ? (totalSent / (totalSent + totalFailed)) * 100 : 0;
     const openRate = totalSent > 0 ? (totalOpens / totalSent) * 100 : 0;
     const clickRate = totalOpens > 0 ? (totalClicks / totalOpens) * 100 : 0;
